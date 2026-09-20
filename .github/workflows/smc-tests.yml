@@ -1,5 +1,9 @@
 name: SMC Regression Tests
 
+concurrency:
+  group: forex-bot-${{ github.workflow }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
