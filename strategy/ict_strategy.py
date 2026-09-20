@@ -1,169 +1,197 @@
-"""ICT 2022 Strategy: combines all ICT components for GBPUSD/EURUSD.
-No CRT/TBS mix. No crypto. Forex majors only per user spec."""
+"""Strict ICT 2022 Forex strategy.
 
-from . import market_structure, liquidity, ict_bias, displacement, fvg, order_blocks, sessions, risk
+Decision tree:
+4H bias -> DOL -> 1H liquidity sweep -> MSS -> displacement/FVG
+-> premium/discount -> session -> retest -> structural stop -> R:R.
+
+All decisions use closed candles supplied by the caller. No broker/execution logic
+belongs in this module.
+"""
+
+from . import market_structure, liquidity, ict_bias, displacement, fvg, sessions
 
 
-def evaluate_ict_2022(candles_1h, candles_4h, pair, session_context="london"):
-    """Run full ICT 2022 decision tree.
-    Requires confluence between: HTF bias + DOL + sweep + MSS + displacement + FVG + PD + session.
-    Returns dict with setup info or None if no valid setup."""
-    # 1. HTF Bias
-    bias = ict_bias.htf_bias_4h(candles_4h[-30:])  # last ~30 4H candles ~6 days
-    if not bias:
+def _atr(candles, period=14):
+    if len(candles) < 2:
+        return 0.0
+    start = max(1, len(candles) - period)
+    trs = []
+    for i in range(start, len(candles)):
+        h, l = candles[i]["high"], candles[i]["low"]
+        pc = candles[i - 1]["close"]
+        trs.append(max(h - l, abs(h - pc), abs(l - pc)))
+    return sum(trs) / len(trs) if trs else 0.0
+
+
+def _pip_size(pair):
+    # JPY-quoted FX pairs conventionally use 0.01; most others use 0.0001.
+    return 0.01 if "JPY" in pair.upper() else 0.0001
+
+
+def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6):
+    """Return the latest valid sweep, excluding the current confirmation candle."""
+    if len(candles) < reference_bars + 3:
+        return None
+    start = max(0, len(candles) - lookback - 1)
+    end = len(candles) - 1
+    for i in range(end - 1, start - 1, -1):
+        before = candles[max(0, i - reference_bars):i]
+        if not before:
+            continue
+        c = candles[i]
+        if bias == "LONG":
+            level = min(x["low"] for x in before)
+            if c["low"] < level and c["close"] > level:
+                return {"time": c["time"], "level": level, "extreme": c["low"]}
+        else:
+            level = max(x["high"] for x in before)
+            if c["high"] > level and c["close"] < level:
+                return {"time": c["time"], "level": level, "extreme": c["high"]}
+    return None
+
+
+def evaluate_ict_2022(
+    candles_1h,
+    candles_4h,
+    pair,
+    session_context="london",
+    min_displacement_atr=1.25,
+    min_fvg_atr=0.10,
+    stop_atr_buffer=0.10,
+    min_rr=2.0,
+):
+    """Return a setup dict only when every strict condition is satisfied.
+
+    The caller must provide closed 1H/4H candles. Entry is an FVG zone and
+    execution/retest handling is deliberately left to the backtest/execution
+    layer.
+    """
+    if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
 
-    # 2. Session filter (user requests valid London/NY timing)
-    current_session = session_context if session_context else sessions.current_session()
-    if current_session not in ("london", "new_york", "overlap"):
-        # Strict session filter: only trade during London or NY kill zones
-        # This avoids low-liquidity Asian hours where spreads widen and structure is noisy
+    bias = ict_bias.htf_bias_4h(candles_4h)
+    if bias not in ("LONG", "SHORT"):
         return None
 
-    # 3. Liquidity target (DOL)
+    sess = session_context or sessions.current_session()
+    if sess not in ("london", "new_york", "overlap"):
+        return None
+
     pools = liquidity.liquidity_pools(candles_4h[-30:])
     if not pools:
         return None
 
-    # Find nearest liquidity target in bias direction
-    target_pool = None
+    current = candles_1h[-1]["close"]
+    directional = [
+        p for p in pools
+        if (bias == "LONG" and p["type"] == "resistance" and p["price"] > current)
+        or (bias == "SHORT" and p["type"] == "support" and p["price"] < current)
+    ]
+    if not directional:
+        return None
+
+    # Draw on liquidity: nearest valid target in the trade direction.
+    target_pool = min(
+        directional,
+        key=lambda p: abs(p["price"] - current)
+    )
+
+    recent_1h = candles_1h[-48:]
+    sweep = _find_recent_sweep(recent_1h, bias)
+    if not sweep:
+        return None
+
+    # MSS must occur after the sweep, not before it.
+    sweep_idx = next(
+        (i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]),
+        None,
+    )
+    if sweep_idx is None or sweep_idx < 6 or sweep_idx >= len(recent_1h) - 1:
+        return None
+
+    pre = recent_1h[:sweep_idx + 1]
+    post = recent_1h[sweep_idx + 1:]
     if bias == "LONG":
-        # For LONG bias: look for resistance pools above current price (DOL = prior high/resistance)
-        for p in pools:
-            if p["type"] == "resistance" and p["price"] > candles_4h[-1]["high"]:
-                target_pool = p
-                break
-    else:  # SHORT
-        for p in pools:
-            if p["type"] == "support" and p["price"] < candles_4h[-1]["low"]:
-                target_pool = p
-                break
-    if not target_pool:
-        return None
-
-    # 4. Liquidity sweep + MSS (lookback 48 1H candles ~ 2 days)
-    recent_1h = candles_1h[-48:]  # ~2 trading days of 1H data
-    if len(recent_1h) < 12:
-        return None
-
-    # Check sweep: price swept a recent liquidity pool (PDH/PDL/EQL) then reversed
-    # We approximate: recent candle shows wick through a significant level then close back
-    # For simplicity: check if the most recent 1H candle shows a sweep pattern
-    latest = recent_1h[-1]
-    prev = recent_1h[-2] if len(recent_1h) > 1 else None
-    if not prev:
-        return None
-
-    sweep_detected = False
-    sweep_level = None
-    sweep_dir = None
-    # Bullish sweep: price went below previous low (SSL sweep) and closed back above
-    if bias == "LONG":
-        recent_lows = [c["low"] for c in recent_1h[-6:]]  # last 6 hours
-        recent_low = min(recent_lows)
-        # Check if a recent candle (within last 12) swept below recent low and recovered
-        for c in recent_1h[-12:-1]:
-            if c["low"] < recent_low and c["close"] > recent_low:
-                sweep_detected = True
-                sweep_level = recent_low
-                sweep_dir = "LONG"
-                break
+        swings = market_structure.find_swing_highs(pre)
+        if not swings or not any(c["close"] > swings[-1]["high"] for c in post):
+            return None
     else:
-        recent_highs = [c["high"] for c in recent_1h[-6:]]
-        recent_high = max(recent_highs)
-        for c in recent_1h[-12:-1]:
-            if c["high"] > recent_high and c["close"] < recent_high:
-                sweep_detected = True
-                sweep_level = recent_high
-                sweep_dir = "SHORT"
-                break
+        swings = market_structure.find_swing_lows(pre)
+        if not swings or not any(c["close"] < swings[-1]["low"] for c in post):
+            return None
 
-    if not sweep_detected or sweep_dir != bias:
-        return None
-
-    # 5. MSS confirmation (Market Structure Shift / Change of Character)
-    # Check that price structure has shifted: close breaks opposing swing
-    mss_ok, struct_ref = market_structure.mss_confirmed(recent_1h, bias, candles_1h[-12]["time"] if len(candles_1h) > 12 else recent_1h[0]["time"])
-    if not mss_ok:
-        return None
-
-    # 6. Displacement check
-    # Find the FVG first, then check if the creator candle was a displacement
-    fvg_result = fvg.find_fvg(recent_1h)
+    fvg_result = fvg.find_fvg(
+        recent_1h,
+        min_gap_atr=min_fvg_atr,
+        required_side=bias,
+        displacement_min_atr=min_displacement_atr,
+    )
     if not fvg_result:
         return None
 
-    # Check displacement on the FVG creator candle (only historical data before it)
-    fvg_idx = fvg_result.get("creator_idx", 0)
-    # Make sure we don't use future data: check displacement using data before/at creator
-    # In our 1H window, the creator is within the window; displacement check uses previous 14 candles
-    if not displacement.is_displaced(recent_1h[:fvg_idx + 1], fvg_idx):
-        # If strong displacement not confirmed, reject setup
-        # Note: user requested strict confluence — weak displacement = no trade
+    # Do not accept an FVG that was formed before the sweep/MSS sequence.
+    if fvg_result["creator_idx"] <= sweep_idx:
         return None
 
-    # 7. Premium / Discount check (dealing range = previous 6 candles ~ half session)
-    # The user's spec explicitly requires PD filter
-    # For simplicity: check price is in discount zone for LONGs, premium for sells
-    # Using the 4h dealing range
-    if len(candles_4h) >= 6:
-        dealing_low = min(c["low"] for c in candles_4h[-6:])
-        dealing_high = max(c["high"] for c in candles_4h[-6:])
-        dealing_range = dealing_high - dealing_low
-        current_price = candles_1h[-1]["close"] if candles_1h else candles_4h[-1]["close"]
-        if dealing_range > 0:
-            position = (current_price - dealing_low) / dealing_range
-            # Premium zone: above 70th percentile; Discount: below 30th
-            if bias == "LONG" and position >= 0.3:  # Not in discount
-                return None
-            if bias == "SHORT" and position <= 0.7:  # Not in premium
-                return None
-
-    # 8. FVG / PD Array confirmation
-    # FVG already found; verify it's within the dealing range zone correctly
-    fvg_side = fvg_result["side"]
-    if fvg_side != bias:
-        return None  # FVG direction must match HTF bias
-
-    # 9. Kill Zone timing (user requires valid London or NY timing)
-    # This is handled by session filter at top, but double-check here
-    sess = session_context if session_context else sessions.current_session()
-    if sess == "other":
-        # Outside kill zones: reject (user spec requires kill zone confluence)
+    creator_idx = fvg_result["creator_idx"]
+    if not displacement.is_displaced(
+        recent_1h[:creator_idx + 1],
+        creator_idx,
+        min_body_atr_ratio=min_displacement_atr,
+    ):
         return None
 
-    # 10. Stop and TP calculation
-    # Stop: beyond the invalidation/swept extreme
-    # TP: toward next liquidity target
-    entry_ref = (fvg_result["bottom"] + fvg_result["top"]) / 2 if bias == "LONG" else (fvg_result["top"] + fvg_result["bottom"]) / 2
-    # Simplify: use current close as reference; stop beyond sweep extreme
-    # TP: target liquidity pool price (next resistance for LONGs, next support for sells)
-    stop_price = sweep_level + 0.05 if bias == "LONG" else sweep_level - 0.05  # approximate for Forex pips; should use actual pip values
-    # Note: Forex pairs need pip-based stops; this is approximate
-    # For a production bot, stop should be calculated from the swept extreme + buffer
-    # TP = target_pool price
-    tp_target = target_pool["price"] if target_pool else entry_ref * 1.01
+    # 4H premium/discount. LONG must be discount; SHORT must be premium.
+    dealing = candles_4h[-6:]
+    dealing_low = min(c["low"] for c in dealing)
+    dealing_high = max(c["high"] for c in dealing)
+    dr = dealing_high - dealing_low
+    if dr <= 0:
+        return None
+    position = (current - dealing_low) / dr
+    if bias == "LONG" and position >= 0.50:
+        return None
+    if bias == "SHORT" and position <= 0.50:
+        return None
 
-    # Basic risk/reward check: TP must provide at least 2:1 (user spec: acceptable R)
-    # Actually user says: minimum R should be acceptable — we'll use 2.0
-    # For simplicity with Forex prices (~1.0-2.0 range): TP distance / stop distance >= 2.0
-    stop_dist = abs(stop_price - entry_ref) / entry_ref  # relative
-    tp_dist = abs(tp_target - entry_ref) / entry_ref if tp_target else 0
-    if tp_target == 0 or tp_dist / stop_dist < 2.0:
+    # Structural stop: beyond the actual sweep extreme plus a small ATR buffer.
+    atr = _atr(recent_1h, 14)
+    if atr <= 0:
+        return None
+    buffer = max(atr * stop_atr_buffer, _pip_size(pair) * 1.0)
+    entry_mid = (fvg_result["bottom"] + fvg_result["top"]) / 2.0
+    if bias == "LONG":
+        stop_price = sweep["extreme"] - buffer
+        risk_distance = entry_mid - stop_price
+        reward_distance = target_pool["price"] - entry_mid
+    else:
+        stop_price = sweep["extreme"] + buffer
+        risk_distance = stop_price - entry_mid
+        reward_distance = entry_mid - target_pool["price"]
+
+    if risk_distance <= 0 or reward_distance <= 0:
+        return None
+    rr = reward_distance / risk_distance
+    if rr < min_rr:
         return None
 
     return {
         "pair": pair,
         "side": bias,
         "entry_zone": (fvg_result["bottom"], fvg_result["top"]),
-        "stop_ref": sweep_level,
-        "tp_target": tp_target,
+        "entry_mid": entry_mid,
+        "stop_price": stop_price,
+        "stop_ref": sweep["extreme"],
+        "tp_target": target_pool["price"],
+        "target_source": target_pool["source"],
+        "rr": rr,
         "bias": bias,
         "session": sess,
         "fvg": fvg_result,
-        "mss_confirmed": mss_ok,
+        "mss_confirmed": True,
         "displacement_confirmed": True,
-        "premium_discount_zone": "discount" if bias == "LONG" else "premium" if bias == "SHORT" else "neutral",
-        "quality_score": 0.85,  # High when all confluence present
-        "timestamp": candles_1h[-1]["time"]
+        "displacement_atr": min_displacement_atr,
+        "fvg_min_atr": min_fvg_atr,
+        "premium_discount_zone": "discount" if bias == "LONG" else "premium",
+        "timestamp": candles_1h[-1]["time"],
     }
