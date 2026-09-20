@@ -1,11 +1,9 @@
 name: Alternative Forex Backtests
 
 concurrency:
-  group: forex-bot-${{ github.workflow }}
+  group: forex-bot-alternative
   cancel-in-progress: true
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       start:
@@ -22,6 +20,7 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         symbol: [EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD]
         strategy: [3DUCKS,BREAK_RETEST,SWEEP_CHOCH]

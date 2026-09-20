@@ -1,7 +1,7 @@
 name: ICT Hybrid Forex Backtest
 
 concurrency:
-  group: forex-bot-${{ github.workflow }}
+  group: forex-bot-ict
   cancel-in-progress: true
 on:
   push:
@@ -13,6 +13,7 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         symbol: [EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD]
         mode: [strict,hybrid]
