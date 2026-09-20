@@ -29,14 +29,23 @@ class ExnessTickData:
             names=[n for n in z.namelist() if n.lower().endswith(".csv")]
             if not names: raise RuntimeError(f"No CSV in {path}")
             with z.open(names[0]) as raw:
-                for row in csv.reader(io.TextIOWrapper(raw,encoding="utf-8-sig",errors="replace")):
-                    if len(row) < 5 or row[0].strip().lower() == "exness":
-                        continue
+                reader=csv.reader(io.TextIOWrapper(raw,encoding="utf-8-sig",errors="replace"))
+                header=None
+                for row in reader:
+                    if header is None:
+                        normalized=[x.strip().strip('"').lower() for x in row]
+                        if "timestamp" in normalized and "bid" in normalized and "ask" in normalized:
+                            header={name:i for i,name in enumerate(normalized)}
+                            continue
+                        # Some Exness exports omit the provider column.
+                        header={"timestamp":2 if len(row)>=5 else 1,
+                                "bid":3 if len(row)>=5 else 2,
+                                "ask":4 if len(row)>=5 else 3}
                     try:
-                        ts=row[2].strip().replace('"',"")
+                        ts=row[header["timestamp"]].strip().replace('"',"")
                         dt=datetime.fromisoformat(ts.replace("Z","+00:00")).astimezone(timezone.utc)
-                        yield dt,float(row[3]),float(row[4])
-                    except (ValueError,TypeError,IndexError):
+                        yield dt,float(row[header["bid"]]),float(row[header["ask"]])
+                    except (ValueError,TypeError,IndexError,KeyError):
                         continue
 
     def ticks(self,symbol,start_year,start_month,end_year,end_month):
