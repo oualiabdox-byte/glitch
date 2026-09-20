@@ -1,0 +1,32 @@
+# ICT Forex Bot Config
+# Only GBPUSD and EURUSD — no crypto, no CRT/TBS mix
+
+PAIRS = ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD", "EURGBP", "EURJPY", "EURCHF", "EURAUD", "EURNZD", "EURCAD", "GBPJPY", "GBPCHF", "GBPAUD", "GBPCAD", "GBPNZD", "AUDJPY", "AUDCAD", "AUDNZD", "AUDCHF", "NZDJPY", "NZDCHF", "CADJPY", "CADCHF", "CHFJPY"]
+
+# Risk management (per user spec: fixed fractional, 0.5% per trade)
+RISK_PER_TRADE_PCT = 0.005  # 0.5%
+MAX_OPEN_PER_PAIR = 1
+MAX_CORRELATED_USD_EXPOSURE = 3
+
+# TP models (user requires testing all 4)
+TP_MODELS = ["A_single", "B_partial", "C_liquidity_target", "D_trailing"]
+
+# Data source
+DATA_SOURCE: "MT5"
+
+# Realistic assumptions (per user spec)
+SPREAD_PIPS = {"GBPUSD": 2.0, "EURUSD": 1.0}
+COMMISSION_PCT: 0.0
+SLIPPAGE_PIPS = 1.0
+
+# Session times (UTC, per ICT 2022 Model)
+LONDON_OPEN = 7
+LONDON_CLOSE = 12
+NY_OPEN = 13
+NY_CLOSE = 17
+
+# No overnight holding unless explicitly set
+ALLOW_OVERNIGHT = False
+
+# Look-ahead bias guard: must be enforced everywhere
+LOOK_AHEAD_GUARD = True

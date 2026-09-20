@@ -1,0 +1,45 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*secret*
+*credential*
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+env/
+
+# Local databases / runtime state
+*.sqlite
+*.sqlite3
+*.db
+*.log
+logs/
+
+# Backups
+backups/
+backup/
+*_backup_*/
+
+# ML/model files
+*.gguf
+models/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Local caches
+.cache/
+.pytest_cache/
+
+# Trading runtime artifacts
+*.pid
+*.tmp
