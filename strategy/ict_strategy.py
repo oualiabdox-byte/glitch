@@ -141,6 +141,18 @@ def evaluate_ict_2022(
     ):
         return None
 
+    # Entry must be an actual FVG retest on the current closed 1H candle.
+    # Merely detecting an old FVG is not an entry signal.
+    current_bar = recent_1h[-1]
+    if fvg_result["creator_idx"] >= len(recent_1h) - 2:
+        return None
+    if bias == "LONG":
+        if current_bar["low"] > fvg_result["top"] or current_bar["close"] < fvg_result["bottom"]:
+            return None
+    else:
+        if current_bar["high"] < fvg_result["bottom"] or current_bar["close"] > fvg_result["top"]:
+            return None
+
     # 4H premium/discount. LONG must be discount; SHORT must be premium.
     dealing = candles_4h[-6:]
     dealing_low = min(c["low"] for c in dealing)
