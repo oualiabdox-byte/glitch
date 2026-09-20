@@ -1,8 +1,6 @@
 name: ICT Hybrid Forex Backtest
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +9,7 @@ concurrency:
 
 jobs:
   backtest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 360
     strategy:
       fail-fast: false
