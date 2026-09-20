@@ -1,0 +1,21 @@
+name: GitHub Runner Test
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: forex-bot-runner-test
+  cancel-in-progress: true
+
+jobs:
+  runner-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Runner check
+        run: |
+          echo "runner-ok"
+          uname -a
+          python3 --version
