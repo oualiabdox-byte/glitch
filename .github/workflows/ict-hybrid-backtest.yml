@@ -1,6 +1,8 @@
 name: ICT Hybrid Forex Backtest
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
