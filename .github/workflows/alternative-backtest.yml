@@ -1,0 +1,40 @@
+name: Alternative Forex Backtests
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: UTC start
+        required: true
+        default: "2025-01-01T00:00:00Z"
+      end:
+        description: UTC end
+        required: true
+        default: "2026-01-01T00:00:00Z"
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [EURUSD,GBPUSD,USDJPY,USDCHF,AUDUSD,USDCAD,NZDUSD]
+        strategy: [3DUCKS,BREAK_RETEST,SWEEP_CHOCH]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run
+        env:
+          START: ${{ github.event.inputs.start || '2025-01-01T00:00:00Z' }}
+          END: ${{ github.event.inputs.end || '2026-01-01T00:00:00Z' }}
+        run: |
+          mkdir -p results
+          python -m backtest.alternative_runner --symbol "${{ matrix.symbol }}" --strategy "${{ matrix.strategy }}" --start "$START" --end "$END" --csv "results/${{ matrix.strategy }}_${{ matrix.symbol }}.csv" --json "results/${{ matrix.strategy }}_${{ matrix.symbol }}.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alt-${{ matrix.strategy }}-${{ matrix.symbol }}
+          path: results/
+          if-no-files-found: warn
+          retention-days: 30
