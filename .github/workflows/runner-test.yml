@@ -1,8 +1,6 @@
 name: GitHub Runner Test
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -11,7 +9,7 @@ concurrency:
 
 jobs:
   runner-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 10
     steps:
       - name: Runner check
