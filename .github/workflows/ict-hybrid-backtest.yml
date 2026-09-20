@@ -1,4 +1,8 @@
 name: ICT Hybrid Forex Backtest
+
+concurrency:
+  group: forex-bot-${{ github.workflow }}
+  cancel-in-progress: true
 on:
   push:
     branches: [main]
