@@ -46,20 +46,38 @@ def _post_event_structure(recent, event_idx, side, swing_length=3):
 
 
 def _fvg_retested(recent, zone, side):
+    """Require the current candle to be the first post-creation mitigation."""
     if not zone or zone["creator_idx"] >= len(recent) - 1:
         return False
+
+    prior = recent[zone["creator_idx"] + 2:-1]
     cur = recent[-1]
+
     if side == "LONG":
+        if any(c["low"] <= zone["top"] for c in prior):
+            return False
         return cur["low"] <= zone["top"] and cur["close"] >= zone["bottom"]
+
+    if any(c["high"] >= zone["bottom"] for c in prior):
+        return False
     return cur["high"] >= zone["bottom"] and cur["close"] <= zone["top"]
 
 
 def _ob_retested(recent, ob, side):
+    """Require a fresh OB reaction and reject a previously broken zone."""
     if not ob:
         return False
+
+    prior = recent[ob["idx"] + 1:-1]
     cur = recent[-1]
+
     if side == "LONG":
+        if any(c["close"] < ob["bottom"] for c in prior):
+            return False
         return cur["low"] <= ob["top"] and cur["close"] >= ob["bottom"]
+
+    if any(c["close"] > ob["top"] for c in prior):
+        return False
     return cur["high"] >= ob["bottom"] and cur["close"] <= ob["top"]
 
 
