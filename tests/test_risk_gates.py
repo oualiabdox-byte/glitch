@@ -17,3 +17,11 @@ def test_cooldown_blocks_recent_trade():
 def test_drawdown_guard_stops_after_threshold():
     assert risk.drawdown_guard(3.0, 8.0, 5.0) is False
     assert risk.drawdown_guard(3.1, 8.0, 5.0) is True
+
+
+def test_daily_loss_guard_blocks_at_limit():
+    trades = [
+        {"entry_time_utc": "2026-01-01T10:00:00Z", "pnl_r": -1.5},
+        {"entry_time_utc": "2026-01-01T11:00:00Z", "pnl_r": -1.5},
+    ]
+    assert risk.daily_loss_guard(trades, "2026-01-01T12:00:00Z", 3.0) is False
