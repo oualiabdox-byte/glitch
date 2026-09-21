@@ -179,9 +179,9 @@ def evaluate_ict_2022(
     sweep = _find_recent_sweep(
         recent_1h,
         bias,
-        mode="legacy",
-        tolerance_atr=0.0,
-        valid_window_bars=len(recent_1h),
+        mode="structure",
+        tolerance_atr=0.10,
+        valid_window_bars=6,
     )
     if not sweep:
         return None
@@ -238,20 +238,7 @@ def evaluate_ict_2022(
         if current_bar["high"] < fvg_result["bottom"] or current_bar["close"] > fvg_result["top"]:
             return None
 
-    # 4H premium/discount. LONG must be discount; SHORT must be premium.
-    dealing = candles_4h[-6:]
-    dealing_low = min(c["low"] for c in dealing)
-    dealing_high = max(c["high"] for c in dealing)
-    dr = dealing_high - dealing_low
-    if dr <= 0:
-        return None
-    position = (current - dealing_low) / dr
-    if bias == "LONG" and position >= 0.50:
-        return None
-    if bias == "SHORT" and position <= 0.50:
-        return None
-
-    # Structural stop: beyond the actual sweep extreme plus a small ATR buffer.
+    # 4H premium/discount comes from confirmed structural external anchors.\n    htf = ict_bias.htf_context_4h(candles_4h, swing_length=3)\n    if htf["equilibrium"] is None:\n        return None\n    if bias == "LONG" and htf["premium_discount"] != "DISCOUNT":\n        return None\n    if bias == "SHORT" and htf["premium_discount"] != "PREMIUM":\n        return None\n\n    # Structural stop: beyond the actual sweep extreme plus a small ATR buffer.
     atr = _atr(recent_1h, 14)
     if atr <= 0:
         return None
