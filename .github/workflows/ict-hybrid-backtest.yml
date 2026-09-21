@@ -24,10 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Run Exness backtest
+      - name: Run B2TRADER backtest
         run: |
           mkdir -p results
-          python -m backtest.exness_runner --symbol "${{ matrix.symbol }}" --mode "${{ matrix.mode }}" --start "2025-01-01T00:00:00Z" --end "2026-01-01T00:00:00Z" --csv "results/${{ matrix.mode }}_${{ matrix.symbol }}.csv" --json "results/${{ matrix.mode }}_${{ matrix.symbol }}.json"
+          python -m backtest.b2trader_runner --symbol "${{ matrix.symbol }}" --market-symbol "cfd.${{ matrix.symbol }}" --mode "${{ matrix.mode }}" --start "2025-01-01T00:00:00Z" --end "2026-01-01T00:00:00Z" --base-url "$B2TRADER_BASE_URL" --json "results/${{ matrix.mode }}_${{ matrix.symbol }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
