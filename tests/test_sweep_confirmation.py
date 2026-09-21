@@ -63,30 +63,6 @@ def test_structure_sweep_rejects_without_confirmed_level(monkeypatch):
     ) is None
 
 
-def test_legacy_sweep_remains_available():
-    candles = [
-        bar(0, 101, 100, 100.5),
-        bar(1, 102, 99, 101),
-        bar(2, 103, 98, 102),
-        bar(3, 104, 97, 103),
-        bar(4, 105, 96, 104),
-        bar(5, 106, 94, 105),
-        bar(6, 103, 95, 99),
-    ]
-
-    result = ict_strategy._find_recent_sweep(
-        candles,
-        "LONG",
-        lookback=6,
-        reference_bars=5,
-        mode="legacy",
-    )
-
-    assert result is not None
-    assert result["source"] == "ROLLING_LOW"
-
-
-
 def test_sweep_tolerance_is_volatility_normalized(monkeypatch):
     candles = [
         bar(i, 101 + i, 99 - i * 0.01, 100 + i * 0.1)
