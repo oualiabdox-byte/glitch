@@ -131,14 +131,8 @@ class CTraderData(CTraderAdapter):
             if len(result) == len(requested) and reactor.running:
                 reactor.callLater(0, reactor.stop)
 
-        def on_connected(_client):
-            # App/account auth is performed by the base adapter. Symbols are
-            # requested after account auth, not before it.
-            pass
-
         self._symbol_waiters.append({"callback": after_symbols})
         self.connect()
-        self._on_connected = super()._on_connected
         # Account-auth callback in the base adapter calls request_account_state,
         # which includes ProtoOASymbolsListReq. Our symbols handler receives it.
         reactor.run()
