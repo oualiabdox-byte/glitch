@@ -14,7 +14,7 @@ frequency and reduces parameter overfitting. All calculations are causal.
 """
 
 from .ict_strategy import _atr, _pip_size, _find_recent_sweep
-from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks
+from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks, dominating_candle
 
 
 def _post_event_structure(recent, event_idx, side, swing_length=3):
@@ -145,6 +145,9 @@ def evaluate_ict_hybrid(
     stop_atr_buffer=0.10,
     require_session=False,
     session_context=None,
+    dc_timeframe="1h",
+    dc_min_contained=3,
+    dc_lookback=8,
 ):
     """Calibrated SMC entry model.
 
@@ -254,6 +257,31 @@ def evaluate_ict_hybrid(
     context = _confluence_context(
         candles_1h, candles_4h, bias, recent[-1]["close"], session_context
     )
+
+    # Dominating Candle is a non-blocking structural confluence. The source
+    # logic is range-containment, not a classic two-candle engulfing pattern.
+    dc_context = dominating_candle.dc_context(
+        recent, min_contained=dc_min_contained, lookback=dc_lookback
+    )
+    dc = dc_context["dc"]
+    dc_break = dc_context["dc_breakout"]
+    dc_aligned = bool(dc_break and dc_break == bias)
+
+    # Add DC to the descriptive confluence score only. It is deliberately
+    # NOT a mandatory gate, preventing the SMC stack from collapsing to zero
+    # trades on sparse historical samples.
+    if dc_aligned:
+        context["confluence_score"] += 1
+    context["confluence_max"] = 4
+    context.update({
+        "dc_valid": bool(dc),
+        "dc_breakout": dc_break,
+        "dc_aligned": dc_aligned,
+        "dc_low": dc["low"] if dc else None,
+        "dc_high": dc["high"] if dc else None,
+        "dc_time": dc["time"] if dc else None,
+        "dc_contained_bars": dc["contained_bars"] if dc else 0,
+    })
 
     pools = liquidity.liquidity_pools(candles_4h[-30:])
     current = recent[-1]["close"]
