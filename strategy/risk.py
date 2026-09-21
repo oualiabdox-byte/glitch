@@ -27,6 +27,23 @@ def _attr(spec, *names, default=None):
     return default
 
 
+def tick_value_per_lot_in_account(
+    *,
+    tick_size: float,
+    lot_size: float,
+    quote_to_account_rate: float,
+) -> float:
+    """Convert one price tick for one standard lot into account currency.
+
+    For USD-quoted pairs in a USD account, quote_to_account_rate is 1.
+    For USDJPY in a USD account it is approximately 1 / USDJPY.
+    Crosses require the appropriate quote-currency/account-currency rate.
+    """
+    if tick_size <= 0 or lot_size <= 0 or quote_to_account_rate <= 0:
+        raise ValueError("tick size, lot size and conversion rate must be positive")
+    return tick_size * lot_size * quote_to_account_rate
+
+
 def position_size_from_symbol(
     *,
     risk_amount: float,
@@ -48,12 +65,20 @@ def position_size_from_symbol(
         raise ValueError("entry_price and stop_price must differ")
 
     tick_size = float(_attr(symbol_spec, "tickSize", "tick_size", default=0.0))
-    tick_value = float(
-        tick_value_per_lot
-        if tick_value_per_lot is not None
-        else _attr(symbol_spec, "tickValue", "tick_value", default=0.0)
-    )
     lot_size = float(_attr(symbol_spec, "lotSize", "lot_size", default=100000.0))
+    conversion = float(
+        _attr(symbol_spec, "quoteToAccountRate", "quote_to_account_rate", default=0.0)
+    )
+    if tick_value_per_lot is not None:
+        tick_value = float(tick_value_per_lot)
+    else:
+        tick_value = float(_attr(symbol_spec, "tickValue", "tick_value", default=0.0))
+        if tick_value <= 0 and conversion > 0:
+            tick_value = tick_value_per_lot_in_account(
+                tick_size=tick_size,
+                lot_size=lot_size,
+                quote_to_account_rate=conversion,
+            )
     min_volume = float(_attr(symbol_spec, "minVolume", "min_volume", default=0.0))
     max_volume = float(_attr(symbol_spec, "maxVolume", "max_volume", default=float("inf")))
     step_volume = float(_attr(symbol_spec, "stepVolume", "step_volume", default=0.0))
