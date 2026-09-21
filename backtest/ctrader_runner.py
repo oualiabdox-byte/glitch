@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing as mp
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -164,6 +166,12 @@ def metrics(trades):
     }
 
 
+def _run_worker(payload):
+    """Run one symbol in a child process so each worker owns one Twisted reactor."""
+    symbol, kwargs = payload
+    return symbol, run(symbol, **kwargs)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbol")
@@ -186,11 +194,6 @@ def main():
     pairs = [args.symbol] if args.symbol else [
         p.strip().upper() for p in args.pairs.split(",") if p.strip()
     ]
-    # The cTrader Python SDK is Twisted-based. A stopped Twisted reactor cannot
-    # be restarted in the same process, so multi-pair backtests must isolate
-    # each live-data connection in its own child process. This keeps --symbol
-    # reusable while making --all-pairs reliable.
-    import multiprocessing as mp
 
     run_args = {
         "start": dt(args.start),
@@ -203,16 +206,17 @@ def main():
         "min_confluence": args.min_confluence,
     }
 
-    def _worker(symbol):
-        return symbol, run(symbol, **run_args)
-
     if len(pairs) > 1:
-        workers = max(1, min(len(pairs), int(__import__("os").getenv("CTRADER_BACKTEST_WORKERS", "2"))))
+        workers = max(1, min(
+            len(pairs),
+            int(os.getenv("CTRADER_BACKTEST_WORKERS", "2")),
+        ))
         ctx = mp.get_context("spawn")
+        payloads = [(symbol, run_args) for symbol in pairs]
         with ctx.Pool(processes=workers) as pool:
-            results = pool.map(_worker, pairs)
+            results = pool.map(_run_worker, payloads)
     else:
-        results = [_worker(pairs[0])]
+        results = [_run_worker((pairs[0], run_args))]
 
     reports = {}
     all_trades = []
