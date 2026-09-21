@@ -1,32 +1,32 @@
-"""Session detection: London / NY / overlap timing (UTC-based)."""
-import datetime
+"""Session compatibility helpers backed by the causal timing engine."""
+from .timing import (
+    after_session_open,
+    current_context,
+    in_trade_session,
+    phase_at,
+    session_at,
+)
 
 
 def current_session():
-    """Determine which ICT session is currently active based on UTC time."""
-    now = datetime.datetime.utcnow()
-    hour = now.hour
-    # London session: 07:00 - 12:00 UTC
-    # NY session: 13:00 - 17:00 UTC (13:30 NY open, but using 13 for simplicity)
-    # Overlap: 12:00 - 13:00 UTC (London close / NY open)
-    if 7 <= hour < 12:
-        return "london"
-    if 13 <= hour < 17:
-        return "new_york"
-    if 12 <= hour < 13:
-        return "overlap"
-    # Asian session (before London open)
-    if 0 <= hour < 7:
-        return "asian"
-    # After NY close
-    return "other"
+    return current_context().session
 
 
-def is_london_kill_zone():
-    s = current_session()
-    return s in ("london", "overlap")
+def session_phase(value):
+    return phase_at(value)
 
 
-def is_ny_kill_zone():
-    s = current_session()
-    return s in ("new_york",)
+def is_london_kill_zone(value=None):
+    return session_at(value or current_context().timestamp_utc) in {"london", "overlap"}
+
+
+def is_ny_kill_zone(value=None):
+    return session_at(value or current_context().timestamp_utc) in {"new_york", "overlap"}
+
+
+def is_trade_session(value=None):
+    return in_trade_session(value or current_context().timestamp_utc)
+
+
+def session_open_delay_clear(value, delay_minutes=0):
+    return after_session_open(value, delay_minutes)
