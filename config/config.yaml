@@ -28,6 +28,7 @@ execution:
   allow_overnight: false
   live_trading: false
   max_spread_pips: 3.0
+  spread_pips: 1.5
   commission_per_lot_round_turn: 0.0
   slippage_pips: 0.0
 
