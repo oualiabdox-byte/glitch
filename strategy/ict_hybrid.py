@@ -275,7 +275,7 @@ def evaluate_ict_hybrid(
     else:
         entry_mid = recent[-1]["close"]
         entry_zone = (entry_mid, entry_mid)
-        trigger = "CHOCH_RECLAIM"
+        trigger = "EVENT_CONFIRMATION"
 
     atr = _atr(recent, 14)
     if atr <= 0:
