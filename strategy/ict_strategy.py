@@ -203,20 +203,7 @@ def evaluate_ict_2022(
     if not displacement_ok:
         return None
 
-    current_bar = recent_1h[-1]
-    if creator_idx >= len(recent_1h) - 2:
-        return None
-    if bias == "LONG":
-        retest_ok = (
-            current_bar["low"] <= fvg_result["top"]
-            and current_bar["close"] >= fvg_result["bottom"]
-        )
-    else:
-        retest_ok = (
-            current_bar["high"] >= fvg_result["bottom"]
-            and current_bar["close"] <= fvg_result["top"]
-        )
-    if not retest_ok:
+    if not fvg.is_fresh_retest(recent_1h, fvg_result):
         return None
 
     if bias == "LONG" and htf.get("premium_discount") != "DISCOUNT":
