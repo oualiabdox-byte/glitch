@@ -1,14 +1,25 @@
-"""Strict ICT 2022 Forex strategy.
+"""Strict, broker-agnostic ICT/SMC setup engine.
 
 Decision tree:
-4H bias -> DOL -> 1H liquidity sweep -> MSS -> displacement/FVG
--> premium/discount -> session -> retest -> structural stop -> R:R.
+4H structure -> DOL -> 1H liquidity sweep -> post-sweep MSS ->
+displacement -> FVG -> reaction/retest -> 4H dealing range ->
+premium/discount -> session -> structural stop -> R:R.
 
-All decisions use closed candles supplied by the caller. No broker/execution logic
-belongs in this module.
+No arbitrary confidence score is used. The result contains auditable
+evidence and hard-gate diagnostics.
 """
 
-from . import market_structure, liquidity, ict_bias, displacement, fvg, sessions
+from . import (
+    market_structure,
+    liquidity,
+    ict_bias,
+    displacement,
+    fvg,
+    order_blocks,
+    sessions,
+    fib_cluster,
+    setup_analysis,
+)
 
 
 def _atr(candles, period=14):
@@ -24,27 +35,12 @@ def _atr(candles, period=14):
 
 
 def _pip_size(pair):
-    # JPY-quoted FX pairs conventionally use 0.01; most others use 0.0001.
     return 0.01 if "JPY" in pair.upper() else 0.0001
 
 
-def _find_recent_sweep(
-    candles,
-    bias,
-    lookback=12,
-    reference_bars=6,
-    mode="structure",
-    swing_length=3,
-    tolerance_atr=0.0,
-    valid_window_bars=6,
-):
-    """Return the latest recent liquidity sweep before the current candle.
-
-    A sweep is valid only on closed candles before the decision candle.
-    structure mode uses confirmed swing liquidity; legacy mode keeps the
-    rolling-window control. tolerance_atr is a minimum penetration into the
-    level, and valid_window_bars prevents stale sweeps from remaining active.
-    """
+def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6,
+                       mode="structure", swing_length=3,
+                       tolerance_atr=0.10, valid_window_bars=6):
     if len(candles) < reference_bars + 3:
         return None
     if mode not in ("structure", "legacy"):
@@ -61,7 +57,6 @@ def _find_recent_sweep(
         age = end - i
         if age > valid_window_bars:
             continue
-
         c = candles[i]
         atr = _atr(candles[:i + 1], period=14)
 
@@ -75,9 +70,7 @@ def _find_recent_sweep(
                 penetration = level - c["low"]
                 if penetration >= atr * tolerance_atr and c["low"] < level and c["close"] > level:
                     return {
-                        "time": c["time"],
-                        "level": level,
-                        "extreme": c["low"],
+                        "time": c["time"], "level": level, "extreme": c["low"],
                         "source": "SWING_LOW",
                         "penetration_atr": penetration / atr if atr > 0 else 0.0,
                         "age_bars": age,
@@ -90,9 +83,7 @@ def _find_recent_sweep(
                 penetration = c["high"] - level
                 if penetration >= atr * tolerance_atr and c["high"] > level and c["close"] < level:
                     return {
-                        "time": c["time"],
-                        "level": level,
-                        "extreme": c["high"],
+                        "time": c["time"], "level": level, "extreme": c["high"],
                         "source": "SWING_HIGH",
                         "penetration_atr": penetration / atr if atr > 0 else 0.0,
                         "age_bars": age,
@@ -106,27 +97,43 @@ def _find_recent_sweep(
             level = min(x["low"] for x in before)
             penetration = level - c["low"]
             if penetration >= atr * tolerance_atr and c["low"] < level and c["close"] > level:
-                return {
-                    "time": c["time"],
-                    "level": level,
-                    "extreme": c["low"],
-                    "source": "ROLLING_LOW",
-                    "penetration_atr": penetration / atr if atr > 0 else 0.0,
-                    "age_bars": age,
-                }
+                return {"time": c["time"], "level": level, "extreme": c["low"],
+                        "source": "ROLLING_LOW",
+                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
+                        "age_bars": age}
         else:
             level = max(x["high"] for x in before)
             penetration = c["high"] - level
             if penetration >= atr * tolerance_atr and c["high"] > level and c["close"] < level:
-                return {
-                    "time": c["time"],
-                    "level": level,
-                    "extreme": c["high"],
-                    "source": "ROLLING_HIGH",
-                    "penetration_atr": penetration / atr if atr > 0 else 0.0,
-                    "age_bars": age,
-                }
+                return {"time": c["time"], "level": level, "extreme": c["high"],
+                        "source": "ROLLING_HIGH",
+                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
+                        "age_bars": age}
     return None
+
+
+def _mss_after_sweep(candles, bias, sweep_idx, swing_length=3):
+    if sweep_idx < swing_length or sweep_idx >= len(candles) - 1:
+        return False, None
+    pre = candles[:sweep_idx + 1]
+    post = candles[sweep_idx + 1:]
+    if bias == "LONG":
+        swings = market_structure.find_swing_highs(pre, swing_length)
+        if not swings:
+            return False, None
+        level = swings[-1]["high"]
+        for c in post:
+            if c["close"] > level:
+                return True, level
+    else:
+        swings = market_structure.find_swing_lows(pre, swing_length)
+        if not swings:
+            return False, None
+        level = swings[-1]["low"]
+        for c in post:
+            if c["close"] < level:
+                return True, level
+    return False, None
 
 
 def evaluate_ict_2022(
@@ -139,16 +146,11 @@ def evaluate_ict_2022(
     stop_atr_buffer=0.10,
     min_rr=2.0,
 ):
-    """Return a setup dict only when every strict condition is satisfied.
-
-    The caller must provide closed 1H/4H candles. Entry is an FVG zone and
-    execution/retest handling is deliberately left to the backtest/execution
-    layer.
-    """
     if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
 
-    bias = ict_bias.htf_bias_4h(candles_4h)
+    htf = ict_bias.htf_context_4h(candles_4h, swing_length=3)
+    bias = htf.get("bias")
     if bias not in ("LONG", "SHORT"):
         return None
 
@@ -168,42 +170,22 @@ def evaluate_ict_2022(
     ]
     if not directional:
         return None
-
-    # Draw on liquidity: nearest valid target in the trade direction.
-    target_pool = min(
-        directional,
-        key=lambda p: abs(p["price"] - current)
-    )
+    target_pool = min(directional, key=lambda p: abs(p["price"] - current))
 
     recent_1h = candles_1h[-48:]
     sweep = _find_recent_sweep(
-        recent_1h,
-        bias,
-        mode="structure",
-        tolerance_atr=0.10,
-        valid_window_bars=6,
+        recent_1h, bias, mode="structure", swing_length=3,
+        tolerance_atr=0.10, valid_window_bars=6,
     )
     if not sweep:
         return None
 
-    # MSS must occur after the sweep, not before it.
     sweep_idx = next(
-        (i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]),
-        None,
+        (i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]), None
     )
-    if sweep_idx is None or sweep_idx < 6 or sweep_idx >= len(recent_1h) - 1:
+    mss_ok, mss_level = _mss_after_sweep(recent_1h, bias, sweep_idx, 3)
+    if not mss_ok:
         return None
-
-    pre = recent_1h[:sweep_idx + 1]
-    post = recent_1h[sweep_idx + 1:]
-    if bias == "LONG":
-        swings = market_structure.find_swing_highs(pre)
-        if not swings or not any(c["close"] > swings[-1]["high"] for c in post):
-            return None
-    else:
-        swings = market_structure.find_swing_lows(pre)
-        if not swings or not any(c["close"] < swings[-1]["low"] for c in post):
-            return None
 
     fvg_result = fvg.find_fvg(
         recent_1h,
@@ -211,38 +193,56 @@ def evaluate_ict_2022(
         required_side=bias,
         displacement_min_atr=min_displacement_atr,
     )
-    if not fvg_result:
-        return None
-
-    # Do not accept an FVG that was formed before the sweep/MSS sequence.
-    if fvg_result["creator_idx"] <= sweep_idx:
+    if not fvg_result or fvg_result["creator_idx"] <= sweep_idx:
         return None
 
     creator_idx = fvg_result["creator_idx"]
-    if not displacement.is_displaced(
-        recent_1h[:creator_idx + 1],
-        creator_idx,
-        min_body_atr_ratio=min_displacement_atr,
-    ):
+    displacement_ok = displacement.is_displaced(
+        recent_1h, creator_idx, min_body_atr_ratio=min_displacement_atr
+    )
+    if not displacement_ok:
         return None
 
-    # Entry must be an actual FVG retest on the current closed 1H candle.
-    # Merely detecting an old FVG is not an entry signal.
     current_bar = recent_1h[-1]
-    if fvg_result["creator_idx"] >= len(recent_1h) - 2:
+    if creator_idx >= len(recent_1h) - 2:
         return None
     if bias == "LONG":
-        if current_bar["low"] > fvg_result["top"] or current_bar["close"] < fvg_result["bottom"]:
-            return None
+        retest_ok = (
+            current_bar["low"] <= fvg_result["top"]
+            and current_bar["close"] >= fvg_result["bottom"]
+        )
     else:
-        if current_bar["high"] < fvg_result["bottom"] or current_bar["close"] > fvg_result["top"]:
-            return None
+        retest_ok = (
+            current_bar["high"] >= fvg_result["bottom"]
+            and current_bar["close"] <= fvg_result["top"]
+        )
+    if not retest_ok:
+        return None
 
-    # 4H premium/discount comes from confirmed structural external anchors.\n    htf = ict_bias.htf_context_4h(candles_4h, swing_length=3)\n    if htf["equilibrium"] is None:\n        return None\n    if bias == "LONG" and htf["premium_discount"] != "DISCOUNT":\n        return None\n    if bias == "SHORT" and htf["premium_discount"] != "PREMIUM":\n        return None\n\n    # Structural stop: beyond the actual sweep extreme plus a small ATR buffer.
+    if bias == "LONG" and htf.get("premium_discount") != "DISCOUNT":
+        return None
+    if bias == "SHORT" and htf.get("premium_discount") != "PREMIUM":
+        return None
+
     atr = _atr(recent_1h, 14)
     if atr <= 0:
         return None
-    buffer = max(atr * stop_atr_buffer, _pip_size(pair) * 1.0)
+
+    ob = order_blocks.find_order_block(recent_1h, fvg_result)
+    fib = None
+    if htf.get("external_high") is not None and htf.get("external_low") is not None:
+        fib = fib_cluster.find_cluster(
+            htf["external_high"], htf["external_low"], tolerance=atr * 0.20
+        )
+
+    # POI evidence: OB/Fib strengthen the FVG reaction but do not create a trade.
+    poi = {
+        "fvg": fvg_result,
+        "order_block": ob,
+        "fib_cluster": fib.get("best") if fib else None,
+    }
+
+    buffer = max(atr * stop_atr_buffer, _pip_size(pair))
     entry_mid = (fvg_result["bottom"] + fvg_result["top"]) / 2.0
     if bias == "LONG":
         stop_price = sweep["extreme"] - buffer
@@ -256,7 +256,17 @@ def evaluate_ict_2022(
     if risk_distance <= 0 or reward_distance <= 0:
         return None
     rr = reward_distance / risk_distance
-    if rr < min_rr:
+
+    evidence = setup_analysis.analyze_setup(
+        htf=htf, sweep=sweep, mss=mss_level, displacement_ok=displacement_ok,
+        fvg=fvg_result, ob=ob, fib=fib, session=sess, rr=rr
+    )
+    validation = setup_analysis.validate_setup(
+        bias=bias, htf=htf, sweep=sweep, mss=mss_level,
+        displacement_ok=displacement_ok, fvg=fvg_result,
+        session=sess, rr=rr, min_rr=min_rr
+    )
+    if not validation["valid"]:
         return None
 
     return {
@@ -271,11 +281,16 @@ def evaluate_ict_2022(
         "rr": rr,
         "bias": bias,
         "session": sess,
+        "htf_context": htf,
+        "sweep": sweep,
+        "mss_level": mss_level,
+        "poi": poi,
         "fvg": fvg_result,
         "mss_confirmed": True,
         "displacement_confirmed": True,
         "displacement_atr": min_displacement_atr,
         "fvg_min_atr": min_fvg_atr,
         "premium_discount_zone": "discount" if bias == "LONG" else "premium",
+        "evidence": evidence,
         "timestamp": candles_1h[-1]["time"],
     }
