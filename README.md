@@ -17,7 +17,7 @@ The repository contains only the cTrader Forex runtime. Legacy B2TRADER, MT5, Kr
 The hybrid engine uses independent entry models instead of requiring every SMC concept simultaneously:
 
 1. Reversal: HTF bias + premium/discount + liquidity sweep + causal ABC structure. The ABC layer replaces the previously permissive sweep-only reversal trigger and uses the FOMO LL/HH for structural invalidation.
-2. Continuation: HTF bias + fresh FVG retest + price-action trigger candle. LONG requires the retest candle to close above the previous candle high; SHORT requires a close below the previous candle low. This uses no RSI/EMA filter.
+2. Continuation: HTF bias + fresh FVG retest + price-action trigger candle. LONG requires the retest candle to close above the previous candle high; SHORT requires a close below the previous candle low. This uses no RSI/EMA filter. The backtester exposes --continuation-mode price_action|legacy for controlled A/B testing.
 3. Expansion: directional displacement + confirmed post-event structure.
 
 No new RSI/EMA/MACD-style indicator stack is introduced. The first TradingKit/DaviddTech mix is a structural replacement inside the existing ICT/SMC engine, not a separate strategy.
