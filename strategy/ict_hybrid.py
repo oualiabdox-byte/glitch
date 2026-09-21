@@ -292,6 +292,7 @@ def evaluate_ict_hybrid(
     min_confluence=0,
     entry_model="auto",
     reversal_confirmation="abc",
+    continuation_confirmation="price_action",
 ):
     """Calibrated SMC entry model.
 
@@ -325,6 +326,8 @@ def evaluate_ict_hybrid(
         raise ValueError("invalid entry_model")
     if reversal_confirmation not in ("abc", "legacy"):
         raise ValueError("invalid reversal_confirmation")
+    if continuation_confirmation not in ("price_action", "legacy"):
+        raise ValueError("invalid continuation_confirmation")
 
     dealing = candles_4h[-6:]
     dealing_low = min(c["low"] for c in dealing)
@@ -366,11 +369,9 @@ def evaluate_ict_hybrid(
             required_side=bias,
             displacement_min_atr=min_displacement_atr,
         )
-        if (
-            candidate_fvg
-            and _fvg_retested(recent, candidate_fvg, bias)
-            and _pullback_trigger(recent, bias)
-        ):
+        fvg_ok = bool(candidate_fvg and _fvg_retested(recent, candidate_fvg, bias))
+        trigger_ok = _pullback_trigger(recent, bias)
+        if fvg_ok and (continuation_confirmation == "legacy" or trigger_ok):
             continuation_fvg = candidate_fvg
             model = "continuation"
 
@@ -425,7 +426,7 @@ def evaluate_ict_hybrid(
 
     fvg_retest = bool(
         _fvg_retested(recent, fvg_result, bias)
-        and (model != "continuation" or _pullback_trigger(recent, bias))
+        and (model != "continuation" or continuation_confirmation == "legacy" or _pullback_trigger(recent, bias))
     )
     ob_result = order_blocks.find_order_block(recent, fvg_result) if fvg_result else None
     ob_retest = _ob_retested(recent, ob_result, bias)
@@ -610,6 +611,7 @@ def evaluate_ict_hybrid(
         "event_type": event_type,
         "abc_confirmed": bool(abc and abc["confirmed"]),
         "reversal_confirmation": reversal_confirmation if model == "reversal" else None,
+        "continuation_confirmation": continuation_confirmation if model == "continuation" else None,
         "abc_pattern": abc["pattern"] if abc else None,
         "abc_break_level": abc["break_level"] if abc else None,
         "abc_fomo_extreme": (abc["fomo_extreme"]["low"] if bias == "LONG" else abc["fomo_extreme"]["high"]) if abc else None,
@@ -617,7 +619,7 @@ def evaluate_ict_hybrid(
             fvg_result is not None
         ),
         "entry_trigger": trigger,
-        "pullback_trigger_confirmed": bool(model == "continuation" and _pullback_trigger(recent, bias)),
+        "pullback_trigger_confirmed": bool(model == "continuation" and (continuation_confirmation == "legacy" or _pullback_trigger(recent, bias))),
         **context,
         "timestamp": candles_1h[-1]["time"],
     }
