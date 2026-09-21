@@ -273,6 +273,7 @@ def evaluate_ict_hybrid(
     enable_mitigation=True,
     min_confluence=0,
     entry_model="auto",
+    reversal_confirmation="abc",
 ):
     """Calibrated SMC entry model.
 
@@ -304,6 +305,8 @@ def evaluate_ict_hybrid(
     # Independent entry paths: reversal, continuation, expansion.
     if entry_model not in ("auto", "reversal", "continuation", "expansion"):
         raise ValueError("invalid entry_model")
+    if reversal_confirmation not in ("abc", "legacy"):
+        raise ValueError("invalid reversal_confirmation")
 
     dealing = candles_4h[-6:]
     dealing_low = min(c["low"] for c in dealing)
@@ -320,9 +323,19 @@ def evaluate_ict_hybrid(
     sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5)
     abc = None
     if sweep and pd_aligned and entry_model in ("auto", "reversal"):
-        sweep_idx = next((i for i, c in enumerate(recent) if c["time"] == sweep["time"]), None)
-        abc = _abc_reversal_confirmation(recent, sweep_idx, bias, sweep, swing_length=3)
-    model = "reversal" if abc and abc["confirmed"] else None
+        sweep_idx = next(
+            (i for i, c in enumerate(recent) if c["time"] == sweep["time"]),
+            None,
+        )
+        if reversal_confirmation == "abc":
+            abc = _abc_reversal_confirmation(
+                recent, sweep_idx, bias, sweep, swing_length=3
+            )
+            model = "reversal" if abc and abc["confirmed"] else None
+        else:
+            model = "reversal"
+    else:
+        model = None
 
     # Continuation does not require a sweep or MSS: HTF bias + fresh FVG retest.
     if model is None and entry_model in ("auto", "continuation"):
@@ -567,6 +580,7 @@ def evaluate_ict_hybrid(
         "entry_model": model,
         "event_type": event_type,
         "abc_confirmed": bool(abc and abc["confirmed"]),
+        "reversal_confirmation": reversal_confirmation if model == "reversal" else None,
         "abc_pattern": abc["pattern"] if abc else None,
         "abc_break_level": abc["break_level"] if abc else None,
         "abc_fomo_extreme": (abc["fomo_extreme"]["low"] if bias == "LONG" else abc["fomo_extreme"]["high"]) if abc else None,
