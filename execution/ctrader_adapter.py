@@ -7,6 +7,9 @@ The implementation follows Spotware's official Python SDK flow:
 application auth -> account list by access token -> account auth.
 Order submission is explicitly gated by CTRADER_ALLOW_ORDERS. The selected
 environment (demo/live) controls which cTrader endpoint is used.
+
+Connection keepalive follows Spotware's Open API guidance: send a heartbeat
+every 10 seconds and keep the API boundary separate from strategy decisions.
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from ctrader_open_api import Client, Protobuf, TcpProtocol, EndPoints
+from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoHeartbeatEvent
 from ctrader_open_api.messages.OpenApiMessages_pb2 import (
     ProtoOAAccountAuthReq,
     ProtoOAApplicationAuthReq,
@@ -44,6 +48,7 @@ class CTraderConfig:
     environment: str = "demo"
     account_id: Optional[int] = None
     allow_orders: bool = False
+    heartbeat_seconds: float = 10.0
 
     @classmethod
     def from_env(cls) -> "CTraderConfig":
@@ -58,6 +63,11 @@ class CTraderConfig:
             raise RuntimeError("CTRADER_ENV must be demo or live")
 
         account_raw = os.getenv("CTRADER_ACCOUNT_ID", "").strip()
+        heartbeat_raw = os.getenv("CTRADER_HEARTBEAT_SECONDS", "10").strip()
+        heartbeat_seconds = float(heartbeat_raw)
+        if heartbeat_seconds <= 0:
+            raise RuntimeError("CTRADER_HEARTBEAT_SECONDS must be > 0")
+
         return cls(
             client_id=required("CTRADER_CLIENT_ID"),
             client_secret=required("CTRADER_CLIENT_SECRET"),
@@ -65,6 +75,7 @@ class CTraderConfig:
             environment=environment,
             account_id=int(account_raw) if account_raw else None,
             allow_orders=os.getenv("CTRADER_ALLOW_ORDERS", "false").lower() == "true",
+            heartbeat_seconds=heartbeat_seconds,
         )
 
 
@@ -76,6 +87,7 @@ class CTraderAdapter:
         self.client = None
         self.account_id = self.config.account_id
         self._deferreds: list[Any] = []
+        self._heartbeat_call = None
 
     @property
     def host(self) -> str:
@@ -97,10 +109,14 @@ class CTraderAdapter:
             "port": self.port,
             "account_id": self.account_id,
             "order_submission": self.config.allow_orders,
+            "heartbeat_seconds": self.config.heartbeat_seconds,
         }
 
     def connect(self) -> None:
         """Start the SDK service and authenticate the app/account asynchronously."""
+        if self.client is not None:
+            return
+
         self.client = Client(self.host, self.port, TcpProtocol)
         self.client.setConnectedCallback(self._on_connected)
         self.client.setDisconnectedCallback(self._on_disconnected)
@@ -113,13 +129,19 @@ class CTraderAdapter:
         reactor.run()
 
     def stop(self) -> None:
+        self._cancel_heartbeat()
         if reactor.running:
             reactor.stop()
 
-    def _send(self, request: Any) -> Any:
+    def _send(self, request: Any, *, client_msg_id: Optional[str] = None) -> Any:
         if self.client is None:
             raise RuntimeError("cTrader client is not connected")
-        deferred = self.client.send(request)
+
+        if client_msg_id:
+            deferred = self.client.send(request, clientMsgId=client_msg_id)
+        else:
+            deferred = self.client.send(request)
+
         deferred.addErrback(self._on_error)
         self._deferreds.append(deferred)
         return deferred
@@ -129,8 +151,37 @@ class CTraderAdapter:
         request.clientId = self.config.client_id
         request.clientSecret = self.config.client_secret
         self._send(request)
+        self._schedule_heartbeat()
+
+    def _schedule_heartbeat(self) -> None:
+        self._cancel_heartbeat()
+        if not reactor.running and self.client is None:
+            return
+        self._heartbeat_call = reactor.callLater(
+            self.config.heartbeat_seconds,
+            self._send_heartbeat,
+        )
+
+    def _send_heartbeat(self) -> None:
+        self._heartbeat_call = None
+        if self.client is None:
+            return
+        try:
+            deferred = self.client.send(ProtoHeartbeatEvent())
+            deferred.addErrback(self._on_error)
+        except Exception as exc:
+            print(f"[cTrader] heartbeat error: {exc}")
+        finally:
+            self._schedule_heartbeat()
+
+    def _cancel_heartbeat(self) -> None:
+        if self._heartbeat_call is not None and self._heartbeat_call.active():
+            self._heartbeat_call.cancel()
+        self._heartbeat_call = None
 
     def _on_disconnected(self, _client: Any, reason: Any) -> None:
+        self._cancel_heartbeat()
+        self.client = None
         print(f"[cTrader] disconnected: {reason}")
 
     def _on_error(self, failure: Any) -> Any:
@@ -172,6 +223,9 @@ class CTraderAdapter:
             self.account_id = int(response.ctidTraderAccountId)
             print(f"[cTrader] account authorized: {self.account_id}")
             self.request_account_state()
+            return
+
+        if payload_type == ProtoHeartbeatEvent().payloadType:
             return
 
         print(f"[cTrader] message: {Protobuf.extract(message)}")
@@ -225,9 +279,9 @@ class CTraderAdapter:
         """Submit a market order to the selected cTrader environment.
 
         Strategy code supplies the direction and size; this adapter only
-        translates them into cTrader protocol fields. Protective SL/TP should
-        be applied after the fill via amend_position_protection because cTrader
-        does not support absolute SL/TP fields on MARKET orders.
+        translates them into cTrader protocol fields. Protective SL/TP must
+        be applied after a fill because absolute SL/TP fields are not supported
+        on MARKET orders by cTrader Open API.
         """
         self._require_order_permission()
         if volume_units <= 0:
@@ -265,6 +319,9 @@ class CTraderAdapter:
         trailing_stop_loss: bool = False,
     ) -> Any:
         self._require_order_permission()
+        if stop_loss is None and take_profit is None:
+            raise ValueError("stop_loss or take_profit is required")
+
         req = ProtoOAAmendPositionSLTPReq()
         req.ctidTraderAccountId = self._require_account()
         req.positionId = int(position_id)
