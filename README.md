@@ -41,3 +41,22 @@ The backtester exposes only higher-timeframe candles that were fully closed at t
 For controlled reversal A/B testing, backtest/ctrader_runner.py exposes --reversal-mode abc|legacy. The default is abc; use legacy only as the research control so both variants can be run on the same cTrader dataset.
 
 Do not use backtest results as evidence for live profitability. Validate out-of-sample and walk-forward periods before enabling live orders.
+
+
+## Applied research controls
+
+The current private research branch also contains modular controls derived from reviewed
+open-source SMC research, reimplemented independently rather than copied:
+- DST-aware London/New York timing context and session phase.
+- Calendar-correct previous-day/previous-week liquidity levels.
+- Confirmed-swing EQH/EQL liquidity clustering with ATR-normalized tolerance.
+- Fresh first-touch behavior for FVG/OB reactions; previously touched or invalidated zones do not re-enter.
+- Sweep penetration tolerance and a finite sweep validity window.
+- Configurable swing sensitivity and displacement measurement modes.
+- Move-exhaustion guard to avoid chasing extended post-event moves.
+- Optional backtest gates for maximum trades/day, cooldown, and realized drawdown.
+- Risk helpers for shared-currency exposure.
+
+These controls are exposed for controlled A/B testing. The strict ICT control preserves its
+previous rolling-sweep behavior; new hybrid controls must be compared on identical periods
+before being promoted to the research baseline.
