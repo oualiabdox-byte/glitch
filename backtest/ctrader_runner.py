@@ -16,6 +16,7 @@ from pathlib import Path
 from data.ctrader import CTraderData
 from strategy.ict_strategy import evaluate_ict_2022
 from strategy.ict_hybrid import evaluate_ict_hybrid
+from strategy import risk, timing
 
 
 def dt(value):
@@ -41,7 +42,12 @@ def _load_or_download(feed, symbol, start, end, cache_dir):
 
 def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
         enable_breaker=True, enable_ote=True, enable_mitigation=True,
-        min_confluence=0, reversal_mode="abc", continuation_mode="price_action", sweep_mode="structure"):
+        min_confluence=0, reversal_mode="abc", continuation_mode="price_action", sweep_mode="structure",
+        swing_length=3, htf_swing_length=2, eq_tolerance_atr=0.15,
+        sweep_tolerance_atr=0.0, sweep_valid_bars=6,
+        displacement_mode="body_atr", displacement_std_multiple=2.5,
+        move_exhaustion_atr=5.0, require_session=False, session_delay_minutes=0,
+        max_trades_per_day=0, cooldown_minutes=0, max_drawdown_r=0.0):
     feed = CTraderData()
     data = _load_or_download(feed, symbol, start, end, cache_dir)
     h1, h4 = data["h1"], data["h4"]
@@ -52,18 +58,32 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
     fn = evaluate_ict_2022 if mode == "strict" else evaluate_ict_hybrid
     trades = []
     next_available_idx = 60
+    last_entry_time = None
+    equity_r = 0.0
+    peak_equity_r = 0.0
 
     for i in range(60, len(h1) - 1):
         if i < next_available_idx:
             continue
 
         signal_time = h1[i]["time"]
+        timing_ctx = timing.session_context(signal_time)
+
+        if require_session and not timing.after_session_open(signal_time, session_delay_minutes):
+            continue
+        if max_trades_per_day > 0 and risk.trades_on_day(trades, signal_time) >= max_trades_per_day:
+            continue
+        if not risk.cooldown_clear(last_entry_time, signal_time, cooldown_minutes):
+            continue
+        if not risk.drawdown_guard(equity_r, peak_equity_r, max_drawdown_r):
+            continue
+
         h4_visible = _h4_until(h4, signal_time)
         if len(h4_visible) < 30:
             continue
 
         if mode == "strict":
-            setup = fn(h1[:i + 1], h4_visible, symbol, session_context="london")
+            setup = fn(h1[:i + 1], h4_visible, symbol, session_context=timing_ctx.session)
         else:
             setup = fn(
                 h1[:i + 1], h4_visible, symbol,
@@ -74,6 +94,17 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
                 reversal_confirmation=reversal_mode,
                 continuation_confirmation=continuation_mode,
                 sweep_confirmation=sweep_mode,
+                swing_length=swing_length,
+                htf_swing_length=htf_swing_length,
+                eq_tolerance_atr=eq_tolerance_atr,
+                sweep_tolerance_atr=sweep_tolerance_atr,
+                sweep_valid_bars=sweep_valid_bars,
+                displacement_mode=displacement_mode,
+                displacement_std_multiple=displacement_std_multiple,
+                move_exhaustion_atr=move_exhaustion_atr,
+                require_session=require_session,
+                session_context=timing_ctx.session,
+                session_delay_minutes=session_delay_minutes,
             )
 
         if not setup:
@@ -108,6 +139,9 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
                 break
 
         next_available_idx = max(next_available_idx, exit_idx + 1)
+        last_entry_time = signal_time
+        equity_r += pnl_r
+        peak_equity_r = max(peak_equity_r, equity_r)
         risk = abs(entry - stop)
         pnl_r = (
             ((exit_price - entry) / risk if side == "LONG" else (entry - exit_price) / risk)
@@ -137,6 +171,17 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
             "pullback_trigger_confirmed": setup.get("pullback_trigger_confirmed", False),
             "continuation_confirmation": setup.get("continuation_confirmation"),
             "sweep_confirmation": setup.get("sweep_confirmation"),
+            "sweep_age_bars": setup.get("sweep_age_bars"),
+            "sweep_penetration_atr": setup.get("sweep_penetration_atr"),
+            "sweep_valid_window_bars": setup.get("sweep_valid_window_bars"),
+            "sweep_tolerance_atr": setup.get("sweep_tolerance_atr"),
+            "swing_length": setup.get("swing_length"),
+            "htf_swing_length": setup.get("htf_swing_length"),
+            "eq_tolerance_atr": setup.get("eq_tolerance_atr"),
+            "displacement_mode": setup.get("displacement_mode"),
+            "move_exhaustion_atr": setup.get("move_exhaustion_atr"),
+            "session_phase": setup.get("session_phase"),
+            "minutes_from_session_open": setup.get("minutes_from_session_open"),
             "confluence_score": setup.get("confluence_score"),
             "confluence_max": setup.get("confluence_max"),
             "premium_discount_zone": setup.get("premium_discount_zone"),
@@ -216,6 +261,19 @@ def main():
                         help="Hybrid continuation confirmation variant for controlled A/B testing.")
     parser.add_argument("--sweep-mode", choices=["structure", "legacy"], default="structure",
                         help="Hybrid liquidity-sweep level variant for controlled A/B testing.")
+    parser.add_argument("--swing-length", type=int, default=3)
+    parser.add_argument("--htf-swing-length", type=int, default=2)
+    parser.add_argument("--eq-tolerance-atr", type=float, default=0.15)
+    parser.add_argument("--sweep-tolerance-atr", type=float, default=0.0)
+    parser.add_argument("--sweep-valid-bars", type=int, default=6)
+    parser.add_argument("--displacement-mode", choices=["body_atr", "range_atr", "average_body", "body_std"], default="body_atr")
+    parser.add_argument("--displacement-std-multiple", type=float, default=2.5)
+    parser.add_argument("--move-exhaustion-atr", type=float, default=5.0)
+    parser.add_argument("--require-session", action="store_true")
+    parser.add_argument("--session-delay-minutes", type=int, default=0)
+    parser.add_argument("--max-trades-per-day", type=int, default=0)
+    parser.add_argument("--cooldown-minutes", type=int, default=0)
+    parser.add_argument("--max-drawdown-r", type=float, default=0.0)
     parser.add_argument("--json")
     args = parser.parse_args()
 
@@ -238,6 +296,19 @@ def main():
         "reversal_mode": args.reversal_mode,
         "continuation_mode": args.continuation_mode,
         "sweep_mode": args.sweep_mode,
+        "swing_length": args.swing_length,
+        "htf_swing_length": args.htf_swing_length,
+        "eq_tolerance_atr": args.eq_tolerance_atr,
+        "sweep_tolerance_atr": args.sweep_tolerance_atr,
+        "sweep_valid_bars": args.sweep_valid_bars,
+        "displacement_mode": args.displacement_mode,
+        "displacement_std_multiple": args.displacement_std_multiple,
+        "move_exhaustion_atr": args.move_exhaustion_atr,
+        "require_session": args.require_session,
+        "session_delay_minutes": args.session_delay_minutes,
+        "max_trades_per_day": args.max_trades_per_day,
+        "cooldown_minutes": args.cooldown_minutes,
+        "max_drawdown_r": args.max_drawdown_r,
     }
 
     if len(pairs) > 1:
@@ -268,6 +339,21 @@ def main():
         "continuation_mode": args.continuation_mode,
         "sweep_mode": args.sweep_mode,
         "future_leak_guard": True,
+        "swing_length": args.swing_length,
+        "htf_swing_length": args.htf_swing_length,
+        "eq_tolerance_atr": args.eq_tolerance_atr,
+        "sweep_tolerance_atr": args.sweep_tolerance_atr,
+        "sweep_valid_bars": args.sweep_valid_bars,
+        "displacement_mode": args.displacement_mode,
+        "displacement_std_multiple": args.displacement_std_multiple,
+        "move_exhaustion_atr": args.move_exhaustion_atr,
+        "risk_gates": {
+            "require_session": args.require_session,
+            "session_delay_minutes": args.session_delay_minutes,
+            "max_trades_per_day": args.max_trades_per_day,
+            "cooldown_minutes": args.cooldown_minutes,
+            "max_drawdown_r": args.max_drawdown_r,
+        },
         "pairs": reports,
         "aggregate": metrics(all_trades),
         "advanced_confluence": {
