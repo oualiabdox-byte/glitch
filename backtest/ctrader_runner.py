@@ -186,16 +186,37 @@ def main():
     pairs = [args.symbol] if args.symbol else [
         p.strip().upper() for p in args.pairs.split(",") if p.strip()
     ]
+    # The cTrader Python SDK is Twisted-based. A stopped Twisted reactor cannot
+    # be restarted in the same process, so multi-pair backtests must isolate
+    # each live-data connection in its own child process. This keeps --symbol
+    # reusable while making --all-pairs reliable.
+    import multiprocessing as mp
+
+    run_args = {
+        "start": dt(args.start),
+        "end": dt(args.end),
+        "mode": args.mode,
+        "cache_dir": args.cache_dir,
+        "enable_breaker": not args.disable_breaker,
+        "enable_ote": not args.disable_ote,
+        "enable_mitigation": not args.disable_mitigation,
+        "min_confluence": args.min_confluence,
+    }
+
+    def _worker(symbol):
+        return symbol, run(symbol, **run_args)
+
+    if len(pairs) > 1:
+        workers = max(1, min(len(pairs), int(__import__("os").getenv("CTRADER_BACKTEST_WORKERS", "2"))))
+        ctx = mp.get_context("spawn")
+        with ctx.Pool(processes=workers) as pool:
+            results = pool.map(_worker, pairs)
+    else:
+        results = [_worker(pairs[0])]
+
     reports = {}
     all_trades = []
-    for symbol in pairs:
-        trades = run(
-            symbol, dt(args.start), dt(args.end), args.mode, args.cache_dir,
-            enable_breaker=not args.disable_breaker,
-            enable_ote=not args.disable_ote,
-            enable_mitigation=not args.disable_mitigation,
-            min_confluence=args.min_confluence,
-        )
+    for symbol, trades in results:
         reports[symbol] = metrics(trades)
         all_trades.extend(trades)
 
