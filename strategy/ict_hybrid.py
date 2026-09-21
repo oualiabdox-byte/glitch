@@ -185,6 +185,24 @@ def _fvg_retested(recent, zone, side):
     return cur["high"] >= zone["bottom"] and cur["close"] <= zone["top"]
 
 
+def _pullback_trigger(recent, side):
+    """Require a confirmed trigger candle after a pullback/retest.
+
+    This borrows only the price-action trigger from the public DaviddTech
+    pullback rules: LONG closes above the previous candle high; SHORT closes
+    below the previous candle low. No RSI/EMA condition is introduced.
+    """
+    if len(recent) < 2:
+        return False
+    prev = recent[-2]
+    cur = recent[-1]
+    if side == "LONG":
+        return cur["close"] > prev["high"]
+    if side == "SHORT":
+        return cur["close"] < prev["low"]
+    return False
+
+
 def _ob_retested(recent, ob, side):
     """Require a fresh OB reaction and reject a previously broken zone."""
     if not ob:
@@ -282,8 +300,8 @@ def evaluate_ict_hybrid(
       2. causal SMC facts from local detectors and optional pyvsmc
 
     Independent entry models:
-      - REVERSAL: premium/discount + liquidity sweep/inducement
-      - CONTINUATION: HTF bias + fresh FVG retest
+      - REVERSAL: premium/discount + liquidity sweep + causal ABC structure
+      - CONTINUATION: HTF bias + fresh FVG retest + trigger candle
       - EXPANSION: displacement + confirmed post-event structure
 
     SMC context:
@@ -337,7 +355,10 @@ def evaluate_ict_hybrid(
     else:
         model = None
 
-    # Continuation does not require a sweep or MSS: HTF bias + fresh FVG retest.
+    # Continuation requires a fresh FVG retest AND a price-action trigger.
+    # The trigger is deliberately indicator-free: current close must break the
+    # previous candle's extreme in the HTF direction.
+    continuation_fvg = None
     if model is None and entry_model in ("auto", "continuation"):
         candidate_fvg = fvg.find_fvg(
             recent,
@@ -345,7 +366,12 @@ def evaluate_ict_hybrid(
             required_side=bias,
             displacement_min_atr=min_displacement_atr,
         )
-        if candidate_fvg and _fvg_retested(recent, candidate_fvg, bias):
+        if (
+            candidate_fvg
+            and _fvg_retested(recent, candidate_fvg, bias)
+            and _pullback_trigger(recent, bias)
+        ):
+            continuation_fvg = candidate_fvg
             model = "continuation"
 
 
@@ -388,7 +414,7 @@ def evaluate_ict_hybrid(
         if not mss:
             return None
 
-    fvg_result = fvg.find_fvg(
+    fvg_result = continuation_fvg or fvg.find_fvg(
         recent,
         min_gap_atr=min_fvg_atr,
         required_side=bias,
@@ -397,7 +423,10 @@ def evaluate_ict_hybrid(
     if fvg_result and event_idx is not None and fvg_result["creator_idx"] <= event_idx and model == "expansion":
         fvg_result = None
 
-    fvg_retest = _fvg_retested(recent, fvg_result, bias)
+    fvg_retest = bool(
+        _fvg_retested(recent, fvg_result, bias)
+        and (model != "continuation" or _pullback_trigger(recent, bias))
+    )
     ob_result = order_blocks.find_order_block(recent, fvg_result) if fvg_result else None
     ob_retest = _ob_retested(recent, ob_result, bias)
 
@@ -588,6 +617,7 @@ def evaluate_ict_hybrid(
             fvg_result is not None
         ),
         "entry_trigger": trigger,
+        "pullback_trigger_confirmed": bool(model == "continuation" and _pullback_trigger(recent, bias)),
         **context,
         "timestamp": candles_1h[-1]["time"],
     }
