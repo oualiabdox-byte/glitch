@@ -18,6 +18,7 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import (
 )
 
 from execution.ctrader_adapter import CTraderAdapter
+from twisted.internet import reactor
 
 
 PERIODS = {
@@ -35,23 +36,31 @@ class CTraderData(CTraderAdapter):
         self._symbol_waiters: list[Any] = []
         self._history_waiters: list[Any] = []
 
-    def request_symbols(self) -> None:
+    def request_symbols(self, callback=None) -> None:
+        if callback:
+            self._symbol_waiters.append({"callback": callback})
         req = ProtoOASymbolsListReq()
         req.ctidTraderAccountId = self._require_account()
         req.includeArchivedSymbols = False
         self._send(req)
 
-    def history_async(self, symbol_id: int, period: str, start, end, count: int = 0):
+    def history_async(self, symbol_id: int, period: str, start, end, count: int = 0, callback=None):
+        period = period.lower()
+        if period not in PERIODS:
+            raise ValueError(f"Unsupported cTrader period: {period}")
         req = ProtoOAGetTrendbarsReq()
         req.ctidTraderAccountId = self._require_account()
         req.symbolId = int(symbol_id)
-        req.period = getattr(ProtoOATrendbarPeriod, PERIODS[period.lower()])
+        req.period = getattr(ProtoOATrendbarPeriod, PERIODS[period])
         req.fromTimestamp = _ms(start)
         req.toTimestamp = _ms(end)
         if count:
             req.count = int(count)
-        waiter = {"symbol_id": int(symbol_id), "period": period.lower()}
-        self._history_waiters.append(waiter)
+        self._history_waiters.append({
+            "symbol_id": int(symbol_id),
+            "period": period,
+            "callback": callback,
+        })
         return self._send(req)
 
     def symbol_id(self, name: str) -> int:
@@ -61,8 +70,8 @@ class CTraderData(CTraderAdapter):
             if normalized == target:
                 return int(getattr(value, "symbolId"))
         raise KeyError(
-            f"cTrader symbol {name!r} not found. Available examples: "
-            + ", ".join(list(self.symbols)[:20])
+            f"cTrader symbol {name!r} not found. Available: "
+            + ", ".join(list(self.symbols)[:30])
         )
 
     def _on_message(self, client, message):
@@ -76,27 +85,77 @@ class CTraderData(CTraderAdapter):
                 if getattr(s, "symbolName", "")
             }
             print(f"[cTrader] loaded {len(self.symbols)} symbols")
-            for waiter in self._symbol_waiters:
+            waiters, self._symbol_waiters = self._symbol_waiters, []
+            for waiter in waiters:
                 waiter["callback"](self.symbols)
-            self._symbol_waiters.clear()
             return
 
         if payload_type == ProtoOAGetTrendbarsRes().payloadType:
             response = Protobuf.extract(message)
-            waiter = None
-            for candidate in self._history_waiters:
-                if candidate["symbol_id"] == int(response.symbolId):
-                    waiter = candidate
-                    break
+            waiter = next(
+                (x for x in self._history_waiters
+                 if x["symbol_id"] == int(response.symbolId)
+                 and x["period"] == _period_name(response.period)),
+                None,
+            )
             if waiter:
                 self._history_waiters.remove(waiter)
-            candles = trendbars_to_ohlc(response.trendbar)
-            callback = waiter.get("callback") if waiter else None
-            if callback:
-                callback(candles)
+                candles = trendbars_to_ohlc(response.trendbar)
+                if waiter["callback"]:
+                    waiter["callback"](candles)
             return
 
         super()._on_message(client, message)
+
+    def download(self, symbol: str, start, end, periods=("h1", "h4")) -> dict[str, list[dict]]:
+        """Blocking convenience API for backtests; stops the Twisted reactor after all data arrives."""
+        result: dict[str, list[dict]] = {}
+        errors: list[BaseException] = []
+        requested = tuple(p.lower() for p in periods)
+
+        def after_symbols(_symbols):
+            try:
+                sid = self.symbol_id(symbol)
+                for period in requested:
+                    self.history_async(
+                        sid, period, start, end,
+                        callback=lambda candles, p=period: _received(p, candles),
+                    )
+            except BaseException as exc:
+                errors.append(exc)
+                if reactor.running:
+                    reactor.stop()
+
+        def _received(period, candles):
+            result[period] = candles
+            if len(result) == len(requested) and reactor.running:
+                reactor.callLater(0, reactor.stop)
+
+        def on_connected(_client):
+            # App/account auth is performed by the base adapter. Symbols are
+            # requested after account auth, not before it.
+            pass
+
+        self._symbol_waiters.append({"callback": after_symbols})
+        self.connect()
+        self._on_connected = super()._on_connected
+        # Account-auth callback in the base adapter calls request_account_state,
+        # which includes ProtoOASymbolsListReq. Our symbols handler receives it.
+        reactor.run()
+        if errors:
+            raise errors[0]
+        missing = [p for p in requested if p not in result]
+        if missing:
+            raise RuntimeError(f"cTrader returned no historical data for {missing}")
+        return result
+
+
+def _period_name(value) -> str:
+    try:
+        name = ProtoOATrendbarPeriod.Name(value)
+    except Exception:
+        return str(value)
+    return name.lower()
 
 
 def _ms(value) -> int:
