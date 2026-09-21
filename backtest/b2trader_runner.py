@@ -1,7 +1,10 @@
-"""Backtest runner using B2TRADER guest historical candles.
+"""B2TRADER historical backtest runner for the existing ICT/SMC strategy.
 
-The strategy modules are imported unchanged. This runner only supplies normalized
-1H/4H candles and reuses the existing ICT backtest mechanics.
+Important:
+- higher-timeframe candles are sliced to the signal timestamp (no future leak)
+- every signal is entered on the next 1H candle
+- the hybrid SMC model is the default because optional confluence filters are
+  recorded rather than stacked as mandatory gates
 """
 from __future__ import annotations
 
@@ -19,7 +22,11 @@ def dt(v):
     return datetime.fromisoformat(v.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
-def run(symbol, market_symbol, start, end, mode="strict", base_url=None, cache_dir="data/b2trader_cache"):
+def _h4_until(h4, timestamp):
+    return [c for c in h4 if c["time"] <= timestamp]
+
+
+def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_dir="data/b2trader_cache"):
     feed = B2TRADERGuestData(base_url, cache_dir=cache_dir)
     h1 = feed.cached_history(market_symbol, "1h", start, end)
     h4 = feed.cached_history(market_symbol, "4h", start, end)
@@ -30,12 +37,20 @@ def run(symbol, market_symbol, start, end, mode="strict", base_url=None, cache_d
     fn = evaluate_ict_2022 if mode == "strict" else evaluate_ict_hybrid
     trades = []
 
-    # Preserve the existing strategy contract. The signal is evaluated on
-    # closed candles; this runner does not alter strategy parameters.
     for i in range(60, len(h1) - 1):
-        setup = fn(h1[:i + 1], h4, symbol, session_context="london") if mode == "strict" else fn(h1[:i + 1], h4, symbol)
+        signal_time = h1[i]["time"]
+        h4_visible = _h4_until(h4, signal_time)
+        if len(h4_visible) < 30:
+            continue
+
+        if mode == "strict":
+            setup = fn(h1[:i + 1], h4_visible, symbol, session_context="london")
+        else:
+            setup = fn(h1[:i + 1], h4_visible, symbol)
+
         if not setup:
             continue
+
         entry_idx = i + 1
         entry = h1[entry_idx]["open"]
         side = setup["side"]
@@ -64,7 +79,7 @@ def run(symbol, market_symbol, start, end, mode="strict", base_url=None, cache_d
             "pair": symbol,
             "market_symbol": market_symbol,
             "mode": mode,
-            "signal_time_utc": h1[i]["time"],
+            "signal_time_utc": signal_time,
             "entry_time_utc": h1[entry_idx]["time"],
             "side": side,
             "entry": entry,
@@ -75,6 +90,12 @@ def run(symbol, market_symbol, start, end, mode="strict", base_url=None, cache_d
             "pnl_r": pnl_r,
             "rr": setup["rr"],
             "entry_trigger": setup.get("entry_trigger", "STRICT"),
+            "event_type": setup.get("event_type"),
+            "confluence_score": setup.get("confluence_score"),
+            "confluence_max": setup.get("confluence_max"),
+            "premium_discount_zone": setup.get("premium_discount_zone"),
+            "session_valid": setup.get("session_valid"),
+            "dol_available": setup.get("dol_available"),
             "exit_time_utc": exit_time,
         })
     return trades
@@ -90,6 +111,12 @@ def metrics(trades):
         peak = max(peak, equity)
         drawdown = max(drawdown, peak - equity)
     gross_loss = abs(sum(losses))
+
+    triggers = {}
+    for t in trades:
+        key = t.get("entry_trigger") or "UNKNOWN"
+        triggers[key] = triggers.get(key, 0) + 1
+
     return {
         "trades": len(rs),
         "wins": len(wins),
@@ -99,6 +126,7 @@ def metrics(trades):
         "expectancy_r": sum(rs) / len(rs) if rs else 0.0,
         "max_drawdown_r": drawdown,
         "net_r": sum(rs),
+        "entry_triggers": triggers,
     }
 
 
@@ -108,7 +136,7 @@ def main():
     p.add_argument("--market-symbol", required=True)
     p.add_argument("--start", required=True)
     p.add_argument("--end", required=True)
-    p.add_argument("--mode", choices=["strict", "hybrid"], default="strict")
+    p.add_argument("--mode", choices=["strict", "hybrid"], default="hybrid")
     p.add_argument("--base-url")
     p.add_argument("--cache-dir", default="data/b2trader_cache")
     p.add_argument("--json")
@@ -123,7 +151,8 @@ def main():
         "start": a.start,
         "end": a.end,
         "data_source": "B2TRADER guest historical candles",
-        "strategy_changed": False,
+        "strategy_changed": True if a.mode == "hybrid" else False,
+        "future_leak_guard": True,
     })
     if a.json:
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
