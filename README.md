@@ -10,7 +10,7 @@ Broker-independent ICT/SMC research, cTrader market data, backtesting, and execu
 - `execution/ctrader_adapter.py`: cTrader Open API authentication, account state, reconciliation, and future execution boundary.
 - `tests/`: regression and look-ahead safeguards.
 
-Legacy B2TRADER/MT5/Kraken integrations are not part of the target Forex runtime. The old B2TRADER code is retained temporarily only to preserve research history while the cTrader path is validated.
+The repository contains only the cTrader Forex runtime. Legacy B2TRADER, MT5, Kraken, and Exness runtime files have been removed from this branch.
 
 ## Strategy
 
@@ -28,9 +28,9 @@ cTrader Open API supplies historical bars, live market data, account information
 
 Development path:
 
-`cTrader historical data -> backtest -> cTrader Demo -> validated live execution`
+`cTrader historical data -> backtest -> cTrader Demo or Live execution`
 
-No live order submission is enabled by default.
+Execution is explicitly controlled by `CTRADER_ENV` (`demo` or `live`) and `CTRADER_ALLOW_ORDERS=true`. Keep the environment set to the account you intentionally want to trade.
 
 ## Validation
 
