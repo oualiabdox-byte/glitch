@@ -1,34 +1,31 @@
-"""cTrader historical backtest runner for the ICT/SMC strategy.
+"""Deterministic local cTrader backtest runner for the strict Forex ICT/SMC engine.
 
-The strategy remains broker-independent. cTrader supplies the historical H1/H4
-bars, while the existing causal strategy produces the signal. No live orders
-are submitted by this module.
+cTrader supplies historical H1/H4 data. The strategy is broker-independent.
+No live orders are submitted by this module.
 """
 from __future__ import annotations
 
 import argparse
 import json
-import multiprocessing as mp
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 from data.ctrader import CTraderData
 from strategy.ict_strategy import evaluate_ict_2022
-from strategy.ict_hybrid import evaluate_ict_hybrid
-from strategy import risk, timing, safety
+from strategy import risk, safety, timing
 
 
-def dt(value):
+def dt(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
-def _h4_until(h4, timestamp):
+def h4_until(h4, timestamp):
     ts = dt(timestamp).timestamp()
     return [c for c in h4 if dt(c["time"]).timestamp() + 4 * 3600 <= ts]
 
 
-def _load_or_download(feed, symbol, start, end, cache_dir):
+def load_or_download(feed, symbol, start, end, cache_dir):
     cache = Path(cache_dir)
     cache.mkdir(parents=True, exist_ok=True)
     key = f"{symbol}_{start:%Y%m%dT%H%M%SZ}_{end:%Y%m%dT%H%M%SZ}"
@@ -40,24 +37,27 @@ def _load_or_download(feed, symbol, start, end, cache_dir):
     return data
 
 
-def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
-        enable_breaker=True, enable_ote=True, enable_mitigation=True,
-        min_confluence=0, reversal_mode="abc", continuation_mode="price_action", sweep_mode="structure",
-        swing_length=3, htf_swing_length=2, eq_tolerance_atr=0.15,
-        sweep_tolerance_atr=0.0, sweep_valid_bars=6,
-        displacement_mode="body_atr", displacement_std_multiple=2.5,
-        move_exhaustion_atr=5.0, require_session=False, session_delay_minutes=0,
-        max_trades_per_day=0, cooldown_minutes=0, max_drawdown_r=0.0,
-        max_atr_spike=0.0, news_events=None,
-        news_pause_before=45, news_pause_after=20):
+def run(
+    symbol,
+    start,
+    end,
+    cache_dir="data/ctrader_cache",
+    swing_length=3,
+    max_trades_per_day=0,
+    cooldown_minutes=0,
+    max_drawdown_r=0.0,
+    max_atr_spike=0.0,
+    news_events=None,
+    news_pause_before=45,
+    news_pause_after=20,
+):
     feed = CTraderData()
-    data = _load_or_download(feed, symbol, start, end, cache_dir)
+    data = load_or_download(feed, symbol, start, end, cache_dir)
     h1, h4 = data["h1"], data["h4"]
 
     if len(h1) < 100 or len(h4) < 40:
         raise RuntimeError(f"Not enough cTrader data: H1={len(h1)}, H4={len(h4)}")
 
-    fn = evaluate_ict_2022 if mode == "strict" else evaluate_ict_hybrid
     trades = []
     next_available_idx = 60
     last_entry_time = None
@@ -69,19 +69,18 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
             continue
 
         signal_time = h1[i]["time"]
-        timing_ctx = timing.session_context(signal_time)
+        session = timing.session_context(signal_time).session
+        window = h1[: i + 1]
 
-        window = h1[:i + 1]
         if max_atr_spike > 0 and safety.abnormal_volatility(window, max_ratio=max_atr_spike):
             continue
         if safety.news_blocked(
-            signal_time, symbol, news_events or [],
+            signal_time,
+            symbol,
+            news_events or [],
             pause_before_minutes=news_pause_before,
             pause_after_minutes=news_pause_after,
         ):
-            continue
-
-        if require_session and not timing.after_session_open(signal_time, session_delay_minutes):
             continue
         if max_trades_per_day > 0 and risk.trades_on_day(trades, signal_time) >= max_trades_per_day:
             continue
@@ -90,35 +89,16 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
         if not risk.drawdown_guard(equity_r, peak_equity_r, max_drawdown_r):
             continue
 
-        h4_visible = _h4_until(h4, signal_time)
+        h4_visible = h4_until(h4, signal_time)
         if len(h4_visible) < 30:
             continue
 
-        if mode == "strict":
-            setup = fn(h1[:i + 1], h4_visible, symbol, session_context=timing_ctx.session)
-        else:
-            setup = fn(
-                h1[:i + 1], h4_visible, symbol,
-                enable_breaker=enable_breaker,
-                enable_ote=enable_ote,
-                enable_mitigation=enable_mitigation,
-                min_confluence=min_confluence,
-                reversal_confirmation=reversal_mode,
-                continuation_confirmation=continuation_mode,
-                sweep_confirmation=sweep_mode,
-                swing_length=swing_length,
-                htf_swing_length=htf_swing_length,
-                eq_tolerance_atr=eq_tolerance_atr,
-                sweep_tolerance_atr=sweep_tolerance_atr,
-                sweep_valid_bars=sweep_valid_bars,
-                displacement_mode=displacement_mode,
-                displacement_std_multiple=displacement_std_multiple,
-                move_exhaustion_atr=move_exhaustion_atr,
-                require_session=require_session,
-                session_context=timing_ctx.session,
-                session_delay_minutes=session_delay_minutes,
-            )
-
+        setup = evaluate_ict_2022(
+            h1[: i + 1],
+            h4_visible,
+            symbol,
+            session_context=session,
+        )
         if not setup:
             continue
 
@@ -140,9 +120,6 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
             candle = h1[j]
             sl = candle["low"] <= stop if side == "LONG" else candle["high"] >= stop
             tp = candle["high"] >= target if side == "LONG" else candle["low"] <= target
-
-            # Conservative OHLC rule: if both are touched in one candle,
-            # count SL first because tick ordering is unknown.
             if sl:
                 outcome, exit_price, exit_time, exit_idx = "SL", stop, candle["time"], j
                 break
@@ -167,38 +144,11 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
             "side": side,
             "entry": entry,
             "stop": stop,
-            "tp1": target,
-            "tp2": target,
+            "target": target,
             "outcome": outcome,
             "pnl_r": pnl_r,
             "rr": setup["rr"],
-            "entry_trigger": setup.get("entry_trigger", "STRICT"),
-            "event_type": setup.get("event_type"),
-            "entry_model": setup.get("entry_model"),
-            "reversal_confirmation": setup.get("reversal_confirmation"),
-            "abc_confirmed": setup.get("abc_confirmed", False),
-            "abc_pattern": setup.get("abc_pattern"),
-            "abc_break_level": setup.get("abc_break_level"),
-            "abc_fomo_extreme": setup.get("abc_fomo_extreme"),
-            "pullback_trigger_confirmed": setup.get("pullback_trigger_confirmed", False),
-            "continuation_confirmation": setup.get("continuation_confirmation"),
-            "sweep_confirmation": setup.get("sweep_confirmation"),
-            "sweep_age_bars": setup.get("sweep_age_bars"),
-            "sweep_penetration_atr": setup.get("sweep_penetration_atr"),
-            "sweep_valid_window_bars": setup.get("sweep_valid_window_bars"),
-            "sweep_tolerance_atr": setup.get("sweep_tolerance_atr"),
-            "swing_length": setup.get("swing_length"),
-            "htf_swing_length": setup.get("htf_swing_length"),
-            "eq_tolerance_atr": setup.get("eq_tolerance_atr"),
-            "displacement_mode": setup.get("displacement_mode"),
-            "move_exhaustion_atr": setup.get("move_exhaustion_atr"),
-            "session_phase": setup.get("session_phase"),
-            "minutes_from_session_open": setup.get("minutes_from_session_open"),
-            "confluence_score": setup.get("confluence_score"),
-            "confluence_max": setup.get("confluence_max"),
-            "premium_discount_zone": setup.get("premium_discount_zone"),
-            "session_valid": setup.get("session_valid"),
-            "dol_available": setup.get("dol_available"),
+            "session": setup["session"],
             "exit_time_utc": exit_time,
         })
 
@@ -210,18 +160,11 @@ def metrics(trades):
     wins = [r for r in rs if r > 0]
     losses = [r for r in rs if r < 0]
     equity = peak = drawdown = 0.0
-
     for r in rs:
         equity += r
         peak = max(peak, equity)
         drawdown = max(drawdown, peak - equity)
-
     gross_loss = abs(sum(losses))
-    triggers = {}
-    for trade in trades:
-        key = trade.get("entry_trigger") or "UNKNOWN"
-        triggers[key] = triggers.get(key, 0) + 1
-
     return {
         "trades": len(rs),
         "wins": len(wins),
@@ -231,58 +174,18 @@ def metrics(trades):
         "expectancy_r": sum(rs) / len(rs) if rs else 0.0,
         "max_drawdown_r": drawdown,
         "net_r": sum(rs),
-        "entry_triggers": triggers,
-        "abc_reversals": sum(1 for t in trades if t.get("abc_confirmed")),
-        "reversal_mode_counts": {
-            "abc": sum(1 for t in trades if t.get("reversal_confirmation") == "abc"),
-            "legacy": sum(1 for t in trades if t.get("reversal_confirmation") == "legacy"),
-        },
-        "sweep_mode_counts": {
-            "structure": sum(1 for t in trades if t.get("sweep_confirmation") == "structure"),
-            "legacy": sum(1 for t in trades if t.get("sweep_confirmation") == "legacy"),
-        },
-        "continuation_mode_counts": {
-            "price_action": sum(1 for t in trades if t.get("continuation_confirmation") == "price_action"),
-            "legacy": sum(1 for t in trades if t.get("continuation_confirmation") == "legacy"),
-        },
     }
 
 
-def _run_worker(payload):
-    """Run one symbol in a child process so each worker owns one Twisted reactor."""
-    symbol, kwargs = payload
-    return symbol, run(symbol, **kwargs)
-
-
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Local cTrader Forex ICT/SMC backtest")
     parser.add_argument("--symbol")
     parser.add_argument("--all-pairs", action="store_true")
     parser.add_argument("--pairs", default="EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD")
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
-    parser.add_argument("--mode", choices=["strict", "hybrid"], default="hybrid")
     parser.add_argument("--cache-dir", default="data/ctrader_cache")
-    parser.add_argument("--disable-breaker", action="store_true")
-    parser.add_argument("--disable-ote", action="store_true")
-    parser.add_argument("--disable-mitigation", action="store_true")
-    parser.add_argument("--min-confluence", type=int, default=0)
-    parser.add_argument("--reversal-mode", choices=["abc", "legacy"], default="abc",
-                        help="Hybrid reversal confirmation variant for controlled A/B testing.")
-    parser.add_argument("--continuation-mode", choices=["price_action", "legacy"], default="price_action",
-                        help="Hybrid continuation confirmation variant for controlled A/B testing.")
-    parser.add_argument("--sweep-mode", choices=["structure", "legacy"], default="structure",
-                        help="Hybrid liquidity-sweep level variant for controlled A/B testing.")
     parser.add_argument("--swing-length", type=int, default=3)
-    parser.add_argument("--htf-swing-length", type=int, default=2)
-    parser.add_argument("--eq-tolerance-atr", type=float, default=0.15)
-    parser.add_argument("--sweep-tolerance-atr", type=float, default=0.0)
-    parser.add_argument("--sweep-valid-bars", type=int, default=6)
-    parser.add_argument("--displacement-mode", choices=["body_atr", "range_atr", "average_body", "body_std"], default="body_atr")
-    parser.add_argument("--displacement-std-multiple", type=float, default=2.5)
-    parser.add_argument("--move-exhaustion-atr", type=float, default=5.0)
-    parser.add_argument("--require-session", action="store_true")
-    parser.add_argument("--session-delay-minutes", type=int, default=0)
     parser.add_argument("--max-trades-per-day", type=int, default=0)
     parser.add_argument("--cooldown-minutes", type=int, default=0)
     parser.add_argument("--max-drawdown-r", type=float, default=0.0)
@@ -296,99 +199,47 @@ def main():
     if not args.symbol and not args.all_pairs:
         parser.error("provide --symbol SYMBOL or --all-pairs")
 
-    pairs = [args.symbol] if args.symbol else [
-        p.strip().upper() for p in args.pairs.split(",") if p.strip()
-    ]
-
-    run_args = {
-        "start": dt(args.start),
-        "end": dt(args.end),
-        "mode": args.mode,
-        "cache_dir": args.cache_dir,
-        "enable_breaker": not args.disable_breaker,
-        "enable_ote": not args.disable_ote,
-        "enable_mitigation": not args.disable_mitigation,
-        "min_confluence": args.min_confluence,
-        "reversal_mode": args.reversal_mode,
-        "continuation_mode": args.continuation_mode,
-        "sweep_mode": args.sweep_mode,
-        "swing_length": args.swing_length,
-        "htf_swing_length": args.htf_swing_length,
-        "eq_tolerance_atr": args.eq_tolerance_atr,
-        "sweep_tolerance_atr": args.sweep_tolerance_atr,
-        "sweep_valid_bars": args.sweep_valid_bars,
-        "displacement_mode": args.displacement_mode,
-        "displacement_std_multiple": args.displacement_std_multiple,
-        "move_exhaustion_atr": args.move_exhaustion_atr,
-        "require_session": args.require_session,
-        "session_delay_minutes": args.session_delay_minutes,
-        "max_trades_per_day": args.max_trades_per_day,
-        "cooldown_minutes": args.cooldown_minutes,
-        "max_drawdown_r": args.max_drawdown_r,
-        "max_atr_spike": args.max_atr_spike,
-        "news_events": safety.load_news_events(
-            Path(args.news_events_json).read_text()
-        ) if args.news_events_json else [],
-        "news_pause_before": args.news_pause_before,
-        "news_pause_after": args.news_pause_after,
-    }
-
-    if len(pairs) > 1:
-        workers = max(1, min(
-            len(pairs),
-            int(os.getenv("CTRADER_BACKTEST_WORKERS", "2")),
-        ))
-        ctx = mp.get_context("spawn")
-        payloads = [(symbol, run_args) for symbol in pairs]
-        with ctx.Pool(processes=workers) as pool:
-            results = pool.map(_run_worker, payloads)
-    else:
-        results = [_run_worker((pairs[0], run_args))]
+    pairs = [args.symbol.upper()] if args.symbol else [p.strip().upper() for p in args.pairs.split(",") if p.strip()]
+    news_events = safety.load_news_events(Path(args.news_events_json).read_text()) if args.news_events_json else []
 
     reports = {}
     all_trades = []
-    for symbol, trades in results:
+    for symbol in pairs:
+        trades = run(
+            symbol,
+            dt(args.start),
+            dt(args.end),
+            cache_dir=args.cache_dir,
+            swing_length=args.swing_length,
+            max_trades_per_day=args.max_trades_per_day,
+            cooldown_minutes=args.cooldown_minutes,
+            max_drawdown_r=args.max_drawdown_r,
+            max_atr_spike=args.max_atr_spike,
+            news_events=news_events,
+            news_pause_before=args.news_pause_before,
+            news_pause_after=args.news_pause_after,
+        )
         reports[symbol] = metrics(trades)
         all_trades.extend(trades)
 
     report = {
         "symbols": pairs,
-        "mode": args.mode,
         "start": args.start,
         "end": args.end,
+        "mode": "strict_ict_smc",
         "data_source": "cTrader Open API historical H1/H4",
-        "reversal_mode": args.reversal_mode,
-        "continuation_mode": args.continuation_mode,
-        "sweep_mode": args.sweep_mode,
         "future_leak_guard": True,
         "swing_length": args.swing_length,
-        "htf_swing_length": args.htf_swing_length,
-        "eq_tolerance_atr": args.eq_tolerance_atr,
-        "sweep_tolerance_atr": args.sweep_tolerance_atr,
-        "sweep_valid_bars": args.sweep_valid_bars,
-        "displacement_mode": args.displacement_mode,
-        "displacement_std_multiple": args.displacement_std_multiple,
-        "move_exhaustion_atr": args.move_exhaustion_atr,
-        "safety_gates": {
+        "risk_gates": {
+            "max_trades_per_day": args.max_trades_per_day,
+            "cooldown_minutes": args.cooldown_minutes,
+            "max_drawdown_r": args.max_drawdown_r,
             "max_atr_spike": args.max_atr_spike,
             "news_pause_before": args.news_pause_before,
             "news_pause_after": args.news_pause_after,
         },
-        "risk_gates": {
-            "require_session": args.require_session,
-            "session_delay_minutes": args.session_delay_minutes,
-            "max_trades_per_day": args.max_trades_per_day,
-            "cooldown_minutes": args.cooldown_minutes,
-            "max_drawdown_r": args.max_drawdown_r,
-        },
         "pairs": reports,
         "aggregate": metrics(all_trades),
-        "advanced_confluence": {
-            "breaker": not args.disable_breaker,
-            "ote": not args.disable_ote,
-            "mitigation": not args.disable_mitigation,
-            "min_confluence": args.min_confluence,
-        },
     }
 
     if args.json:
