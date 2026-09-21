@@ -23,7 +23,10 @@ def dt(v):
 
 
 def _h4_until(h4, timestamp):
-    return [c for c in h4 if c["time"] <= timestamp]
+    # Candle timestamps are treated as candle-open times. Only fully closed
+    # 4H candles are visible to a signal evaluated at timestamp.
+    ts = dt(timestamp).timestamp()
+    return [c for c in h4 if dt(c["time"]).timestamp() + 4 * 3600 <= ts]
 
 
 def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_dir="data/b2trader_cache",
