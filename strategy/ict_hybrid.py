@@ -294,6 +294,9 @@ def evaluate_ict_hybrid(
         mitigation_fresh = mitigation_fresh and not mitigation.zone_mitigated(
             recent, fvg_result, bias
         )
+    mitigation_confluence = bool(
+        enable_mitigation and (ob_result or fvg_result) and mitigation_fresh
+    )
 
     # Add DC to the descriptive confluence score only. It is deliberately
     # NOT a mandatory gate, preventing the SMC stack from collapsing to zero
@@ -305,7 +308,7 @@ def evaluate_ict_hybrid(
         context["confluence_score"] += 1
     if ote_aligned:
         context["confluence_score"] += 1
-    if enable_mitigation and mitigation_fresh:
+    if mitigation_confluence:
         context["confluence_score"] += 1
 
     context["confluence_max"] = 4 + int(enable_breaker) + int(enable_ote) + int(enable_mitigation)
@@ -314,6 +317,12 @@ def evaluate_ict_hybrid(
         "ote_valid": bool(ote_zone),
         "ote_aligned": ote_aligned,
         "mitigation_fresh": mitigation_fresh,
+        "mitigation_confluence": mitigation_confluence,
+        "enabled": {
+            "breaker": enable_breaker,
+            "ote": enable_ote,
+            "mitigation": enable_mitigation,
+        },
     }
     context.update({
         "dc_valid": bool(dc),
@@ -327,6 +336,7 @@ def evaluate_ict_hybrid(
         "ote_zone": ote_zone,
         "ote_aligned": ote_aligned,
         "mitigation_fresh": mitigation_fresh,
+        "mitigation_confluence": mitigation_confluence,
     })
 
     pools = liquidity.liquidity_pools(candles_4h[-30:])
