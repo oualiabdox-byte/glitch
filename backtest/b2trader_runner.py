@@ -37,8 +37,14 @@ def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_d
 
     fn = evaluate_ict_2022 if mode == "strict" else evaluate_ict_hybrid
     trades = []
+    next_available_idx = 60
 
     for i in range(60, len(h1) - 1):
+        # A single-position backtest: do not open another trade while the
+        # previous simulated position is still open. This prevents overlapping
+        # positions from inflating trade count and distorting drawdown/expectancy.
+        if i < next_available_idx:
+            continue
         signal_time = h1[i]["time"]
         h4_visible = _h4_until(h4, signal_time)
         if len(h4_visible) < 30:
@@ -69,16 +75,20 @@ def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_d
         outcome = "OPEN"
         exit_price = h1[-1]["close"]
         exit_time = h1[-1]["time"]
+        exit_idx = len(h1) - 1
         for j in range(entry_idx, len(h1)):
             c = h1[j]
             sl = c["low"] <= stop if side == "LONG" else c["high"] >= stop
             tp = c["high"] >= target if side == "LONG" else c["low"] <= target
             if sl:
-                outcome, exit_price, exit_time = "SL", stop, c["time"]
+                outcome, exit_price, exit_time, exit_idx = "SL", stop, c["time"], j
                 break
             if tp:
-                outcome, exit_price, exit_time = "TP", target, c["time"]
+                outcome, exit_price, exit_time, exit_idx = "TP", target, c["time"], j
                 break
+
+        # Next signal may only be evaluated after the position is closed.
+        next_available_idx = max(next_available_idx, exit_idx + 1)
 
         risk = abs(entry - stop)
         pnl_r = ((exit_price - entry) / risk if side == "LONG" else (entry - exit_price) / risk) if risk else 0.0
@@ -114,7 +124,7 @@ def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_d
             "ote_valid": bool(setup.get("ote_zone")),
             "ote_aligned": setup.get("ote_aligned"),
             "mitigation_fresh": setup.get("mitigation_fresh"),
-            "advanced_confluence_enabled": setup.get("advanced_confluence_enabled"),
+            "advanced_confluence": setup.get("advanced_confluence"),
             "exit_time_utc": exit_time,
         })
     return trades
