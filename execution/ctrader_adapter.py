@@ -281,35 +281,38 @@ class CTraderAdapter:
         side: str,
         volume_units: float,
         *,
+        relative_stop_loss: Optional[float] = None,
+        relative_take_profit: Optional[float] = None,
         client_order_id: Optional[str] = None,
         label: Optional[str] = None,
         comment: Optional[str] = None,
     ) -> Any:
-        """Submit a market order to the selected cTrader environment.
+        """Submit a market order with optional relative SL/TP protection.
 
-        Strategy code supplies the direction and size; this adapter only
-        translates them into cTrader protocol fields. Protective SL/TP must
-        be applied after a fill because absolute SL/TP fields are not supported
-        on MARKET orders by cTrader Open API.
+        cTrader does not support absolute SL/TP on MARKET orders, but it does
+        support relativeStopLoss/relativeTakeProfit. These are distances from
+        the filled position open price, so the protective levels are attached
+        as part of the order request instead of being added in a later
+        unprotected step.
         """
         self._require_order_permission()
         if volume_units <= 0:
             raise ValueError("volume_units must be > 0")
-        if (
-            self.config.max_order_volume_units > 0
-            and volume_units > self.config.max_order_volume_units
-        ):
+        if self.config.max_order_volume_units > 0 and volume_units > self.config.max_order_volume_units:
             raise RuntimeError(
                 f"volume_units={volume_units} exceeds "
                 f"CTRADER_MAX_ORDER_VOLUME_UNITS={self.config.max_order_volume_units}"
             )
         if self.config.environment == "live":
             if not self.config.confirm_live:
-                raise RuntimeError(
-                    "Live orders require CTRADER_CONFIRM_LIVE=I_UNDERSTAND"
-                )
+                raise RuntimeError("Live orders require CTRADER_CONFIRM_LIVE=I_UNDERSTAND")
             if self.config.account_id is None:
                 raise RuntimeError("Live orders require an explicit CTRADER_ACCOUNT_ID")
+
+        if relative_stop_loss is not None and relative_stop_loss <= 0:
+            raise ValueError("relative_stop_loss must be > 0")
+        if relative_take_profit is not None and relative_take_profit <= 0:
+            raise ValueError("relative_take_profit must be > 0")
 
         normalized_side = str(side).upper()
         if normalized_side not in {"BUY", "SELL", "LONG", "SHORT"}:
@@ -326,6 +329,10 @@ class CTraderAdapter:
         req.orderType = ProtoOAOrderType.Value("MARKET")
         req.tradeSide = trade_side
         req.volume = int(round(float(volume_units) * 100))
+        if relative_stop_loss is not None:
+            req.relativeStopLoss = int(round(float(relative_stop_loss) * 100000))
+        if relative_take_profit is not None:
+            req.relativeTakeProfit = int(round(float(relative_take_profit) * 100000))
         if client_order_id:
             req.clientOrderId = str(client_order_id)[:50]
         if label:
@@ -333,60 +340,6 @@ class CTraderAdapter:
         if comment:
             req.comment = str(comment)[:512]
         return self._send(req)
-
-    def submit_market_order_protected(
-        self,
-        symbol_id: int,
-        side: str,
-        volume_units: float,
-        *,
-        stop_loss: float,
-        take_profit: float,
-        client_order_id: Optional[str] = None,
-        label: Optional[str] = None,
-        comment: Optional[str] = None,
-    ) -> Any:
-        """Submit a market order and attach SL/TP immediately after fill.
-
-        cTrader does not support absolute SL/TP fields on MARKET orders, so
-        protection must follow the fill. A failed protection amendment triggers
-        a best-effort close of the newly filled position.
-        """
-        if stop_loss <= 0 or take_profit <= 0:
-            raise ValueError("stop_loss and take_profit must be positive")
-        deferred = self.submit_market_order(
-            symbol_id,
-            side,
-            volume_units,
-            client_order_id=client_order_id,
-            label=label,
-            comment=comment,
-        )
-
-        def on_execution(message):
-            response = Protobuf.extract(message)
-            position = getattr(response, "position", None)
-            if position is None:
-                return message
-            position_id = int(position.positionId)
-            protection = self.amend_position_protection(
-                position_id, stop_loss=stop_loss, take_profit=take_profit
-            )
-
-            def protection_failed(failure):
-                try:
-                    volume_raw = int(getattr(position.tradeData, "volume", 0))
-                    volume_units_filled = volume_raw / 100.0
-                    if volume_units_filled > 0:
-                        self.close_position(position_id, volume_units_filled)
-                finally:
-                    return failure
-
-            protection.addErrback(protection_failed)
-            return message
-
-        deferred.addCallback(on_execution)
-        return deferred
 
     def amend_position_protection(
         self,
