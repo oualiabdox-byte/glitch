@@ -17,6 +17,10 @@ LONDON_OPEN = time(8, 0)
 LONDON_CLOSE = time(17, 0)
 NEW_YORK_OPEN = time(8, 0)
 NEW_YORK_CLOSE = time(17, 0)
+LONDON_KILL_OPEN = time(8, 0)
+LONDON_KILL_CLOSE = time(9, 0)
+NEW_YORK_KILL_OPEN = time(8, 0)
+NEW_YORK_KILL_CLOSE = time(9, 0)
 OPEN_PHASE_MINUTES = 120
 CLOSE_PHASE_MINUTES = 60
 
@@ -122,6 +126,19 @@ def after_session_open(value, delay_minutes: int = 0) -> bool:
         ctx.minutes_from_session_open is not None
         and ctx.minutes_from_session_open >= delay_minutes
     )
+
+
+def in_kill_zone(value, market=None) -> bool:
+    utc = as_utc(value)
+    london_local = utc.astimezone(LONDON_TZ)
+    ny_local = utc.astimezone(NEW_YORK_TZ)
+    london = LONDON_KILL_OPEN <= london_local.time() < LONDON_KILL_CLOSE
+    new_york = NEW_YORK_KILL_OPEN <= ny_local.time() < NEW_YORK_KILL_CLOSE
+    if market == "london":
+        return london
+    if market in {"new_york", "ny"}:
+        return new_york
+    return london or new_york
 
 
 def current_context() -> TimingContext:
