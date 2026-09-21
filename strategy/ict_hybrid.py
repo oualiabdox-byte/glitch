@@ -14,7 +14,7 @@ frequency and reduces parameter overfitting. All calculations are causal.
 """
 
 from .ict_strategy import _atr, _pip_size, _find_recent_sweep
-from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks, dominating_candle, breaker_blocks, ote, mitigation, smc_engine
+from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks, dominating_candle, breaker_blocks, ote, mitigation, smc_engine, timing
 
 
 def _post_event_structure(recent, event_idx, side, swing_length=3):
@@ -211,17 +211,18 @@ def _ob_retested(recent, ob, side):
     prior = recent[ob["idx"] + 1:-1]
     cur = recent[-1]
 
+    # First-touch only: any earlier contact consumes the fresh reaction setup.
     if side == "LONG":
-        if any(c["close"] < ob["bottom"] for c in prior):
+        if any(c["close"] < ob["bottom"] or c["low"] <= ob["top"] for c in prior):
             return False
         return cur["low"] <= ob["top"] and cur["close"] >= ob["bottom"]
 
-    if any(c["close"] > ob["top"] for c in prior):
+    if any(c["close"] > ob["top"] or c["high"] >= ob["bottom"] for c in prior):
         return False
     return cur["high"] >= ob["bottom"] and cur["close"] <= ob["top"]
 
 
-def _confluence_context(candles_1h, candles_4h, bias, current, session_context):
+def _confluence_context(candles_1h, candles_4h, bias, current, session_context, eq_tolerance_atr=0.15, swing_length=2):
     """Return non-blocking SMC confluence facts.
 
     These facts are deliberately reported rather than independently required.
@@ -239,7 +240,7 @@ def _confluence_context(candles_1h, candles_4h, bias, current, session_context):
     else:
         pd_zone = "premium" if position > 0.50 else "discount"
 
-    pools = liquidity.liquidity_pools(candles_4h[-30:])
+    pools = liquidity.liquidity_pools(candles_4h[-30:], swing_length=swing_length, eq_tolerance_atr=eq_tolerance_atr)
     directional = [
         p for p in pools
         if (
@@ -294,6 +295,15 @@ def evaluate_ict_hybrid(
     reversal_confirmation="abc",
     continuation_confirmation="price_action",
     sweep_confirmation="structure",
+    swing_length=3,
+    htf_swing_length=2,
+    eq_tolerance_atr=0.15,
+    sweep_tolerance_atr=0.0,
+    sweep_valid_bars=6,
+    displacement_mode="body_atr",
+    displacement_std_multiple=2.5,
+    move_exhaustion_atr=5.0,
+    session_delay_minutes=0,
 ):
     """Calibrated SMC entry model.
 
@@ -313,14 +323,23 @@ def evaluate_ict_hybrid(
     if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
 
-    bias = ict_bias.htf_bias_4h(candles_4h)
+    if swing_length < 2 or htf_swing_length < 2:
+        raise ValueError("swing lengths must be >= 2")
+    if sweep_tolerance_atr < 0 or sweep_valid_bars < 1:
+        raise ValueError("invalid sweep tolerance/window")
+    if move_exhaustion_atr < 0:
+        raise ValueError("move_exhaustion_atr must be >= 0")
+
+    recent = candles_1h[-48:]
+    timing_ctx = timing.session_context(recent[-1]["time"])
+    session_context = session_context or timing_ctx.session
+
+    bias = ict_bias.htf_bias_4h(candles_4h, swing_length=htf_swing_length)
     if bias not in ("LONG", "SHORT"):
         return None
 
-    if require_session and session_context not in ("london", "new_york", "overlap"):
+    if require_session and not timing.after_session_open(recent[-1]["time"], session_delay_minutes):
         return None
-
-    recent = candles_1h[-48:]
 
     # Independent entry paths: reversal, continuation, expansion.
     if entry_model not in ("auto", "reversal", "continuation", "expansion"):
@@ -344,7 +363,7 @@ def evaluate_ict_hybrid(
         or (bias == "SHORT" and pd_position > 0.50)
     )
 
-    sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5, mode=sweep_confirmation)
+    sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5, mode=sweep_confirmation, swing_length=swing_length, tolerance_atr=sweep_tolerance_atr, valid_window_bars=sweep_valid_bars)
     abc = None
     if sweep and pd_aligned and entry_model in ("auto", "reversal"):
         sweep_idx = next(
@@ -353,7 +372,7 @@ def evaluate_ict_hybrid(
         )
         if reversal_confirmation == "abc":
             abc = _abc_reversal_confirmation(
-                recent, sweep_idx, bias, sweep, swing_length=3
+                recent, sweep_idx, bias, sweep, swing_length=swing_length
             )
             model = "reversal" if abc and abc["confirmed"] else None
         else:
@@ -394,7 +413,11 @@ def evaluate_ict_hybrid(
         for i in range(len(recent) - 2, max(0, len(recent) - 14), -1):
             c = recent[i]
             if displacement.is_displaced(
-                recent, i, min_body_atr_ratio=min_displacement_atr
+                recent,
+                i,
+                min_body_atr_ratio=min_displacement_atr,
+                mode=displacement_mode,
+                std_multiple=displacement_std_multiple,
             ) and (
                 (bias == "LONG" and c["close"] > c["open"])
                 or (bias == "SHORT" and c["close"] < c["open"])
@@ -413,7 +436,7 @@ def evaluate_ict_hybrid(
     break_idx = None
     if model == "expansion":
         mss, mss_level, break_idx = _post_event_structure(
-            recent, event_idx, bias, swing_length=3
+            recent, event_idx, bias, swing_length=swing_length
         )
         if not mss:
             return None
@@ -451,6 +474,19 @@ def evaluate_ict_hybrid(
     if atr <= 0:
         return None
 
+    # Do not chase a setup after price has travelled excessively far from its event.
+    if move_exhaustion_atr > 0:
+        if model == "reversal" and sweep:
+            anchor = float(sweep["extreme"])
+        elif event_idx is not None:
+            anchor = float(recent[event_idx]["close"])
+        elif fvg_result:
+            anchor = float(recent[fvg_result["creator_idx"]]["close"])
+        else:
+            anchor = float(recent[-1]["close"])
+        if abs(recent[-1]["close"] - anchor) > atr * move_exhaustion_atr:
+            return None
+
     if abc and model == "reversal":
         extreme = abc["fomo_extreme"]["low"] if bias == "LONG" else abc["fomo_extreme"]["high"]
     elif event_idx is not None:
@@ -467,7 +503,8 @@ def evaluate_ict_hybrid(
     stop = extreme - buffer if bias == "LONG" else extreme + buffer
 
     context = _confluence_context(
-        candles_1h, candles_4h, bias, recent[-1]["close"], session_context
+        candles_1h, candles_4h, bias, recent[-1]["close"], session_context,
+        eq_tolerance_atr=eq_tolerance_atr, swing_length=2
     )
     # pyvsmc is optional detector data only; it never becomes a hard gate.
     context["smc_engine"] = smc_engine.analyze(recent)
@@ -616,6 +653,17 @@ def evaluate_ict_hybrid(
         "reversal_confirmation": reversal_confirmation if model == "reversal" else None,
         "continuation_confirmation": continuation_confirmation if model == "continuation" else None,
         "sweep_confirmation": sweep_confirmation,
+        "sweep_age_bars": sweep.get("age_bars") if sweep else None,
+        "sweep_penetration_atr": sweep.get("penetration_atr") if sweep else None,
+        "sweep_valid_window_bars": sweep_valid_bars,
+        "sweep_tolerance_atr": sweep_tolerance_atr,
+        "swing_length": swing_length,
+        "htf_swing_length": htf_swing_length,
+        "eq_tolerance_atr": eq_tolerance_atr,
+        "displacement_mode": displacement_mode,
+        "move_exhaustion_atr": move_exhaustion_atr,
+        "session_phase": timing_ctx.phase,
+        "minutes_from_session_open": timing_ctx.minutes_from_session_open,
         "abc_pattern": abc["pattern"] if abc else None,
         "abc_break_level": abc["break_level"] if abc else None,
         "abc_fomo_extreme": (abc["fomo_extreme"]["low"] if bias == "LONG" else abc["fomo_extreme"]["high"]) if abc else None,
