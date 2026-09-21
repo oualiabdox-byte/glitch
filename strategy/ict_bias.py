@@ -1,7 +1,7 @@
 """Higher-timeframe directional context using confirmed 4H swing structure."""
 
 
-def htf_bias_4h(candles_4h):
+def htf_bias_4h(candles_4h, swing_length=2):
     """Return LONG/SHORT only when the last confirmed swings agree.
 
     Swing confirmation uses candles on both sides of the swing, so the current
@@ -14,8 +14,8 @@ def htf_bias_4h(candles_4h):
     # Local import avoids coupling the strategy modules at import time.
     from .market_structure import find_swing_highs, find_swing_lows
 
-    highs = find_swing_highs(candles_4h, length=2)
-    lows = find_swing_lows(candles_4h, length=2)
+    highs = find_swing_highs(candles_4h, length=swing_length)
+    lows = find_swing_lows(candles_4h, length=swing_length)
     if len(highs) >= 2 and len(lows) >= 2:
         h1, h2 = highs[-2], highs[-1]
         l1, l2 = lows[-2], lows[-1]
