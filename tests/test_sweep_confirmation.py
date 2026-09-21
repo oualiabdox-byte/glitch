@@ -84,3 +84,50 @@ def test_legacy_sweep_remains_available():
 
     assert result is not None
     assert result["source"] == "ROLLING_LOW"
+
+
+
+def test_sweep_tolerance_is_volatility_normalized(monkeypatch):
+    candles = [
+        bar(i, 101 + i, 99 - i * 0.01, 100 + i * 0.1)
+        for i in range(8)
+    ]
+    monkeypatch.setattr(
+        ict_strategy.market_structure,
+        "find_swing_lows",
+        lambda candles, length=3: [{"idx": 2, "low": 98.0, "time": 2}],
+    )
+    monkeypatch.setattr(ict_strategy, "_atr", lambda candles, period=14: 1.0)
+
+    candles[6]["low"] = 97.95
+    candles[6]["close"] = 98.2
+    assert ict_strategy._find_recent_sweep(
+        candles, "LONG", lookback=6, mode="structure",
+        swing_length=3, tolerance_atr=0.10, valid_window_bars=2,
+    ) is None
+
+    candles[6]["low"] = 97.80
+    assert ict_strategy._find_recent_sweep(
+        candles, "LONG", lookback=6, mode="structure",
+        swing_length=3, tolerance_atr=0.10, valid_window_bars=2,
+    ) is not None
+
+
+def test_stale_sweep_expires_from_validity_window(monkeypatch):
+    candles = [
+        bar(i, 101 + i, 99 - i * 0.01, 100 + i * 0.1)
+        for i in range(10)
+    ]
+    monkeypatch.setattr(
+        ict_strategy.market_structure,
+        "find_swing_lows",
+        lambda candles, length=3: [{"idx": 1, "low": 98.0, "time": 1}],
+    )
+    monkeypatch.setattr(ict_strategy, "_atr", lambda candles, period=14: 1.0)
+    candles[2]["low"] = 97.0
+    candles[2]["close"] = 98.5
+
+    assert ict_strategy._find_recent_sweep(
+        candles, "LONG", lookback=12, mode="structure",
+        swing_length=3, valid_window_bars=6,
+    ) is None
