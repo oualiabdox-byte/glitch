@@ -81,6 +81,7 @@ def run(
     max_trades_per_day=0,
     cooldown_minutes=0,
     max_drawdown_r=0.0,
+    max_daily_loss_r=0.0,
     max_atr_spike=0.0,
     news_events=None,
     news_pause_before=45,
@@ -127,6 +128,8 @@ def run(
         if max_trades_per_day > 0 and risk.trades_on_day(trades, signal_time) >= max_trades_per_day:
             continue
         if not risk.cooldown_clear(last_entry_time, signal_time, cooldown_minutes):
+            continue
+        if not risk.daily_loss_guard(trades, signal_time, max_daily_loss_r):
             continue
         if not risk.drawdown_guard(equity_r, peak_equity_r, max_drawdown_r):
             continue
@@ -266,6 +269,7 @@ def main():
     parser.add_argument("--max-trades-per-day", type=int, default=0)
     parser.add_argument("--cooldown-minutes", type=int, default=0)
     parser.add_argument("--max-drawdown-r", type=float, default=0.0)
+    parser.add_argument("--max-daily-loss-r", type=float, default=None)
     parser.add_argument("--max-atr-spike", type=float, default=0.0)
     parser.add_argument("--news-events-json", default="")
     parser.add_argument("--news-pause-before", type=int, default=45)
@@ -296,6 +300,12 @@ def main():
         raise RuntimeError("Backtest config must require closed bars and look-ahead protection")
 
     exec_cfg = cfg.get("execution", {})
+    risk_cfg = cfg.get("risk", {})
+    max_daily_loss_r = float(
+        args.max_daily_loss_r
+        if args.max_daily_loss_r is not None
+        else risk_cfg.get("max_daily_loss_r", 0.0)
+    )
     spread_pips = float(args.spread_pips if args.spread_pips is not None else exec_cfg.get("spread_pips", 1.5))
     slippage_pips = float(args.slippage_pips if args.slippage_pips is not None else exec_cfg.get("slippage_pips", 0.0))
     commission = float(args.commission_per_lot if args.commission_per_lot is not None else exec_cfg.get("commission_per_lot_round_turn", 0.0))
@@ -311,6 +321,7 @@ def main():
             max_trades_per_day=args.max_trades_per_day,
             cooldown_minutes=args.cooldown_minutes,
             max_drawdown_r=args.max_drawdown_r,
+            max_daily_loss_r=max_daily_loss_r,
             max_atr_spike=args.max_atr_spike,
             news_events=news_events,
             news_pause_before=args.news_pause_before,
@@ -345,6 +356,7 @@ def main():
             "max_trades_per_day": args.max_trades_per_day,
             "cooldown_minutes": args.cooldown_minutes,
             "max_drawdown_r": args.max_drawdown_r,
+            "max_daily_loss_r": max_daily_loss_r,
             "max_atr_spike": args.max_atr_spike,
             "news_pause_before": args.news_pause_before,
             "news_pause_after": args.news_pause_after,
