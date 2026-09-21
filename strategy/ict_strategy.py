@@ -28,41 +28,75 @@ def _pip_size(pair):
     return 0.01 if "JPY" in pair.upper() else 0.0001
 
 
-def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6, mode="structure"):
-    """Return the latest liquidity sweep before the current candle.
+def _find_recent_sweep(
+    candles,
+    bias,
+    lookback=12,
+    reference_bars=6,
+    mode="structure",
+    swing_length=3,
+    tolerance_atr=0.0,
+    valid_window_bars=6,
+):
+    """Return the latest recent liquidity sweep before the current candle.
 
-    structure mode uses confirmed swing highs/lows as explicit liquidity levels.
-    legacy mode keeps the older rolling-window level for controlled A/B testing.
-    The current candle is excluded from sweep detection; entry confirmation
-    happens later in the caller.
+    A sweep is valid only on closed candles before the decision candle.
+    structure mode uses confirmed swing liquidity; legacy mode keeps the
+    rolling-window control. tolerance_atr is a minimum penetration into the
+    level, and valid_window_bars prevents stale sweeps from remaining active.
     """
     if len(candles) < reference_bars + 3:
         return None
     if mode not in ("structure", "legacy"):
         raise ValueError("invalid sweep mode")
+    if swing_length < 2:
+        raise ValueError("swing_length must be >= 2")
+    if tolerance_atr < 0 or valid_window_bars < 1:
+        raise ValueError("invalid sweep tolerance/window")
 
     start = max(0, len(candles) - lookback - 1)
     end = len(candles) - 1
 
     for i in range(end - 1, start - 1, -1):
+        age = end - i
+        if age > valid_window_bars:
+            continue
+
         c = candles[i]
+        atr = _atr(candles[:i + 1], period=14)
 
         if mode == "structure":
             pre = candles[:i]
             if bias == "LONG":
-                swings = market_structure.find_swing_lows(pre, length=3)
+                swings = market_structure.find_swing_lows(pre, length=swing_length)
                 if not swings:
                     continue
                 level = swings[-1]["low"]
-                if c["low"] < level and c["close"] > level:
-                    return {"time": c["time"], "level": level, "extreme": c["low"], "source": "SWING_LOW"}
+                penetration = level - c["low"]
+                if penetration >= atr * tolerance_atr and c["low"] < level and c["close"] > level:
+                    return {
+                        "time": c["time"],
+                        "level": level,
+                        "extreme": c["low"],
+                        "source": "SWING_LOW",
+                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
+                        "age_bars": age,
+                    }
             else:
-                swings = market_structure.find_swing_highs(pre, length=3)
+                swings = market_structure.find_swing_highs(pre, length=swing_length)
                 if not swings:
                     continue
                 level = swings[-1]["high"]
-                if c["high"] > level and c["close"] < level:
-                    return {"time": c["time"], "level": level, "extreme": c["high"], "source": "SWING_HIGH"}
+                penetration = c["high"] - level
+                if penetration >= atr * tolerance_atr and c["high"] > level and c["close"] < level:
+                    return {
+                        "time": c["time"],
+                        "level": level,
+                        "extreme": c["high"],
+                        "source": "SWING_HIGH",
+                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
+                        "age_bars": age,
+                    }
             continue
 
         before = candles[max(0, i - reference_bars):i]
@@ -70,12 +104,28 @@ def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6, mode="struc
             continue
         if bias == "LONG":
             level = min(x["low"] for x in before)
-            if c["low"] < level and c["close"] > level:
-                return {"time": c["time"], "level": level, "extreme": c["low"], "source": "ROLLING_LOW"}
+            penetration = level - c["low"]
+            if penetration >= atr * tolerance_atr and c["low"] < level and c["close"] > level:
+                return {
+                    "time": c["time"],
+                    "level": level,
+                    "extreme": c["low"],
+                    "source": "ROLLING_LOW",
+                    "penetration_atr": penetration / atr if atr > 0 else 0.0,
+                    "age_bars": age,
+                }
         else:
             level = max(x["high"] for x in before)
-            if c["high"] > level and c["close"] < level:
-                return {"time": c["time"], "level": level, "extreme": c["high"], "source": "ROLLING_HIGH"}
+            penetration = c["high"] - level
+            if penetration >= atr * tolerance_atr and c["high"] > level and c["close"] < level:
+                return {
+                    "time": c["time"],
+                    "level": level,
+                    "extreme": c["high"],
+                    "source": "ROLLING_HIGH",
+                    "penetration_atr": penetration / atr if atr > 0 else 0.0,
+                    "age_bars": age,
+                }
     return None
 
 
