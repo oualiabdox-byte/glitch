@@ -1,4 +1,4 @@
-name: ICT Hybrid Forex Backtest
+name: cTrader ICT Hybrid Forex Backtest
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ on:
         default: "2026-01-01T00:00:00Z"
 
 concurrency:
-  group: forex-bot-ict
+  group: ctrader-forex-backtest
   cancel-in-progress: true
 
 jobs:
@@ -32,15 +32,21 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Run B2TRADER backtest
+      - name: Run cTrader backtest
         env:
-          B2TRADER_BASE_URL: ${{ secrets.B2TRADER_BASE_URL }}
+          CTRADER_CLIENT_ID: ${{ secrets.CTRADER_CLIENT_ID }}
+          CTRADER_CLIENT_SECRET: ${{ secrets.CTRADER_CLIENT_SECRET }}
+          CTRADER_ACCESS_TOKEN: ${{ secrets.CTRADER_ACCESS_TOKEN }}
+          CTRADER_ENV: demo
+          CTRADER_ALLOW_ORDERS: "false"
           START: ${{ inputs.start }}
           END: ${{ inputs.end }}
         run: |
-          test -n "$B2TRADER_BASE_URL"
+          test -n "$CTRADER_CLIENT_ID"
+          test -n "$CTRADER_CLIENT_SECRET"
+          test -n "$CTRADER_ACCESS_TOKEN"
           mkdir -p results
-          python -m backtest.b2trader_runner --symbol "${{ matrix.symbol }}" --market-symbol "cfd.${{ matrix.symbol }}" --mode hybrid --start "$START" --end "$END" --base-url "$B2TRADER_BASE_URL" --json "results/hybrid_${{ matrix.symbol }}.json"
+          python -m backtest.ctrader_runner --symbol "${{ matrix.symbol }}" --mode hybrid --start "$START" --end "$END" --json "results/hybrid_${{ matrix.symbol }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
