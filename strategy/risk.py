@@ -126,6 +126,19 @@ def trades_on_day(trades, timestamp):
     return sum(1 for t in trades if as_utc(t["entry_time_utc"]).date() == day)
 
 
+def daily_loss_guard(trades, timestamp, max_daily_loss_r):
+    """Return False once realized loss for the UTC day reaches the cap."""
+    if max_daily_loss_r <= 0:
+        return True
+    day = as_utc(timestamp).date()
+    realized = sum(
+        float(t.get("pnl_r", 0.0))
+        for t in trades
+        if as_utc(t["entry_time_utc"]).date() == day
+    )
+    return realized > -abs(max_daily_loss_r)
+
+
 def cooldown_clear(last_entry_time, current_time, cooldown_minutes):
     if last_entry_time is None or cooldown_minutes <= 0:
         return True
