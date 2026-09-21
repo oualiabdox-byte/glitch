@@ -16,7 +16,6 @@ def test_structure_sweep_uses_confirmed_swing(monkeypatch):
         bar(6, 103, 99, 102),
         bar(7, 104, 98, 103),
     ]
-
     swings = [{"idx": 2, "low": 98.0, "time": 2}]
     monkeypatch.setattr(
         ict_strategy.market_structure,
@@ -28,8 +27,9 @@ def test_structure_sweep_uses_confirmed_swing(monkeypatch):
         candles,
         "LONG",
         lookback=6,
-        reference_bars=5,
-        mode="structure",
+        swing_length=3,
+        tolerance_atr=0.10,
+        valid_window_bars=6,
     )
 
     assert result is not None
@@ -58,8 +58,9 @@ def test_structure_sweep_rejects_without_confirmed_level(monkeypatch):
         candles,
         "LONG",
         lookback=6,
-        reference_bars=5,
-        mode="structure",
+        swing_length=3,
+        tolerance_atr=0.10,
+        valid_window_bars=6,
     ) is None
 
 
@@ -78,13 +79,13 @@ def test_sweep_tolerance_is_volatility_normalized(monkeypatch):
     candles[6]["low"] = 97.95
     candles[6]["close"] = 98.2
     assert ict_strategy._find_recent_sweep(
-        candles, "LONG", lookback=6, mode="structure",
+        candles, "LONG", lookback=6,
         swing_length=3, tolerance_atr=0.10, valid_window_bars=2,
     ) is None
 
     candles[6]["low"] = 97.80
     assert ict_strategy._find_recent_sweep(
-        candles, "LONG", lookback=6, mode="structure",
+        candles, "LONG", lookback=6,
         swing_length=3, tolerance_atr=0.10, valid_window_bars=2,
     ) is not None
 
@@ -104,6 +105,6 @@ def test_stale_sweep_expires_from_validity_window(monkeypatch):
     candles[2]["close"] = 98.5
 
     assert ict_strategy._find_recent_sweep(
-        candles, "LONG", lookback=12, mode="structure",
+        candles, "LONG", lookback=12,
         swing_length=3, valid_window_bars=6,
     ) is None
