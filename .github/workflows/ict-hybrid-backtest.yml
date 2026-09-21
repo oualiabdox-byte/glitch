@@ -1,9 +1,16 @@
 name: ICT Hybrid Forex Backtest
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      start:
+        description: UTC start
+        required: true
+        default: "2025-01-01T00:00:00Z"
+      end:
+        description: UTC end
+        required: true
+        default: "2026-01-01T00:00:00Z"
 
 concurrency:
   group: forex-bot-ict
@@ -18,20 +25,26 @@ jobs:
       max-parallel: 1
       matrix:
         symbol: [EURUSD, GBPUSD, USDJPY, AUDUSD, USDCAD, USDCHF, NZDUSD]
-        mode: [hybrid]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
       - name: Run B2TRADER backtest
+        env:
+          B2TRADER_BASE_URL: ${{ secrets.B2TRADER_BASE_URL }}
+          START: ${{ inputs.start }}
+          END: ${{ inputs.end }}
         run: |
+          test -n "$B2TRADER_BASE_URL"
           mkdir -p results
-          python -m backtest.b2trader_runner --symbol "${{ matrix.symbol }}" --market-symbol "cfd.${{ matrix.symbol }}" --mode "${{ matrix.mode }}" --start "2025-01-01T00:00:00Z" --end "2026-01-01T00:00:00Z" --base-url "$B2TRADER_BASE_URL" --json "results/${{ matrix.mode }}_${{ matrix.symbol }}.json"
+          python -m backtest.b2trader_runner --symbol "${{ matrix.symbol }}" --market-symbol "cfd.${{ matrix.symbol }}" --mode hybrid --start "$START" --end "$END" --base-url "$B2TRADER_BASE_URL" --json "results/hybrid_${{ matrix.symbol }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ict-${{ matrix.mode }}-${{ matrix.symbol }}
+          name: ict-hybrid-${{ matrix.symbol }}
           path: results/
           if-no-files-found: warn
           retention-days: 30
