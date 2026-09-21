@@ -293,6 +293,7 @@ def evaluate_ict_hybrid(
     entry_model="auto",
     reversal_confirmation="abc",
     continuation_confirmation="price_action",
+    sweep_confirmation="structure",
 ):
     """Calibrated SMC entry model.
 
@@ -328,6 +329,8 @@ def evaluate_ict_hybrid(
         raise ValueError("invalid reversal_confirmation")
     if continuation_confirmation not in ("price_action", "legacy"):
         raise ValueError("invalid continuation_confirmation")
+    if sweep_confirmation not in ("structure", "legacy"):
+        raise ValueError("invalid sweep_confirmation")
 
     dealing = candles_4h[-6:]
     dealing_low = min(c["low"] for c in dealing)
@@ -341,7 +344,7 @@ def evaluate_ict_hybrid(
         or (bias == "SHORT" and pd_position > 0.50)
     )
 
-    sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5)
+    sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5, mode=sweep_confirmation)
     abc = None
     if sweep and pd_aligned and entry_model in ("auto", "reversal"):
         sweep_idx = next(
@@ -612,6 +615,7 @@ def evaluate_ict_hybrid(
         "abc_confirmed": bool(abc and abc["confirmed"]),
         "reversal_confirmation": reversal_confirmation if model == "reversal" else None,
         "continuation_confirmation": continuation_confirmation if model == "continuation" else None,
+        "sweep_confirmation": sweep_confirmation,
         "abc_pattern": abc["pattern"] if abc else None,
         "abc_break_level": abc["break_level"] if abc else None,
         "abc_fomo_extreme": (abc["fomo_extreme"]["low"] if bias == "LONG" else abc["fomo_extreme"]["high"]) if abc else None,
