@@ -41,9 +41,11 @@ The current code does not enable live order submission by default.
 - Strategy code does not contain broker-specific decisions.
 - Order submission is explicitly gated by `CTRADER_ALLOW_ORDERS`.
 - The selected cTrader environment is explicit through `CTRADER_ENV`.
-- Backtests use only higher-timeframe candles that were closed at the signal timestamp.
+- The H1 signal boundary is the H1 candle CLOSE; the signal candle is fully closed before strategy evaluation.
+- H4 context includes only H4 candles whose CLOSE is at or before the H1 signal close.
 - Entries are simulated on the next H1 bar.
-- When SL and TP are both touched in one OHLC candle, the backtester assumes SL first because tick ordering is unknown.
+- Historical cTrader trendbars are mid OHLC, not bid/ask tick data. The backtester therefore applies explicit spread/slippage/commission assumptions and reports the execution model.
+- When SL and TP are both touched in one OHLC candle, the backtester records the trade as intrabar-ambiguous and applies the configured conservative SL-first policy.
 - Backtest results are research measurements, not evidence of live profitability.
 
 ## Research discipline
@@ -66,3 +68,21 @@ Do not promote a parameter change based only on in-sample performance.
 ## Repository rule
 
 Only the current Forex/cTrader implementation belongs here. Do not reintroduce obsolete broker integrations, cryptocurrency engines, alternative strategy branches, generated backtest reports, or unrelated agent-workspace files.
+
+
+## Current implementation status
+
+The repository is currently **signal-only**. `execution/bot_main.py` never submits orders.
+Live execution is not part of the current validation path.
+
+Before any deliberate execution enablement, the required sequence is:
+1. cTrader application approval and local authentication.
+2. Historical-data integrity checks.
+3. Closed-bar/look-ahead test suite.
+4. Long in-sample backtest with explicit transaction-cost assumptions.
+5. Out-of-sample / walk-forward validation.
+6. Demo execution and reconciliation.
+7. Separate, explicit live authorization.
+
+The cTrader adapter additionally requires an explicit live confirmation string and
+an optional maximum order-volume cap when live order submission is eventually enabled.
