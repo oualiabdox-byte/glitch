@@ -14,7 +14,7 @@ frequency and reduces parameter overfitting. All calculations are causal.
 """
 
 from .ict_strategy import _atr, _pip_size, _find_recent_sweep
-from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks, dominating_candle, breaker_blocks, ote, mitigation
+from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks, dominating_candle, breaker_blocks, ote, mitigation, smc_engine
 
 
 def _post_event_structure(recent, event_idx, side, swing_length=3):
@@ -156,17 +156,18 @@ def evaluate_ict_hybrid(
 ):
     """Calibrated SMC entry model.
 
-    Mandatory core:
+    Shared context:
       1. 4H directional bias
-      2. liquidity sweep OR directional displacement
-      3. post-event BOS/CHoCH
+      2. causal SMC facts from local detectors and optional pyvsmc
 
-    Entry hierarchy:
-      FVG retest -> OB retest -> confirmed structure-reclaim.
+    Independent entry models:
+      - REVERSAL: premium/discount + liquidity sweep/inducement
+      - CONTINUATION: HTF bias + fresh FVG retest
+      - EXPANSION: displacement + confirmed post-event structure
 
     SMC context:
-      premium/discount, session and draw-on-liquidity are recorded as
-      confluence, but are not hard gates unless explicitly requested.
+      FVG, OB, breaker, OTE and mitigation are descriptive confluence.
+      They are not an all-filters stack.
     """
     if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
@@ -298,6 +299,8 @@ def evaluate_ict_hybrid(
     context = _confluence_context(
         candles_1h, candles_4h, bias, recent[-1]["close"], session_context
     )
+    # pyvsmc is optional detector data only; it never becomes a hard gate.
+    context["smc_engine"] = smc_engine.analyze(recent)
 
     # Dominating Candle is a non-blocking structural confluence. The source
     # logic is range-containment, not a classic two-candle engulfing pattern.
@@ -434,7 +437,7 @@ def evaluate_ict_hybrid(
         "session": session_context,
         "fvg": fvg_result if fvg_retest else None,
         "order_block": ob_result if ob_retest else None,
-        "mss_confirmed": True,
+        "mss_confirmed": bool(mss),
         "mss_level": mss_level,
         "mss_break_idx": break_idx,
         "entry_model": model,
