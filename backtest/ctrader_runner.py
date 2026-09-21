@@ -142,10 +142,10 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
         last_entry_time = signal_time
         equity_r += pnl_r
         peak_equity_r = max(peak_equity_r, equity_r)
-        risk = abs(entry - stop)
+        risk_distance = abs(entry - stop)
         pnl_r = (
-            ((exit_price - entry) / risk if side == "LONG" else (entry - exit_price) / risk)
-            if risk else 0.0
+            ((exit_price - entry) / risk_distance if side == "LONG" else (entry - exit_price) / risk_distance)
+            if risk_distance else 0.0
         )
 
         trades.append({
