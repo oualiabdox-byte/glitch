@@ -1,42 +1,80 @@
-"""cTrader historical backtest runner for the existing ICT/SMC strategy."""
+"""cTrader historical backtest runner for the ICT/SMC strategy.
+
+The strategy remains broker-independent. cTrader supplies the historical H1/H4
+bars, while the existing causal strategy produces the signal. No live orders
+are submitted by this module.
+"""
 from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
+from pathlib import Path
 
 from data.ctrader import CTraderData
+from strategy.ict_strategy import evaluate_ict_2022
 from strategy.ict_hybrid import evaluate_ict_hybrid
 
 
-def dt(v):
-    if isinstance(v, datetime):
-        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
-    return datetime.fromisoformat(str(v).replace("Z", "+00:00")).astimezone(timezone.utc)
+def dt(value):
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
-def h4_closed(h4, timestamp):
+def _h4_until(h4, timestamp):
     ts = dt(timestamp).timestamp()
     return [c for c in h4 if dt(c["time"]).timestamp() + 4 * 3600 <= ts]
 
 
-def simulate(h1, h4, symbol):
+def _load_or_download(feed, symbol, start, end, cache_dir):
+    cache = Path(cache_dir)
+    cache.mkdir(parents=True, exist_ok=True)
+    key = f"{symbol}_{start:%Y%m%dT%H%M%SZ}_{end:%Y%m%dT%H%M%SZ}"
+    path = cache / f"{key}.json"
+    if path.exists():
+        return json.loads(path.read_text())
+    data = feed.download(symbol, start, end, periods=("h1", "h4"))
+    path.write_text(json.dumps(data, indent=2))
+    return data
+
+
+def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
+        enable_breaker=True, enable_ote=True, enable_mitigation=True, min_confluence=0):
+    feed = CTraderData()
+    data = _load_or_download(feed, symbol, start, end, cache_dir)
+    h1, h4 = data["h1"], data["h4"]
+
+    if len(h1) < 100 or len(h4) < 40:
+        raise RuntimeError(f"Not enough cTrader data: H1={len(h1)}, H4={len(h4)}")
+
+    fn = evaluate_ict_2022 if mode == "strict" else evaluate_ict_hybrid
     trades = []
-    next_available = 60
+    next_available_idx = 60
 
     for i in range(60, len(h1) - 1):
-        if i < next_available:
-            continue
-        visible_h4 = h4_closed(h4, h1[i]["time"])
-        if len(visible_h4) < 30:
+        if i < next_available_idx:
             continue
 
-        setup = evaluate_ict_hybrid(h1[: i + 1], visible_h4, symbol)
+        signal_time = h1[i]["time"]
+        h4_visible = _h4_until(h4, signal_time)
+        if len(h4_visible) < 30:
+            continue
+
+        if mode == "strict":
+            setup = fn(h1[:i + 1], h4_visible, symbol, session_context="london")
+        else:
+            setup = fn(
+                h1[:i + 1], h4_visible, symbol,
+                enable_breaker=enable_breaker,
+                enable_ote=enable_ote,
+                enable_mitigation=enable_mitigation,
+                min_confluence=min_confluence,
+            )
+
         if not setup:
             continue
 
-        entry_i = i + 1
-        entry = h1[entry_i]["open"]
+        entry_idx = i + 1
+        entry = h1[entry_idx]["open"]
         side = setup["side"]
         stop = setup["stop_price"]
         target = setup["tp_target"]
@@ -47,46 +85,51 @@ def simulate(h1, h4, symbol):
         outcome = "OPEN"
         exit_price = h1[-1]["close"]
         exit_time = h1[-1]["time"]
-        exit_i = len(h1) - 1
+        exit_idx = len(h1) - 1
 
-        for j in range(entry_i, len(h1)):
-            c = h1[j]
-            hit_sl = c["low"] <= stop if side == "LONG" else c["high"] >= stop
-            hit_tp = c["high"] >= target if side == "LONG" else c["low"] <= target
-            # Conservative intrabar rule: if both are touched in one candle,
-            # count the stop first because tick ordering is unknown.
-            if hit_sl:
-                outcome, exit_price, exit_time, exit_i = "SL", stop, c["time"], j
+        for j in range(entry_idx, len(h1)):
+            candle = h1[j]
+            sl = candle["low"] <= stop if side == "LONG" else candle["high"] >= stop
+            tp = candle["high"] >= target if side == "LONG" else candle["low"] <= target
+
+            # Conservative OHLC rule: if both are touched in one candle,
+            # count SL first because tick ordering is unknown.
+            if sl:
+                outcome, exit_price, exit_time, exit_idx = "SL", stop, candle["time"], j
                 break
-            if hit_tp:
-                outcome, exit_price, exit_time, exit_i = "TP", target, c["time"], j
+            if tp:
+                outcome, exit_price, exit_time, exit_idx = "TP", target, candle["time"], j
                 break
 
+        next_available_idx = max(next_available_idx, exit_idx + 1)
         risk = abs(entry - stop)
         pnl_r = (
-            ((exit_price - entry) / risk)
-            if side == "LONG"
-            else ((entry - exit_price) / risk)
-        ) if risk else 0.0
+            ((exit_price - entry) / risk if side == "LONG" else (entry - exit_price) / risk)
+            if risk else 0.0
+        )
 
         trades.append({
             "pair": symbol,
-            "signal_time_utc": h1[i]["time"],
-            "entry_time_utc": h1[entry_i]["time"],
-            "exit_time_utc": exit_time,
+            "signal_time_utc": signal_time,
+            "entry_time_utc": h1[entry_idx]["time"],
             "side": side,
             "entry": entry,
             "stop": stop,
-            "target": target,
+            "tp1": target,
+            "tp2": target,
             "outcome": outcome,
             "pnl_r": pnl_r,
             "rr": setup["rr"],
-            "entry_model": setup.get("entry_model"),
-            "entry_trigger": setup.get("entry_trigger"),
+            "entry_trigger": setup.get("entry_trigger", "STRICT"),
             "event_type": setup.get("event_type"),
+            "entry_model": setup.get("entry_model"),
             "confluence_score": setup.get("confluence_score"),
+            "confluence_max": setup.get("confluence_max"),
+            "premium_discount_zone": setup.get("premium_discount_zone"),
+            "session_valid": setup.get("session_valid"),
+            "dol_available": setup.get("dol_available"),
+            "exit_time_utc": exit_time,
         })
-        next_available = exit_i + 1
 
     return trades
 
@@ -95,12 +138,19 @@ def metrics(trades):
     rs = [float(t["pnl_r"]) for t in trades]
     wins = [r for r in rs if r > 0]
     losses = [r for r in rs if r < 0]
-    equity = peak = max_dd = 0.0
+    equity = peak = drawdown = 0.0
+
     for r in rs:
         equity += r
         peak = max(peak, equity)
-        max_dd = max(max_dd, peak - equity)
+        drawdown = max(drawdown, peak - equity)
+
     gross_loss = abs(sum(losses))
+    triggers = {}
+    for trade in trades:
+        key = trade.get("entry_trigger") or "UNKNOWN"
+        triggers[key] = triggers.get(key, 0) + 1
+
     return {
         "trades": len(rs),
         "wins": len(wins),
@@ -108,43 +158,54 @@ def metrics(trades):
         "win_rate": len(wins) / len(rs) if rs else 0.0,
         "profit_factor": sum(wins) / gross_loss if gross_loss else 0.0,
         "expectancy_r": sum(rs) / len(rs) if rs else 0.0,
+        "max_drawdown_r": drawdown,
         "net_r": sum(rs),
-        "max_drawdown_r": max_dd,
+        "entry_triggers": triggers,
     }
 
 
-def run(symbol, start, end):
-    feed = CTraderData()
-    data = feed.download(symbol, start, end, periods=("h1", "h4"))
-    h1, h4 = data["h1"], data["h4"]
-    if len(h1) < 100 or len(h4) < 40:
-        raise RuntimeError(f"Not enough cTrader data: H1={len(h1)}, H4={len(h4)}")
-    trades = simulate(h1, h4, symbol)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--symbol", required=True)
+    parser.add_argument("--start", required=True)
+    parser.add_argument("--end", required=True)
+    parser.add_argument("--mode", choices=["strict", "hybrid"], default="hybrid")
+    parser.add_argument("--cache-dir", default="data/ctrader_cache")
+    parser.add_argument("--disable-breaker", action="store_true")
+    parser.add_argument("--disable-ote", action="store_true")
+    parser.add_argument("--disable-mitigation", action="store_true")
+    parser.add_argument("--min-confluence", type=int, default=0)
+    parser.add_argument("--json")
+    args = parser.parse_args()
+
+    trades = run(
+        args.symbol, dt(args.start), dt(args.end), args.mode, args.cache_dir,
+        enable_breaker=not args.disable_breaker,
+        enable_ote=not args.disable_ote,
+        enable_mitigation=not args.disable_mitigation,
+        min_confluence=args.min_confluence,
+    )
+
     report = metrics(trades)
     report.update({
-        "symbol": symbol,
-        "start": dt(start).isoformat(),
-        "end": dt(end).isoformat(),
-        "data_source": "cTrader Open API historical trendbars",
+        "symbol": args.symbol,
+        "mode": args.mode,
+        "start": args.start,
+        "end": args.end,
+        "data_source": "cTrader Open API historical H1/H4",
         "future_leak_guard": True,
-        "candles_h1": len(h1),
-        "candles_h4": len(h4),
-        "trades_detail": trades,
+        "advanced_confluence": {
+            "breaker": not args.disable_breaker,
+            "ote": not args.disable_ote,
+            "mitigation": not args.disable_mitigation,
+            "min_confluence": args.min_confluence,
+        },
     })
-    return report
 
+    if args.json:
+        Path(args.json).parent.mkdir(parents=True, exist_ok=True)
+        Path(args.json).write_text(json.dumps(report, indent=2))
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--symbol", default="EURUSD")
-    p.add_argument("--days", type=int, default=120)
-    p.add_argument("--start")
-    p.add_argument("--end")
-    args = p.parse_args()
-
-    end = dt(args.end) if args.end else datetime.now(timezone.utc)
-    start = dt(args.start) if args.start else end - timedelta(days=args.days)
-    report = run(args.symbol, start, end)
     print(json.dumps(report, indent=2))
 
 
