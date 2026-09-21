@@ -12,10 +12,10 @@ import json
 import os
 import signal
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from data.b2trader import B2TRADERGuestData
-from strategy.ict_strategy import evaluate_ict_2022
+from strategy.ict_hybrid import evaluate_ict_hybrid
 
 PAIRS = os.getenv(
     "B2TRADER_PAIRS",
@@ -59,13 +59,14 @@ def main():
                 mid = market_id(pair)
                 end = datetime.now(timezone.utc)
                 # Pull a bounded recent window; the strategy consumes closed bars.
-                start = end.replace(hour=0, minute=0, second=0, microsecond=0)
-                h1 = feed.history_chunked(mid, "1h", start, end)
-                h4 = feed.history_chunked(mid, "4h", start, end)
+                start_h1 = end - timedelta(days=7)
+                start_h4 = end - timedelta(days=30)
+                h1 = feed.history_chunked(mid, "1h", start_h1, end)
+                h4 = feed.history_chunked(mid, "4h", start_h4, end)
                 if len(h1) < 60 or len(h4) < 30:
                     continue
 
-                result = evaluate_ict_2022(h1, h4, pair)
+                result = evaluate_ict_hybrid(h1, h4, pair)
                 if result:
                     event = {
                         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
