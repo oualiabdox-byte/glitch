@@ -140,6 +140,7 @@ def run(
             h4_visible,
             symbol,
             session_context=session,
+            swing_length=swing_length,
         )
         if not setup:
             continue
