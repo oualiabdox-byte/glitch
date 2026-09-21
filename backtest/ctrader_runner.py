@@ -166,7 +166,9 @@ def metrics(trades):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--symbol", required=True)
+    parser.add_argument("--symbol")
+    parser.add_argument("--all-pairs", action="store_true")
+    parser.add_argument("--pairs", default="EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD")
     parser.add_argument("--start", required=True)
     parser.add_argument("--end", required=True)
     parser.add_argument("--mode", choices=["strict", "hybrid"], default="hybrid")
@@ -178,29 +180,41 @@ def main():
     parser.add_argument("--json")
     args = parser.parse_args()
 
-    trades = run(
-        args.symbol, dt(args.start), dt(args.end), args.mode, args.cache_dir,
-        enable_breaker=not args.disable_breaker,
-        enable_ote=not args.disable_ote,
-        enable_mitigation=not args.disable_mitigation,
-        min_confluence=args.min_confluence,
-    )
+    if not args.symbol and not args.all_pairs:
+        parser.error("provide --symbol SYMBOL or --all-pairs")
 
-    report = metrics(trades)
-    report.update({
-        "symbol": args.symbol,
+    pairs = [args.symbol] if args.symbol else [
+        p.strip().upper() for p in args.pairs.split(",") if p.strip()
+    ]
+    reports = {}
+    all_trades = []
+    for symbol in pairs:
+        trades = run(
+            symbol, dt(args.start), dt(args.end), args.mode, args.cache_dir,
+            enable_breaker=not args.disable_breaker,
+            enable_ote=not args.disable_ote,
+            enable_mitigation=not args.disable_mitigation,
+            min_confluence=args.min_confluence,
+        )
+        reports[symbol] = metrics(trades)
+        all_trades.extend(trades)
+
+    report = {
+        "symbols": pairs,
         "mode": args.mode,
         "start": args.start,
         "end": args.end,
         "data_source": "cTrader Open API historical H1/H4",
         "future_leak_guard": True,
+        "pairs": reports,
+        "aggregate": metrics(all_trades),
         "advanced_confluence": {
             "breaker": not args.disable_breaker,
             "ote": not args.disable_ote,
             "mitigation": not args.disable_mitigation,
             "min_confluence": args.min_confluence,
         },
-    })
+    }
 
     if args.json:
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
