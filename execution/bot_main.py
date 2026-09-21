@@ -1,94 +1,83 @@
 #!/usr/bin/env python3
-"""ICT Forex monitoring daemon using B2TRADER market data.
+"""One-shot ICT signal scan using cTrader Open API historical data.
 
-This process evaluates the existing ICT strategy and records signals.
-Real-money order submission is deliberately disabled at the application level;
-the B2TRADER execution adapter is kept separate for controlled integration.
+OpenClaw can invoke this process on a schedule. Strategy logic remains
+broker-independent; cTrader is the only market-data/execution boundary.
+Order submission remains disabled until explicitly implemented and tested.
 """
-
 from __future__ import annotations
 
 import json
 import os
-import signal
-import time
 from datetime import datetime, timezone, timedelta
 
-from data.b2trader import B2TRADERGuestData
+from data.ctrader import CTraderData
 from strategy.ict_hybrid import evaluate_ict_hybrid
 
-PAIRS = os.getenv(
-    "B2TRADER_PAIRS",
-    "EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD",
-).split(",")
-BASE_URL = os.environ.get("B2TRADER_BASE_URL")
-MARKET_PREFIX = os.getenv("B2TRADER_MARKET_PREFIX", "cfd.")
-POLL_SECONDS = int(os.getenv("B2TRADER_POLL_SECONDS", "60"))
-LOG_PATH = os.getenv("B2TRADER_SIGNAL_LOG", "execution/b2trader_signals.jsonl")
-
-STOP = False
-
-
-def stop(*_args):
-    global STOP
-    STOP = True
+PAIRS = [
+    p.strip().upper()
+    for p in os.getenv(
+        "CTRADER_PAIRS",
+        "EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD",
+    ).split(",")
+    if p.strip()
+]
+LOOKBACK_DAYS = int(os.getenv("CTRADER_LOOKBACK_DAYS", "30"))
 
 
-def market_id(pair: str) -> str:
-    p = pair.strip().lower()
-    return p if p.startswith("cfd.") else f"{MARKET_PREFIX}{p[:3]}_{p[3:]}"
+def scan(pair: str):
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=LOOKBACK_DAYS)
+    feed = CTraderData()
+    data = feed.download(pair, start, end, periods=("h1", "h4"))
+    h1, h4 = data["h1"], data["h4"]
+    if len(h1) < 60 or len(h4) < 30:
+        return {
+            "pair": pair,
+            "status": "insufficient_data",
+            "h1": len(h1),
+            "h4": len(h4),
+        }
+
+    setup = evaluate_ict_hybrid(h1, h4, pair)
+    if not setup:
+        return {
+            "pair": pair,
+            "status": "NO_TRADE",
+            "data_source": "cTrader Open API",
+            "h1": len(h1),
+            "h4": len(h4),
+        }
+
+    return {
+        "pair": pair,
+        "status": "SIGNAL_ONLY",
+        "data_source": "cTrader Open API",
+        "side": setup.get("side"),
+        "entry_zone": setup.get("entry_zone"),
+        "stop_price": setup.get("stop_price"),
+        "tp_target": setup.get("tp_target"),
+        "rr": setup.get("rr"),
+        "entry_model": setup.get("entry_model"),
+        "entry_trigger": setup.get("entry_trigger"),
+        "event_type": setup.get("event_type"),
+        "confluence_score": setup.get("confluence_score"),
+        "timestamp": setup.get("timestamp"),
+    }
 
 
 def main():
-    if not BASE_URL:
-        raise SystemExit("B2TRADER_BASE_URL is required")
-    signal.signal(signal.SIGINT, stop)
-    signal.signal(signal.SIGTERM, stop)
-
-    feed = B2TRADERGuestData(BASE_URL)
-    print("=== ICT FOREX / B2TRADER MONITOR ===")
-    print("Strategy files are unchanged.")
-    print("Real-money order submission: DISABLED")
-
-    while not STOP:
-        for pair in PAIRS:
-            pair = pair.strip().upper()
-            if not pair:
-                continue
-            try:
-                mid = market_id(pair)
-                end = datetime.now(timezone.utc)
-                # Pull a bounded recent window; the strategy consumes closed bars.
-                start_h1 = end - timedelta(days=7)
-                start_h4 = end - timedelta(days=30)
-                h1 = feed.history_chunked(mid, "1h", start_h1, end)
-                h4 = feed.history_chunked(mid, "4h", start_h4, end)
-                if len(h1) < 60 or len(h4) < 30:
-                    continue
-
-                result = evaluate_ict_hybrid(h1, h4, pair)
-                if result:
-                    event = {
-                        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                        "pair": pair,
-                        "market_id": mid,
-                        "side": result.get("side"),
-                        "entry_zone": result.get("entry_zone"),
-                        "stop_price": result.get("stop_price"),
-                        "tp_target": result.get("tp_target"),
-                        "rr": result.get("rr"),
-                        "mode": "SIGNAL_ONLY",
-                    }
-                    with open(LOG_PATH, "a", encoding="utf-8") as f:
-                        f.write(json.dumps(event) + "\n")
-                    print(json.dumps(event))
-            except Exception as exc:
-                print(f"[ERROR] {pair}: {exc}")
-
-        if not STOP:
-            time.sleep(POLL_SECONDS)
-
-    print("Stopped.")
+    print("=== ICT FOREX / cTrader ===")
+    print("Order submission: DISABLED")
+    for pair in PAIRS:
+        try:
+            print(json.dumps(scan(pair)))
+        except Exception as exc:
+            print(json.dumps({
+                "pair": pair,
+                "status": "ERROR",
+                "error": str(exc),
+            }))
 
 
 if __name__ == "__main__":
