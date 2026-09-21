@@ -40,7 +40,8 @@ def _load_or_download(feed, symbol, start, end, cache_dir):
 
 
 def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
-        enable_breaker=True, enable_ote=True, enable_mitigation=True, min_confluence=0):
+        enable_breaker=True, enable_ote=True, enable_mitigation=True,
+        min_confluence=0, reversal_mode="abc"):
     feed = CTraderData()
     data = _load_or_download(feed, symbol, start, end, cache_dir)
     h1, h4 = data["h1"], data["h4"]
@@ -70,6 +71,7 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
                 enable_ote=enable_ote,
                 enable_mitigation=enable_mitigation,
                 min_confluence=min_confluence,
+                reversal_confirmation=reversal_mode,
             )
 
         if not setup:
@@ -163,6 +165,11 @@ def metrics(trades):
         "max_drawdown_r": drawdown,
         "net_r": sum(rs),
         "entry_triggers": triggers,
+        "abc_reversals": sum(1 for t in trades if t.get("abc_confirmed")),
+        "reversal_mode_counts": {
+            "abc": sum(1 for t in trades if t.get("reversal_confirmation") == "abc"),
+            "legacy": sum(1 for t in trades if t.get("reversal_confirmation") == "legacy"),
+        },
     }
 
 
@@ -185,6 +192,8 @@ def main():
     parser.add_argument("--disable-ote", action="store_true")
     parser.add_argument("--disable-mitigation", action="store_true")
     parser.add_argument("--min-confluence", type=int, default=0)
+    parser.add_argument("--reversal-mode", choices=["abc", "legacy"], default="abc",
+                        help="Hybrid reversal confirmation variant for controlled A/B testing.")
     parser.add_argument("--json")
     args = parser.parse_args()
 
@@ -204,6 +213,7 @@ def main():
         "enable_ote": not args.disable_ote,
         "enable_mitigation": not args.disable_mitigation,
         "min_confluence": args.min_confluence,
+        "reversal_mode": args.reversal_mode,
     }
 
     if len(pairs) > 1:
@@ -230,6 +240,7 @@ def main():
         "start": args.start,
         "end": args.end,
         "data_source": "cTrader Open API historical H1/H4",
+        "reversal_mode": args.reversal_mode,
         "future_leak_guard": True,
         "pairs": reports,
         "aggregate": metrics(all_trades),
