@@ -152,6 +152,7 @@ def evaluate_ict_hybrid(
     enable_ote=True,
     enable_mitigation=True,
     min_confluence=0,
+    entry_model="auto",
 ):
     """Calibrated SMC entry model.
 
@@ -178,11 +179,41 @@ def evaluate_ict_hybrid(
         return None
 
     recent = candles_1h[-48:]
+
+    # Independent entry paths: reversal, continuation, expansion.
+    if entry_model not in ("auto", "reversal", "continuation", "expansion"):
+        raise ValueError("invalid entry_model")
+
+    dealing = candles_4h[-6:]
+    dealing_low = min(c["low"] for c in dealing)
+    dealing_high = max(c["high"] for c in dealing)
+    dealing_range = dealing_high - dealing_low
+    if dealing_range <= 0:
+        return None
+    pd_position = (recent[-1]["close"] - dealing_low) / dealing_range
+    pd_aligned = (
+        (bias == "LONG" and pd_position < 0.50)
+        or (bias == "SHORT" and pd_position > 0.50)
+    )
+
     sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5)
+    model = "reversal" if sweep and pd_aligned and entry_model in ("auto", "reversal") else None
+
+    # Continuation does not require a sweep or MSS: HTF bias + fresh FVG retest.
+    if model is None and entry_model in ("auto", "continuation"):
+        candidate_fvg = fvg.find_fvg(
+            recent,
+            min_gap_atr=min_fvg_atr,
+            required_side=bias,
+            displacement_min_atr=min_displacement_atr,
+        )
+        if candidate_fvg and _fvg_retested(recent, candidate_fvg, bias):
+            model = "continuation"
+
 
     event_idx = None
     event_type = None
-    if sweep:
+    if sweep and model != "continuation":
         event_idx = next(
             (i for i, c in enumerate(recent) if c["time"] == sweep["time"]),
             None,
@@ -191,7 +222,7 @@ def evaluate_ict_hybrid(
 
     # A clean directional displacement can initiate the sequence when no
     # recent liquidity sweep is present.
-    if event_idx is None:
+    if event_idx is None and model is None:
         for i in range(len(recent) - 2, max(0, len(recent) - 14), -1):
             c = recent[i]
             if displacement.is_displaced(
@@ -204,14 +235,20 @@ def evaluate_ict_hybrid(
                 event_type = "DISPLACEMENT"
                 break
 
-    if event_idx is None:
+    if model is None and event_idx is not None:
+        model = "expansion"
+    if model is None:
         return None
 
-    mss, mss_level, break_idx = _post_event_structure(
-        recent, event_idx, bias, swing_length=3
-    )
-    if not mss:
-        return None
+    mss = False
+    mss_level = None
+    break_idx = None
+    if model == "expansion":
+        mss, mss_level, break_idx = _post_event_structure(
+            recent, event_idx, bias, swing_length=3
+        )
+        if not mss:
+            return None
 
     fvg_result = fvg.find_fvg(
         recent,
@@ -219,7 +256,7 @@ def evaluate_ict_hybrid(
         required_side=bias,
         displacement_min_atr=min_displacement_atr,
     )
-    if fvg_result and fvg_result["creator_idx"] <= event_idx:
+    if fvg_result and event_idx is not None and fvg_result["creator_idx"] <= event_idx and model == "expansion":
         fvg_result = None
 
     fvg_retest = _fvg_retested(recent, fvg_result, bias)
@@ -243,17 +280,17 @@ def evaluate_ict_hybrid(
     if atr <= 0:
         return None
 
-    if sweep:
+    if sweep and model == "reversal":
         extreme = sweep["extreme"]
-    else:
+    elif event_idx is not None:
         post = recent[event_idx + 1:]
         if not post:
             return None
-        extreme = (
-            min(c["low"] for c in post[-5:])
-            if bias == "LONG"
-            else max(c["high"] for c in post[-5:])
-        )
+        extreme = min(c["low"] for c in post[-5:]) if bias == "LONG" else max(c["high"] for c in post[-5:])
+    elif fvg_result:
+        extreme = fvg_result["bottom"] if bias == "LONG" else fvg_result["top"]
+    else:
+        extreme = recent[-1]["low"] if bias == "LONG" else recent[-1]["high"]
 
     buffer = max(atr * stop_atr_buffer, _pip_size(pair))
     stop = extreme - buffer if bias == "LONG" else extreme + buffer
@@ -400,6 +437,7 @@ def evaluate_ict_hybrid(
         "mss_confirmed": True,
         "mss_level": mss_level,
         "mss_break_idx": break_idx,
+        "entry_model": model,
         "event_type": event_type,
         "displacement_confirmed": event_type == "DISPLACEMENT" or (
             fvg_result is not None
