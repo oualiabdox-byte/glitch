@@ -17,10 +17,15 @@ from strategy import safety, timing
 
 
 def _closed(candles, hours, now):
-    cutoff = now - timedelta(hours=hours)
-    return [c for c in candles if datetime.fromisoformat(
-        str(c["time"]).replace("Z", "+00:00")
-    ).astimezone(timezone.utc) + timedelta(hours=hours) <= cutoff + timedelta(hours=hours)]
+    """Keep only bars whose scheduled close is at or before now."""
+    result = []
+    for candle in candles:
+        opened = datetime.fromisoformat(
+            str(candle["time"]).replace("Z", "+00:00")
+        ).astimezone(timezone.utc)
+        if opened + timedelta(hours=hours) <= now:
+            result.append(candle)
+    return result
 
 
 def scan(pair: str):
