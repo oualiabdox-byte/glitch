@@ -26,7 +26,8 @@ def _h4_until(h4, timestamp):
     return [c for c in h4 if c["time"] <= timestamp]
 
 
-def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_dir="data/b2trader_cache"):
+def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_dir="data/b2trader_cache",
+        enable_breaker=True, enable_ote=True, enable_mitigation=True, min_confluence=0):
     feed = B2TRADERGuestData(base_url, cache_dir=cache_dir)
     h1 = feed.cached_history(market_symbol, "1h", start, end)
     h4 = feed.cached_history(market_symbol, "4h", start, end)
@@ -46,7 +47,13 @@ def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_d
         if mode == "strict":
             setup = fn(h1[:i + 1], h4_visible, symbol, session_context="london")
         else:
-            setup = fn(h1[:i + 1], h4_visible, symbol)
+            setup = fn(
+                h1[:i + 1], h4_visible, symbol,
+                enable_breaker=enable_breaker,
+                enable_ote=enable_ote,
+                enable_mitigation=enable_mitigation,
+                min_confluence=min_confluence,
+            )
 
         if not setup:
             continue
@@ -103,6 +110,11 @@ def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_d
             "dc_high": setup.get("dc_high"),
             "dc_time": setup.get("dc_time"),
             "dc_contained_bars": setup.get("dc_contained_bars"),
+            "breaker_valid": bool(setup.get("breaker_block")),
+            "ote_valid": bool(setup.get("ote_zone")),
+            "ote_aligned": setup.get("ote_aligned"),
+            "mitigation_fresh": setup.get("mitigation_fresh"),
+            "advanced_confluence_enabled": setup.get("advanced_confluence_enabled"),
             "exit_time_utc": exit_time,
         })
     return trades
@@ -146,10 +158,20 @@ def main():
     p.add_argument("--mode", choices=["strict", "hybrid"], default="hybrid")
     p.add_argument("--base-url")
     p.add_argument("--cache-dir", default="data/b2trader_cache")
+    p.add_argument("--disable-breaker", action="store_true")
+    p.add_argument("--disable-ote", action="store_true")
+    p.add_argument("--disable-mitigation", action="store_true")
+    p.add_argument("--min-confluence", type=int, default=0)
     p.add_argument("--json")
     a = p.parse_args()
 
-    trades = run(a.symbol, a.market_symbol, dt(a.start), dt(a.end), a.mode, a.base_url, a.cache_dir)
+    trades = run(
+        a.symbol, a.market_symbol, dt(a.start), dt(a.end), a.mode, a.base_url, a.cache_dir,
+        enable_breaker=not a.disable_breaker,
+        enable_ote=not a.disable_ote,
+        enable_mitigation=not a.disable_mitigation,
+        min_confluence=a.min_confluence,
+    )
     report = metrics(trades)
     report.update({
         "symbol": a.symbol,
@@ -160,6 +182,12 @@ def main():
         "data_source": "B2TRADER guest historical candles",
         "strategy_changed": True if a.mode == "hybrid" else False,
         "future_leak_guard": True,
+        "advanced_confluence": {
+            "breaker": not a.disable_breaker,
+            "ote": not a.disable_ote,
+            "mitigation": not a.disable_mitigation,
+            "min_confluence": a.min_confluence,
+        },
     })
     if a.json:
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
