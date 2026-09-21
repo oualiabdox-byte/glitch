@@ -16,7 +16,7 @@ from pathlib import Path
 from data.ctrader import CTraderData
 from strategy.ict_strategy import evaluate_ict_2022
 from strategy.ict_hybrid import evaluate_ict_hybrid
-from strategy import risk, timing
+from strategy import risk, timing, safety
 
 
 def dt(value):
@@ -47,7 +47,9 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
         sweep_tolerance_atr=0.0, sweep_valid_bars=6,
         displacement_mode="body_atr", displacement_std_multiple=2.5,
         move_exhaustion_atr=5.0, require_session=False, session_delay_minutes=0,
-        max_trades_per_day=0, cooldown_minutes=0, max_drawdown_r=0.0):
+        max_trades_per_day=0, cooldown_minutes=0, max_drawdown_r=0.0,
+        max_atr_spike=0.0, news_events=None,
+        news_pause_before=45, news_pause_after=20):
     feed = CTraderData()
     data = _load_or_download(feed, symbol, start, end, cache_dir)
     h1, h4 = data["h1"], data["h4"]
@@ -68,6 +70,16 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
 
         signal_time = h1[i]["time"]
         timing_ctx = timing.session_context(signal_time)
+
+        window = h1[:i + 1]
+        if max_atr_spike > 0 and safety.abnormal_volatility(window, max_ratio=max_atr_spike):
+            continue
+        if safety.news_blocked(
+            signal_time, symbol, news_events or [],
+            pause_before_minutes=news_pause_before,
+            pause_after_minutes=news_pause_after,
+        ):
+            continue
 
         if require_session and not timing.after_session_open(signal_time, session_delay_minutes):
             continue
@@ -274,6 +286,10 @@ def main():
     parser.add_argument("--max-trades-per-day", type=int, default=0)
     parser.add_argument("--cooldown-minutes", type=int, default=0)
     parser.add_argument("--max-drawdown-r", type=float, default=0.0)
+    parser.add_argument("--max-atr-spike", type=float, default=0.0)
+    parser.add_argument("--news-events-json", default="")
+    parser.add_argument("--news-pause-before", type=int, default=45)
+    parser.add_argument("--news-pause-after", type=int, default=20)
     parser.add_argument("--json")
     args = parser.parse_args()
 
@@ -309,6 +325,12 @@ def main():
         "max_trades_per_day": args.max_trades_per_day,
         "cooldown_minutes": args.cooldown_minutes,
         "max_drawdown_r": args.max_drawdown_r,
+        "max_atr_spike": args.max_atr_spike,
+        "news_events": safety.load_news_events(
+            Path(args.news_events_json).read_text()
+        ) if args.news_events_json else [],
+        "news_pause_before": args.news_pause_before,
+        "news_pause_after": args.news_pause_after,
     }
 
     if len(pairs) > 1:
@@ -347,12 +369,20 @@ def main():
         "displacement_mode": args.displacement_mode,
         "displacement_std_multiple": args.displacement_std_multiple,
         "move_exhaustion_atr": args.move_exhaustion_atr,
+        "safety_gates": {
+            "max_atr_spike": args.max_atr_spike,
+            "news_pause_before": args.news_pause_before,
+            "news_pause_after": args.news_pause_after,
+        },
         "risk_gates": {
             "require_session": args.require_session,
             "session_delay_minutes": args.session_delay_minutes,
             "max_trades_per_day": args.max_trades_per_day,
             "cooldown_minutes": args.cooldown_minutes,
             "max_drawdown_r": args.max_drawdown_r,
+        "max_atr_spike": args.max_atr_spike,
+        "news_pause_before": args.news_pause_before,
+        "news_pause_after": args.news_pause_after,
         },
         "pairs": reports,
         "aggregate": metrics(all_trades),
