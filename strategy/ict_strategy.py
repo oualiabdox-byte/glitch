@@ -5,8 +5,8 @@ Decision tree:
 displacement -> FVG -> reaction/retest -> 4H dealing range ->
 premium/discount -> session -> structural stop -> R:R.
 
-No arbitrary confidence score is used. The result contains auditable
-evidence and hard-gate diagnostics.
+There is one active setup path. No legacy trigger modes or arbitrary
+confidence score are retained.
 """
 
 from . import (
@@ -38,13 +38,10 @@ def _pip_size(pair):
     return 0.01 if "JPY" in pair.upper() else 0.0001
 
 
-def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6,
-                       mode="structure", swing_length=3,
+def _find_recent_sweep(candles, bias, lookback=12, swing_length=3,
                        tolerance_atr=0.10, valid_window_bars=6):
-    if len(candles) < reference_bars + 3:
+    if len(candles) < swing_length + 3:
         return None
-    if mode not in ("structure", "legacy"):
-        raise ValueError("invalid sweep mode")
     if swing_length < 2:
         raise ValueError("swing_length must be >= 2")
     if tolerance_atr < 0 or valid_window_bars < 1:
@@ -57,66 +54,52 @@ def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6,
         age = end - i
         if age > valid_window_bars:
             continue
+
         c = candles[i]
         atr = _atr(candles[:i + 1], period=14)
-
-        if mode == "structure":
-            pre = candles[:i]
-            if bias == "LONG":
-                swings = market_structure.find_swing_lows(pre, length=swing_length)
-                if not swings:
-                    continue
-                level = swings[-1]["low"]
-                penetration = level - c["low"]
-                if penetration >= atr * tolerance_atr and c["low"] < level and c["close"] > level:
-                    return {
-                        "time": c["time"], "level": level, "extreme": c["low"],
-                        "source": "SWING_LOW",
-                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
-                        "age_bars": age,
-                    }
-            else:
-                swings = market_structure.find_swing_highs(pre, length=swing_length)
-                if not swings:
-                    continue
-                level = swings[-1]["high"]
-                penetration = c["high"] - level
-                if penetration >= atr * tolerance_atr and c["high"] > level and c["close"] < level:
-                    return {
-                        "time": c["time"], "level": level, "extreme": c["high"],
-                        "source": "SWING_HIGH",
-                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
-                        "age_bars": age,
-                    }
+        if atr <= 0:
             continue
 
-        before = candles[max(0, i - reference_bars):i]
-        if not before:
-            continue
+        pre = candles[:i]
         if bias == "LONG":
-            level = min(x["low"] for x in before)
+            swings = market_structure.find_swing_lows(pre, length=swing_length)
+            if not swings:
+                continue
+            level = swings[-1]["low"]
             penetration = level - c["low"]
             if penetration >= atr * tolerance_atr and c["low"] < level and c["close"] > level:
-                return {"time": c["time"], "level": level, "extreme": c["low"],
-                        "source": "ROLLING_LOW",
-                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
-                        "age_bars": age}
+                return {
+                    "time": c["time"],
+                    "level": level,
+                    "extreme": c["low"],
+                    "source": "SWING_LOW",
+                    "penetration_atr": penetration / atr,
+                    "age_bars": age,
+                }
         else:
-            level = max(x["high"] for x in before)
+            swings = market_structure.find_swing_highs(pre, length=swing_length)
+            if not swings:
+                continue
+            level = swings[-1]["high"]
             penetration = c["high"] - level
             if penetration >= atr * tolerance_atr and c["high"] > level and c["close"] < level:
-                return {"time": c["time"], "level": level, "extreme": c["high"],
-                        "source": "ROLLING_HIGH",
-                        "penetration_atr": penetration / atr if atr > 0 else 0.0,
-                        "age_bars": age}
+                return {
+                    "time": c["time"],
+                    "level": level,
+                    "extreme": c["high"],
+                    "source": "SWING_HIGH",
+                    "penetration_atr": penetration / atr,
+                    "age_bars": age,
+                }
     return None
 
 
 def _mss_after_sweep(candles, bias, sweep_idx, swing_length=3):
-    if sweep_idx < swing_length or sweep_idx >= len(candles) - 1:
+    if sweep_idx is None or sweep_idx < swing_length or sweep_idx >= len(candles) - 1:
         return False, None
     pre = candles[:sweep_idx + 1]
     post = candles[sweep_idx + 1:]
+
     if bias == "LONG":
         swings = market_structure.find_swing_highs(pre, swing_length)
         if not swings:
@@ -174,14 +157,18 @@ def evaluate_ict_2022(
 
     recent_1h = candles_1h[-48:]
     sweep = _find_recent_sweep(
-        recent_1h, bias, mode="structure", swing_length=3,
-        tolerance_atr=0.10, valid_window_bars=6,
+        recent_1h,
+        bias,
+        swing_length=3,
+        tolerance_atr=0.10,
+        valid_window_bars=6,
     )
     if not sweep:
         return None
 
     sweep_idx = next(
-        (i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]), None
+        (i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]),
+        None,
     )
     mss_ok, mss_level = _mss_after_sweep(recent_1h, bias, sweep_idx, 3)
     if not mss_ok:
@@ -198,7 +185,9 @@ def evaluate_ict_2022(
 
     creator_idx = fvg_result["creator_idx"]
     displacement_ok = displacement.is_displaced(
-        recent_1h, creator_idx, min_body_atr_ratio=min_displacement_atr
+        recent_1h,
+        creator_idx,
+        min_body_atr_ratio=min_displacement_atr,
     )
     if not displacement_ok:
         return None
@@ -219,10 +208,11 @@ def evaluate_ict_2022(
     fib = None
     if htf.get("external_high") is not None and htf.get("external_low") is not None:
         fib = fib_cluster.find_cluster(
-            htf["external_high"], htf["external_low"], tolerance=atr * 0.20
+            htf["external_high"],
+            htf["external_low"],
+            tolerance=atr * 0.20,
         )
 
-    # POI evidence: OB/Fib strengthen the FVG reaction but do not create a trade.
     poi = {
         "fvg": fvg_result,
         "order_block": ob,
@@ -245,13 +235,26 @@ def evaluate_ict_2022(
     rr = reward_distance / risk_distance
 
     evidence = setup_analysis.analyze_setup(
-        htf=htf, sweep=sweep, mss=mss_level, displacement_ok=displacement_ok,
-        fvg=fvg_result, ob=ob, fib=fib, session=sess, rr=rr
+        htf=htf,
+        sweep=sweep,
+        mss=mss_level,
+        displacement_ok=displacement_ok,
+        fvg=fvg_result,
+        ob=ob,
+        fib=fib,
+        session=sess,
+        rr=rr,
     )
     validation = setup_analysis.validate_setup(
-        bias=bias, htf=htf, sweep=sweep, mss=mss_level,
-        displacement_ok=displacement_ok, fvg=fvg_result,
-        session=sess, rr=rr, min_rr=min_rr
+        bias=bias,
+        htf=htf,
+        sweep=sweep,
+        mss=mss_level,
+        displacement_ok=displacement_ok,
+        fvg=fvg_result,
+        session=sess,
+        rr=rr,
+        min_rr=min_rr,
     )
     if not validation["valid"]:
         return None
