@@ -47,6 +47,132 @@ def _post_event_structure(recent, event_idx, side, swing_length=3):
     return False, level, None
 
 
+
+def _abc_reversal_confirmation(recent, sweep_idx, side, swing_length=3):
+    """Confirm the public DaviddTech-style ABC reversal structure causally.
+
+    LONG:
+      H0 -> LL1 -> H1 (break above H0) -> FOMO LL2 -> close above LL1.
+    SHORT:
+      L0 -> HH1 -> L1 (break below L0) -> FOMO HH2 -> close below HH1.
+
+    Only swings confirmed inside candles available before the current candle are
+    used. The current candle is used only for the final break confirmation.
+    """
+    if sweep_idx is None or sweep_idx < 2 or len(recent) < swing_length * 2 + 5:
+        return None
+
+    # The pattern must form after the liquidity sweep. Keep the current candle
+    # out of pivot detection so the helper cannot look into the future.
+    history = recent[: -1]
+    if sweep_idx >= len(history) - 1:
+        return None
+
+    if side == "LONG":
+        highs = market_structure.find_swing_highs(history, length=swing_length)
+        lows = market_structure.find_swing_lows(history, length=swing_length)
+        if not highs or not lows:
+            return None
+
+        highs = sorted(highs, key=lambda x: x["idx"])
+        lows = sorted(lows, key=lambda x: x["idx"])
+
+        # H0 -> LL1
+        for h0 in reversed(highs):
+            if h0["idx"] <= sweep_idx:
+                continue
+            ll1_candidates = [
+                x for x in lows
+                if x["idx"] > h0["idx"] and x["low"] < h0["high"]
+            ]
+            if not ll1_candidates:
+                continue
+            ll1 = ll1_candidates[0]
+
+            # H1 must break H0.
+            h1_candidates = [
+                x for x in highs
+                if x["idx"] > ll1["idx"] and x["high"] > h0["high"]
+            ]
+            if not h1_candidates:
+                continue
+            h1 = h1_candidates[0]
+
+            # FOMO LL2 must be lower than LL1.
+            fomo_candidates = [
+                x for x in lows
+                if x["idx"] > h1["idx"] and x["low"] < ll1["low"]
+            ]
+            if not fomo_candidates:
+                continue
+            fomo = fomo_candidates[0]
+
+            # Final confirmation: current closed candle breaks previous LL1.
+            if recent[-1]["close"] > ll1["low"]:
+                return {
+                    "confirmed": True,
+                    "pattern": "H_LL_H_FOMO_LL_BREAK",
+                    "origin": h0,
+                    "previous_ll": ll1,
+                    "break_high": h1,
+                    "fomo_extreme": fomo,
+                    "break_level": ll1["low"],
+                }
+
+    else:
+        lows = market_structure.find_swing_lows(history, length=swing_length)
+        highs = market_structure.find_swing_highs(history, length=swing_length)
+        if not lows or not highs:
+            return None
+
+        lows = sorted(lows, key=lambda x: x["idx"])
+        highs = sorted(highs, key=lambda x: x["idx"])
+
+        # L0 -> HH1
+        for l0 in reversed(lows):
+            if l0["idx"] <= sweep_idx:
+                continue
+            hh1_candidates = [
+                x for x in highs
+                if x["idx"] > l0["idx"] and x["high"] > l0["low"]
+            ]
+            if not hh1_candidates:
+                continue
+            hh1 = hh1_candidates[0]
+
+            # L1 must break L0.
+            l1_candidates = [
+                x for x in lows
+                if x["idx"] > hh1["idx"] and x["low"] < l0["low"]
+            ]
+            if not l1_candidates:
+                continue
+            l1 = l1_candidates[0]
+
+            # FOMO HH2 must be higher than HH1.
+            fomo_candidates = [
+                x for x in highs
+                if x["idx"] > l1["idx"] and x["high"] > hh1["high"]
+            ]
+            if not fomo_candidates:
+                continue
+            fomo = fomo_candidates[0]
+
+            # Final confirmation: current closed candle breaks previous HH1.
+            if recent[-1]["close"] < hh1["high"]:
+                return {
+                    "confirmed": True,
+                    "pattern": "L_HH_L_FOMO_HH_BREAK",
+                    "origin": l0,
+                    "previous_hh": hh1,
+                    "break_low": l1,
+                    "fomo_extreme": fomo,
+                    "break_level": hh1["high"],
+                }
+
+    return None
+
+
 def _fvg_retested(recent, zone, side):
     """Require the current candle to be the first post-creation mitigation."""
     if not zone or zone["creator_idx"] >= len(recent) - 1:
@@ -198,7 +324,11 @@ def evaluate_ict_hybrid(
     )
 
     sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5)
-    model = "reversal" if sweep and pd_aligned and entry_model in ("auto", "reversal") else None
+    abc = None
+    if sweep and pd_aligned and entry_model in ("auto", "reversal"):
+        sweep_idx = next((i for i, c in enumerate(recent) if c["time"] == sweep["time"]), None)
+        abc = _abc_reversal_confirmation(recent, sweep_idx, bias, swing_length=3)
+    model = "reversal" if abc and abc["confirmed"] else None
 
     # Continuation does not require a sweep or MSS: HTF bias + fresh FVG retest.
     if model is None and entry_model in ("auto", "continuation"):
@@ -281,8 +411,8 @@ def evaluate_ict_hybrid(
     if atr <= 0:
         return None
 
-    if sweep and model == "reversal":
-        extreme = sweep["extreme"]
+    if abc and model == "reversal":
+        extreme = abc["fomo_extreme"]["low"] if bias == "LONG" else abc["fomo_extreme"]["high"]
     elif event_idx is not None:
         post = recent[event_idx + 1:]
         if not post:
@@ -442,6 +572,10 @@ def evaluate_ict_hybrid(
         "mss_break_idx": break_idx,
         "entry_model": model,
         "event_type": event_type,
+        "abc_confirmed": bool(abc and abc["confirmed"]),
+        "abc_pattern": abc["pattern"] if abc else None,
+        "abc_break_level": abc["break_level"] if abc else None,
+        "abc_fomo_extreme": (abc["fomo_extreme"]["low"] if bias == "LONG" else abc["fomo_extreme"]["high"]) if abc else None,
         "displacement_confirmed": event_type == "DISPLACEMENT" or (
             fvg_result is not None
         ),
