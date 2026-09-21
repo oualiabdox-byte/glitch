@@ -12,15 +12,28 @@ risk:
   risk_per_trade_pct: 0.005
   max_open_per_pair: 1
   max_correlated_usd_exposure: 3
+  max_daily_loss_r: 3.0
 
-sessions_utc:
-  london: [7, 12]
-  new_york: [13, 17]
+sessions:
+  london:
+    timezone: Europe/London
+    open: "08:00"
+    close: "17:00"
+  new_york:
+    timezone: America/New_York
+    open: "08:00"
+    close: "17:00"
 
 execution:
   allow_overnight: false
   live_trading: false
+  max_spread_pips: 3.0
+  commission_per_lot_round_turn: 0.0
+  slippage_pips: 0.0
 
 backtest:
   look_ahead_guard: true
-  default_mode: hybrid
+  mode: strict_ict_smc
+  intrabar_policy: sl_first
+  data_prices: mid
+  require_closed_bars: true
