@@ -586,7 +586,7 @@ def evaluate_ict_hybrid(
         "mitigation_confluence": mitigation_confluence,
     })
 
-    pools = liquidity.liquidity_pools(candles_4h[-30:])
+    pools = liquidity.liquidity_pools(candles_4h[-30:], swing_length=htf_swing_length, eq_tolerance_atr=eq_tolerance_atr)
     current = recent[-1]["close"]
     directional = [
         p for p in pools
