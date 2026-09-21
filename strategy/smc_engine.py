@@ -10,10 +10,28 @@ from typing import Any
 
 try:
     import numpy as np
-    import pyvsmc as _pyvsmc
 except Exception:
     np = None
+
+try:
+    import pyvsmc as _pyvsmc
+except Exception:
     _pyvsmc = None
+
+
+_REQUIRED_APIS = (
+    "detect_fvg",
+    "detect_structure",
+    "detect_liquidity",
+    "detect_zones",
+    "detect_order_blocks",
+)
+
+
+def _api_ready() -> bool:
+    return _pyvsmc is not None and all(
+        callable(getattr(_pyvsmc, name, None)) for name in _REQUIRED_APIS
+    )
 
 
 def _last_true(value: Any) -> bool:
@@ -44,14 +62,16 @@ def _last_number(value: Any):
 
 def analyze(candles: list[dict]) -> dict:
     """Return descriptive SMC facts from the supplied causal candle slice."""
-    if len(candles) < 5 or _pyvsmc is None or np is None:
-        return {"available": False, "engine": "local"}
+    if len(candles) < 5 or np is None:
+        return {"available": False, "engine": "local", "reason": "insufficient_data_or_numpy"}
+    if not _api_ready():
+        return {"available": False, "engine": "local", "reason": "pyvsmc_api_unavailable"}
 
     high = np.asarray([float(c["high"]) for c in candles], dtype=float)
     low = np.asarray([float(c["low"]) for c in candles], dtype=float)
     close = np.asarray([float(c["close"]) for c in candles], dtype=float)
     open_ = np.asarray([float(c["open"]) for c in candles], dtype=float)
-    facts = {"available": True, "engine": "pyvsmc"}
+    facts = {"available": True, "engine": "pyvsmc", "api": "0.3.6"}
 
     try:
         r = _pyvsmc.detect_fvg(high, low, close=close)
