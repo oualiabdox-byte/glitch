@@ -5,6 +5,7 @@ on:
     branches: [main, clean-forex-engine]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: forex-bot-tests
@@ -22,4 +23,5 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install -r requirements.txt
+      - run: python -m compileall -q strategy tests
       - run: python -m pytest -q
