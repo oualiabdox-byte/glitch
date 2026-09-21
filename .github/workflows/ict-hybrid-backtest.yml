@@ -11,6 +11,38 @@ on:
         description: UTC end
         required: true
         default: "2026-01-01T00:00:00Z"
+      swing_length:
+        description: Execution swing sensitivity
+        required: true
+        default: "3"
+      sweep_tolerance_atr:
+        description: Minimum sweep penetration in ATR
+        required: true
+        default: "0.0"
+      sweep_valid_bars:
+        description: Maximum sweep age in bars
+        required: true
+        default: "6"
+      displacement_mode:
+        description: Displacement measurement
+        required: true
+        default: "body_atr"
+      move_exhaustion_atr:
+        description: Maximum move from event in ATR; 0 disables
+        required: true
+        default: "5.0"
+      max_trades_per_day:
+        description: Risk gate; 0 disables
+        required: true
+        default: "0"
+      cooldown_minutes:
+        description: Risk gate; 0 disables
+        required: true
+        default: "0"
+      max_drawdown_r:
+        description: Risk gate; 0 disables
+        required: true
+        default: "0.0"
 
 concurrency:
   group: ctrader-forex-backtest
@@ -41,12 +73,29 @@ jobs:
           CTRADER_ALLOW_ORDERS: "false"
           START: ${{ inputs.start }}
           END: ${{ inputs.end }}
+          SWING_LENGTH: ${{ inputs.swing_length }}
+          SWEEP_TOLERANCE_ATR: ${{ inputs.sweep_tolerance_atr }}
+          SWEEP_VALID_BARS: ${{ inputs.sweep_valid_bars }}
+          DISPLACEMENT_MODE: ${{ inputs.displacement_mode }}
+          MOVE_EXHAUSTION_ATR: ${{ inputs.move_exhaustion_atr }}
+          MAX_TRADES_PER_DAY: ${{ inputs.max_trades_per_day }}
+          COOLDOWN_MINUTES: ${{ inputs.cooldown_minutes }}
+          MAX_DRAWDOWN_R: ${{ inputs.max_drawdown_r }}
         run: |
           test -n "$CTRADER_CLIENT_ID"
           test -n "$CTRADER_CLIENT_SECRET"
           test -n "$CTRADER_ACCESS_TOKEN"
           mkdir -p results
-          python -m backtest.ctrader_runner --symbol "${{ matrix.symbol }}" --mode hybrid --start "$START" --end "$END" --json "results/hybrid_${{ matrix.symbol }}.json"
+          python -m backtest.ctrader_runner --symbol "${{ matrix.symbol }}" --mode hybrid --start "$START" --end "$END" \
+            --swing-length "$SWING_LENGTH" \
+            --sweep-tolerance-atr "$SWEEP_TOLERANCE_ATR" \
+            --sweep-valid-bars "$SWEEP_VALID_BARS" \
+            --displacement-mode "$DISPLACEMENT_MODE" \
+            --move-exhaustion-atr "$MOVE_EXHAUSTION_ATR" \
+            --max-trades-per-day "$MAX_TRADES_PER_DAY" \
+            --cooldown-minutes "$COOLDOWN_MINUTES" \
+            --max-drawdown-r "$MAX_DRAWDOWN_R" \
+            --json "results/hybrid_${{ matrix.symbol }}.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
