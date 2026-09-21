@@ -1,62 +1,68 @@
-# Forex ICT/SMC Research Bot
+# Private Forex ICT/SMC Research Bot
 
-Broker-independent ICT/SMC research, cTrader market data, backtesting, and execution.
+**Current architecture: Forex + cTrader Open API only.**
 
-## Architecture
+This repository is intentionally kept narrow so an automated agent, VPS deployment, or OpenClaw workspace cannot mistake historical broker/strategy implementations for the active system.
 
-- `strategy/`: causal, broker-independent signal logic.
-- `data/ctrader.py`: cTrader historical/live market-data boundary.
-- `backtest/ctrader_runner.py`: deterministic historical simulation using cTrader H1/H4 data.
-- `execution/ctrader_adapter.py`: cTrader Open API authentication, account state, reconciliation, and future execution boundary.
-- `tests/`: regression and look-ahead safeguards.
+## Active components
 
-The repository contains only the cTrader Forex runtime. Legacy B2TRADER, MT5, Kraken, and Exness runtime files have been removed from this branch.
+- `strategy/` — causal ICT/SMC setup engine.
+- `data/ctrader.py` — cTrader historical/live market-data boundary.
+- `backtest/ctrader_runner.py` — local deterministic H1/H4 backtest runner.
+- `execution/ctrader_adapter.py` — cTrader authentication, account state, reconciliation and explicitly gated order boundary.
+- `execution/bot_main.py` — signal-only cTrader scan; order submission is disabled.
+- `execution/ctrader_probe.py` — connectivity/account-state probe; no orders.
+- `tests/` — regression and look-ahead safeguards.
+- `config/config.yaml` — Forex symbols, risk and execution defaults.
+- `requirements.txt` — runtime/test dependencies.
 
-## Strategy
+## Strategy decision path
 
-The hybrid engine uses independent entry models instead of requiring every SMC concept simultaneously:
+The strict engine evaluates:
 
-1. Reversal: HTF bias + premium/discount + confirmed liquidity sweep + causal ABC structure. The ABC layer replaces the previously permissive sweep-only reversal trigger and uses the FOMO LL/HH for structural invalidation. Hybrid sweep detection now uses confirmed swing liquidity by default; legacy rolling-window sweep detection remains available for A/B control.
-2. Continuation: HTF bias + fresh FVG retest + price-action trigger candle. LONG requires the retest candle to close above the previous candle high; SHORT requires a close below the previous candle low. This uses no RSI/EMA filter. The backtester exposes --continuation-mode price_action|legacy and --sweep-mode structure|legacy for controlled A/B testing.
-3. Expansion: directional displacement + confirmed post-event structure.
+**4H confirmed structure → directional bias → directional liquidity target → 1H sweep → post-sweep MSS → displacement → fresh FVG retest → 4H premium/discount → allowed session → structural stop → minimum R:R → TRADE / NO TRADE**
 
-No new RSI/EMA/MACD-style indicator stack is introduced. The first TradingKit/DaviddTech mix is a structural replacement inside the existing ICT/SMC engine, not a separate strategy.
+FVG, order block and Fibonacci-cluster information is retained as auditable evidence. It does not create a trade by itself.
 
-FVG, OB, OTE, breaker blocks, dominating candle, session and DOL remain context/confluence unless explicitly configured as hard constraints.
+There is no arbitrary confidence score and no EMA/MACD/RSI indicator stack.
 
-## cTrader
+## Data and execution
 
-cTrader Open API supplies historical bars, live market data, account information, positions, orders and trading operations. The project uses the official Python SDK and keeps strategy logic separate from broker execution.
+cTrader Open API is the only broker/data boundary in this repository.
 
-Development path:
+Development sequence:
 
-`cTrader historical data -> backtest -> cTrader Demo or Live execution`
+**cTrader approval → local authentication → historical H1/H4 data → local backtest → out-of-sample/walk-forward validation → demo execution → only then deliberate live enablement**
 
-Execution is explicitly controlled by `CTRADER_ENV` (`demo` or `live`) and `CTRADER_ALLOW_ORDERS=true`. Keep the environment set to the account you intentionally want to trade.
+The current code does not enable live order submission by default.
 
-## Validation
+## Safety rules
 
-The backtester exposes only higher-timeframe candles that were fully closed at the signal timestamp, enters on the next H1 bar, and prevents overlapping positions. Results are expressed in R with expectancy, profit factor, win rate and drawdown.
+- Strategy code does not contain broker-specific decisions.
+- Order submission is explicitly gated by `CTRADER_ALLOW_ORDERS`.
+- The selected cTrader environment is explicit through `CTRADER_ENV`.
+- Backtests use only higher-timeframe candles that were closed at the signal timestamp.
+- Entries are simulated on the next H1 bar.
+- When SL and TP are both touched in one OHLC candle, the backtester assumes SL first because tick ordering is unknown.
+- Backtest results are research measurements, not evidence of live profitability.
 
-For controlled reversal A/B testing, backtest/ctrader_runner.py exposes --reversal-mode abc|legacy. The default is abc; use legacy only as the research control so both variants can be run on the same cTrader dataset.
+## Research discipline
 
-Do not use backtest results as evidence for live profitability. Validate out-of-sample and walk-forward periods before enabling live orders.
+Do not loosen filters merely to increase trade count.
 
+Changes to strategy logic must be tested as controlled A/B experiments on identical periods, with at minimum:
 
-## Applied research controls
+- trade count
+- win rate
+- profit factor
+- expectancy in R
+- net R
+- maximum drawdown in R
+- outcome distribution
+- NO TRADE / rejection rates
 
-The current private research branch also contains modular controls derived from reviewed
-open-source SMC research, reimplemented independently rather than copied:
-- DST-aware London/New York timing context and session phase.
-- Calendar-correct previous-day/previous-week liquidity levels.
-- Confirmed-swing EQH/EQL liquidity clustering with ATR-normalized tolerance.
-- Fresh first-touch behavior for FVG/OB reactions; previously touched or invalidated zones do not re-enter.
-- Sweep penetration tolerance and a finite sweep validity window.
-- Configurable swing sensitivity and displacement measurement modes.
-- Move-exhaustion guard to avoid chasing extended post-event moves.
-- Optional backtest gates for maximum trades/day, cooldown, and realized drawdown.
-- Risk helpers for shared-currency exposure.
+Do not promote a parameter change based only on in-sample performance.
 
-These controls are exposed for controlled A/B testing. The strict ICT control preserves its
-previous rolling-sweep behavior; new hybrid controls must be compared on identical periods
-before being promoted to the research baseline.
+## Repository rule
+
+Only the current Forex/cTrader implementation belongs here. Do not reintroduce obsolete broker integrations, cryptocurrency engines, alternative strategy branches, generated backtest reports, or unrelated agent-workspace files.
