@@ -1,169 +1,178 @@
-"""Causal, stateful market-structure engine.
+"""Causal market-structure engine for SMC/ICT research.
 
-The engine works on closed candles only. Swings are confirmed only after
-swing_length candles exist on both sides of the candidate.
+Only closed candles are used. A swing becomes available only after
+swing_length candles have closed on its right side.
 """
 
 from __future__ import annotations
 
 
 def find_swing_highs(candles, length=3):
-    """Return confirmed swing highs. The last length candles cannot confirm."""
     if length < 1:
         raise ValueError("length must be >= 1")
     out = []
     for i in range(length, len(candles) - length):
-        c = candles[i]
+        value = candles[i]["high"]
         left = [candles[i - j]["high"] for j in range(1, length + 1)]
         right = [candles[i + j]["high"] for j in range(1, length + 1)]
-        if c["high"] >= max(left) and c["high"] > max(right):
-            out.append({"time": c["time"], "high": c["high"], "idx": i})
+        if value >= max(left) and value > max(right):
+            out.append({"time": candles[i]["time"], "high": value, "idx": i})
     return out
 
 
 def find_swing_lows(candles, length=3):
-    """Return confirmed swing lows. The last length candles cannot confirm."""
     if length < 1:
         raise ValueError("length must be >= 1")
     out = []
     for i in range(length, len(candles) - length):
-        c = candles[i]
+        value = candles[i]["low"]
         left = [candles[i - j]["low"] for j in range(1, length + 1)]
         right = [candles[i + j]["low"] for j in range(1, length + 1)]
-        if c["low"] <= min(left) and c["low"] < min(right):
-            out.append({"time": c["time"], "low": c["low"], "idx": i})
+        if value <= min(left) and value < min(right):
+            out.append({"time": candles[i]["time"], "low": value, "idx": i})
     return out
 
 
 def _label_swings(highs, lows):
     labeled_highs = []
-    for i, swing in enumerate(highs):
+    previous = None
+    for swing in highs:
         item = dict(swing)
-        item["label"] = "HH" if i == 0 or swing["high"] > highs[i - 1]["high"] else "LH"
+        item["label"] = (
+            None if previous is None
+            else "HH" if swing["high"] > previous["high"] else "LH"
+        )
         labeled_highs.append(item)
+        previous = swing
 
     labeled_lows = []
-    for i, swing in enumerate(lows):
+    previous = None
+    for swing in lows:
         item = dict(swing)
-        item["label"] = "HL" if i == 0 or swing["low"] > lows[i - 1]["low"] else "LL"
+        item["label"] = (
+            None if previous is None
+            else "HL" if swing["low"] > previous["low"] else "LL"
+        )
         labeled_lows.append(item)
+        previous = swing
     return labeled_highs, labeled_lows
 
 
 def _latest_before(items, idx):
-    eligible = [x for x in items if x["idx"] < idx]
-    return eligible[-1] if eligible else None
+    for item in reversed(items):
+        if item["idx"] < idx:
+            return item
+    return None
+
+
+def _last_two_confirmed(items):
+    return items[-2:] if len(items) >= 2 else []
+
+
+def _structure_state(highs, lows):
+    hs = _last_two_confirmed(highs)
+    ls = _last_two_confirmed(lows)
+    if len(hs) < 2 or len(ls) < 2:
+        return None, "UNDEFINED"
+    high_label = hs[-1]["label"]
+    low_label = ls[-1]["label"]
+    if high_label == "HH" and low_label == "HL":
+        return "LONG", "BULLISH"
+    if high_label == "LH" and low_label == "LL":
+        return "SHORT", "BEARISH"
+    return None, "MIXED"
 
 
 def detect_structure_events(candles, swing_length=3):
-    """Detect causal BOS/CHOCH events from closes breaking confirmed swings."""
+    """Emit each structural break once; broken levels are consumed."""
     highs = find_swing_highs(candles, swing_length)
     lows = find_swing_lows(candles, swing_length)
     labeled_highs, labeled_lows = _label_swings(highs, lows)
 
     events = []
-    prior_state = None
+    state = None
+    broken_high_idx = set()
+    broken_low_idx = set()
 
     for i, candle in enumerate(candles):
         high = _latest_before(labeled_highs, i)
         low = _latest_before(labeled_lows, i)
 
-        if high and candle["close"] > high["high"]:
-            event_type = "CHOCH" if prior_state == "BEARISH" else "BOS"
+        if high and high["idx"] not in broken_high_idx and candle["close"] > high["high"]:
+            event_type = "CHOCH" if state == "BEARISH" else "BOS"
             events.append({
-                "time": candle["time"],
-                "idx": i,
-                "type": event_type,
-                "direction": "BULLISH",
-                "level": high["high"],
+                "time": candle["time"], "idx": i, "type": event_type,
+                "direction": "BULLISH", "level": high["high"],
                 "broken_swing_time": high["time"],
             })
-            prior_state = "BULLISH"
+            broken_high_idx.add(high["idx"])
+            state = "BULLISH"
 
-        if low and candle["close"] < low["low"]:
-            event_type = "CHOCH" if prior_state == "BULLISH" else "BOS"
+        if low and low["idx"] not in broken_low_idx and candle["close"] < low["low"]:
+            event_type = "CHOCH" if state == "BULLISH" else "BOS"
             events.append({
-                "time": candle["time"],
-                "idx": i,
-                "type": event_type,
-                "direction": "BEARISH",
-                "level": low["low"],
+                "time": candle["time"], "idx": i, "type": event_type,
+                "direction": "BEARISH", "level": low["low"],
                 "broken_swing_time": low["time"],
             })
-            prior_state = "BEARISH"
+            broken_low_idx.add(low["idx"])
+            state = "BEARISH"
 
     return events
 
 
 def analyze_structure(candles, swing_length=3):
-    """Return the complete structural state for the supplied closed history."""
     if swing_length < 1:
         raise ValueError("swing_length must be >= 1")
     if len(candles) < swing_length * 2 + 3:
         return {
-            "bias": None,
-            "structure": "UNDEFINED",
-            "highs": [],
-            "lows": [],
-            "last_event": None,
-            "external_high": None,
-            "external_low": None,
+            "bias": None, "structure": "UNDEFINED", "highs": [], "lows": [],
+            "last_event": None, "external_high": None, "external_low": None,
+            "dealing_range": None,
         }
 
     highs = find_swing_highs(candles, swing_length)
     lows = find_swing_lows(candles, swing_length)
     labeled_highs, labeled_lows = _label_swings(highs, lows)
+    bias, structure = _structure_state(labeled_highs, labeled_lows)
+    events = detect_structure_events(candles, swing_length)
 
-    high_label = labeled_highs[-1]["label"] if labeled_highs else None
-    low_label = labeled_lows[-1]["label"] if labeled_lows else None
-
-    if high_label == "HH" and low_label == "HL":
-        bias = "LONG"
-        structure = "BULLISH"
-    elif high_label == "LH" and low_label == "LL":
-        bias = "SHORT"
-        structure = "BEARISH"
-    else:
-        bias = None
-        structure = "MIXED"
-
-    events = detect_structure_events(candles, swing_length=swing_length)
-    last_event = events[-1] if events else None
+    external_high = labeled_highs[-1]["high"] if labeled_highs else None
+    external_low = labeled_lows[-1]["low"] if labeled_lows else None
+    dealing_range = (
+        {"high": external_high, "low": external_low,
+         "equilibrium": (external_high + external_low) / 2.0}
+        if external_high is not None and external_low is not None else None
+    )
 
     return {
-        "bias": bias,
-        "structure": structure,
-        "highs": labeled_highs,
-        "lows": labeled_lows,
-        "last_event": last_event,
-        "external_high": labeled_highs[-1]["high"] if labeled_highs else None,
-        "external_low": labeled_lows[-1]["low"] if labeled_lows else None,
+        "bias": bias, "structure": structure,
+        "highs": labeled_highs, "lows": labeled_lows,
+        "last_event": events[-1] if events else None,
+        "external_high": external_high, "external_low": external_low,
+        "dealing_range": dealing_range,
     }
 
 
 def build_htf_context(candles_4h, swing_length=3):
-    """Build the 4H HTF context used by the strategy."""
     result = analyze_structure(candles_4h, swing_length=swing_length)
-    if result["external_high"] is not None and result["external_low"] is not None:
-        high = result["external_high"]
-        low = result["external_low"]
-        result["equilibrium"] = (high + low) / 2.0
-        close = candles_4h[-1]["close"]
-        if close < result["equilibrium"]:
-            result["premium_discount"] = "DISCOUNT"
-        elif close > result["equilibrium"]:
-            result["premium_discount"] = "PREMIUM"
-        else:
-            result["premium_discount"] = "EQUILIBRIUM"
-    else:
+    if result["dealing_range"] is None or not candles_4h:
         result["equilibrium"] = None
         result["premium_discount"] = None
+        result["timeframe"] = "4H"
+        return result
+
+    eq = result["dealing_range"]["equilibrium"]
+    close = candles_4h[-1]["close"]
+    result["equilibrium"] = eq
+    result["premium_discount"] = (
+        "DISCOUNT" if close < eq else "PREMIUM" if close > eq else "EQUILIBRIUM"
+    )
     result["timeframe"] = "4H"
     return result
 
 
 def is_higher_timeframe_uptrend(candles_4h):
-    """Compatibility wrapper around the real structure engine."""
     context = build_htf_context(candles_4h)
     if context["structure"] == "BULLISH":
         return "uptrend"
@@ -173,27 +182,25 @@ def is_higher_timeframe_uptrend(candles_4h):
 
 
 def mss_confirmed(candles_1h, direction, reference_time, swing_length=3):
-    """Confirm a post-reference structural shift using closed candles only."""
     pre = [c for c in candles_1h if c["time"] <= reference_time]
     post = [c for c in candles_1h if c["time"] > reference_time]
     if not pre or not post:
         return False, None
 
     if direction == "LONG":
-        swings = find_swing_highs(pre, length=swing_length)
+        swings = find_swing_highs(pre, swing_length)
         if not swings:
             return False, None
-        ref = swings[-1]["high"]
+        level = swings[-1]["high"]
         for candle in post:
-            if candle["close"] > ref:
-                return True, ref
+            if candle["close"] > level:
+                return True, level
     elif direction == "SHORT":
-        swings = find_swing_lows(pre, length=swing_length)
+        swings = find_swing_lows(pre, swing_length)
         if not swings:
             return False, None
-        ref = swings[-1]["low"]
+        level = swings[-1]["low"]
         for candle in post:
-            if candle["close"] < ref:
-                return True, ref
-
+            if candle["close"] < level:
+                return True, level
     return False, None
