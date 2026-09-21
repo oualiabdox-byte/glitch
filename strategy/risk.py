@@ -1,11 +1,12 @@
-"""Risk management: position sizing, structure validity and execution gates."""
+"""Risk management and broker-aware Forex position sizing."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from math import floor
 
 
 def position_size_risk(risk_pct=0.005, account_equity=10000.0, entry_price=1.0, stop_price=0.99):
-    """Calculate units based on fixed-fractional account risk."""
+    """Legacy price-distance sizing kept only for generic research calculations."""
     risk_amount = account_equity * risk_pct
     risk_per_unit = abs(entry_price - stop_price)
     if risk_per_unit <= 0:
@@ -13,15 +14,77 @@ def position_size_risk(risk_pct=0.005, account_equity=10000.0, entry_price=1.0, 
     return risk_amount / risk_per_unit
 
 
+def _attr(spec, *names, default=None):
+    if isinstance(spec, dict):
+        for name in names:
+            if name in spec and spec[name] is not None:
+                return spec[name]
+    else:
+        for name in names:
+            value = getattr(spec, name, None)
+            if value is not None:
+                return value
+    return default
+
+
+def position_size_from_symbol(
+    *,
+    risk_amount: float,
+    entry_price: float,
+    stop_price: float,
+    symbol_spec,
+    tick_value_per_lot: float | None = None,
+):
+    """Return cTrader volume in units using symbol tick economics.
+
+    tick_value_per_lot is the monetary value of one tick for one standard lot
+    in account currency. If omitted, the function reads tickValue from the
+    supplied symbol spec. Volume is clamped and rounded to the broker's step.
+    """
+    if risk_amount <= 0:
+        raise ValueError("risk_amount must be > 0")
+    distance = abs(float(entry_price) - float(stop_price))
+    if distance <= 0:
+        raise ValueError("entry_price and stop_price must differ")
+
+    tick_size = float(_attr(symbol_spec, "tickSize", "tick_size", default=0.0))
+    tick_value = float(
+        tick_value_per_lot
+        if tick_value_per_lot is not None
+        else _attr(symbol_spec, "tickValue", "tick_value", default=0.0)
+    )
+    lot_size = float(_attr(symbol_spec, "lotSize", "lot_size", default=100000.0))
+    min_volume = float(_attr(symbol_spec, "minVolume", "min_volume", default=0.0))
+    max_volume = float(_attr(symbol_spec, "maxVolume", "max_volume", default=float("inf")))
+    step_volume = float(_attr(symbol_spec, "stepVolume", "step_volume", default=0.0))
+
+    if tick_size <= 0 or tick_value <= 0 or lot_size <= 0:
+        raise ValueError("symbol spec must provide positive tickSize, tickValue and lotSize")
+
+    ticks_to_stop = distance / tick_size
+    risk_per_lot = ticks_to_stop * tick_value
+    raw_lots = risk_amount / risk_per_lot
+    raw_units = raw_lots * lot_size
+
+    if raw_units < min_volume:
+        return 0.0
+
+    units = min(raw_units, max_volume)
+    if step_volume > 0:
+        units = floor(units / step_volume) * step_volume
+
+    if units < min_volume:
+        return 0.0
+    return float(units)
+
+
 def is_stop_structurally_valid(stop_price, liquidity_pool, direction):
-    """Stop must be beyond the structural invalidation/swept extreme."""
     if direction == "LONG":
         return stop_price < liquidity_pool.get("low", float("inf"))
     return stop_price > liquidity_pool.get("high", 0)
 
 
 def max_correlated_exposure(pairs_open, max_total=3):
-    """Cap total simultaneously open positions."""
     return len(pairs_open) < max_total
 
 
