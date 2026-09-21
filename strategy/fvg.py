@@ -1,5 +1,4 @@
-"""Fair Value Gap detection with ATR-size and direction filters."""
-
+"""Fair Value Gap detection with causal lifecycle validation."""
 
 def _atr(candles, end_idx, period=14):
     start = max(1, end_idx - period)
@@ -13,18 +12,8 @@ def _atr(candles, end_idx, period=14):
     return sum(trs) / len(trs) if trs else 0.0
 
 
-def find_fvg(
-    candles_1h,
-    start_idx=0,
-    min_gap_atr=0.0,
-    required_side=None,
-    displacement_min_atr=0.0,
-):
-    """Find the most recent valid closed-candle FVG.
-
-    The third candle must be closed. Optional ATR filters prevent tiny gaps
-    from qualifying as setups.
-    """
+def find_fvg(candles_1h, start_idx=0, min_gap_atr=0.0,
+             required_side=None, displacement_min_atr=0.0):
     if len(candles_1h) < 3:
         return None
 
@@ -41,9 +30,7 @@ def find_fvg(
         elif b["close"] < b["open"] and a["low"] > c["high"]:
             side, bottom, top = "SHORT", c["high"], a["low"]
 
-        if side is None:
-            continue
-        if required_side and side != required_side:
+        if side is None or (required_side and side != required_side):
             continue
 
         gap_size = top - bottom
@@ -55,15 +42,33 @@ def find_fvg(
             continue
 
         return {
-            "side": side,
-            "bottom": bottom,
-            "top": top,
-            "gap_size": gap_size,
-            "gap_atr": gap_size / atr,
-            "creator_idx": i,
-            "creator_time": b["time"],
+            "side": side, "bottom": bottom, "top": top,
+            "gap_size": gap_size, "gap_atr": gap_size / atr,
+            "creator_idx": i, "creator_time": b["time"],
+            "confirmation_idx": i + 1, "confirmation_time": c["time"],
         }
     return None
+
+
+def is_fresh_retest(candles, fvg_result, current_idx=None):
+    """Require the first post-confirmation interaction to be the current bar."""
+    if not fvg_result:
+        return False
+    current_idx = len(candles) - 1 if current_idx is None else current_idx
+    start = fvg_result["confirmation_idx"] + 1
+    if current_idx <= start:
+        return False
+
+    bottom, top = fvg_result["bottom"], fvg_result["top"]
+    for i in range(start, current_idx):
+        c = candles[i]
+        if c["high"] >= bottom and c["low"] <= top:
+            return False
+
+    current = candles[current_idx]
+    if fvg_result["side"] == "LONG":
+        return current["low"] <= top and current["close"] >= bottom
+    return current["high"] >= bottom and current["close"] <= top
 
 
 def fvg_in_window(candles_1h, window_start_idx, window_end_idx, side):
