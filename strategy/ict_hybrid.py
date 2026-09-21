@@ -3,12 +3,14 @@
 Design reference:
 - 4H directional context
 - liquidity sweep OR directional displacement
-- confirmed post-event structure break
-- FVG or Order Block as preferred POI, with close-reclaim fallback
+- confirmed post-event BOS/CHoCH
+- FVG or Order Block retest when available
 - liquidity target when available, otherwise structural 2R
+- premium/discount, session and DOL are contextual confluence, not hard gates
 
-This deliberately removes the strict model's requirement that every ICT
-concept (session, PD, DOL, FVG, displacement threshold) must all agree.
+The model intentionally keeps the SMC concepts modular. The core trigger is
+not allowed to become an all-filters stack, which helps preserve trade
+frequency and reduces parameter overfitting. All calculations are causal.
 """
 
 from .ict_strategy import _atr, _pip_size, _find_recent_sweep
@@ -81,6 +83,58 @@ def _ob_retested(recent, ob, side):
     return cur["high"] >= ob["bottom"] and cur["close"] <= ob["top"]
 
 
+def _confluence_context(candles_1h, candles_4h, bias, current, session_context):
+    """Return non-blocking SMC confluence facts.
+
+    These facts are deliberately reported rather than independently required.
+    This prevents the common overfitting failure where PD + session + DOL +
+    FVG + sweep all become mandatory and produce zero trades.
+    """
+    dealing = candles_4h[-6:]
+    low = min(c["low"] for c in dealing)
+    high = max(c["high"] for c in dealing)
+    rng = high - low
+    position = (current - low) / rng if rng > 0 else 0.5
+
+    if bias == "LONG":
+        pd_zone = "discount" if position < 0.50 else "premium"
+    else:
+        pd_zone = "premium" if position > 0.50 else "discount"
+
+    pools = liquidity.liquidity_pools(candles_4h[-30:])
+    directional = [
+        p for p in pools
+        if (
+            bias == "LONG"
+            and p["type"] == "resistance"
+            and p["price"] > current
+        )
+        or (
+            bias == "SHORT"
+            and p["type"] == "support"
+            and p["price"] < current
+        )
+    ]
+
+    # Context score is descriptive only: it is never used as a hidden
+    # optimizer or pair-specific threshold.
+    score = 0
+    if pd_zone == ("discount" if bias == "LONG" else "premium"):
+        score += 1
+    if session_context in ("london", "new_york", "overlap"):
+        score += 1
+    if directional:
+        score += 1
+
+    return {
+        "premium_discount_zone": pd_zone,
+        "session_valid": session_context in ("london", "new_york", "overlap"),
+        "dol_available": bool(directional),
+        "confluence_score": score,
+        "confluence_max": 3,
+    }
+
+
 def evaluate_ict_hybrid(
     candles_1h,
     candles_4h,
@@ -94,18 +148,17 @@ def evaluate_ict_hybrid(
 ):
     """Calibrated SMC entry model.
 
-    Mandatory:
+    Mandatory core:
       1. 4H directional bias
-      2. recent sweep OR directional displacement
-      3. post-event BOS/CHoCH-style close through the opposing structure
+      2. liquidity sweep OR directional displacement
+      3. post-event BOS/CHoCH
 
-    Preferred entry:
-      FVG retest OR OB retest.
+    Entry hierarchy:
+      FVG retest -> OB retest -> confirmed structure-reclaim.
 
-    Relaxation:
-      If structure has broken but neither POI is available, a close-reclaim
-      entry is allowed. Session, premium/discount and DOL are contextual,
-      not hard gates.
+    SMC context:
+      premium/discount, session and draw-on-liquidity are recorded as
+      confluence, but are not hard gates unless explicitly requested.
     """
     if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
@@ -121,11 +174,13 @@ def evaluate_ict_hybrid(
     sweep = _find_recent_sweep(recent, bias, lookback=16, reference_bars=5)
 
     event_idx = None
+    event_type = None
     if sweep:
         event_idx = next(
             (i for i, c in enumerate(recent) if c["time"] == sweep["time"]),
             None,
         )
+        event_type = "LIQUIDITY_SWEEP"
 
     # A clean directional displacement can initiate the sequence when no
     # recent liquidity sweep is present.
@@ -139,6 +194,7 @@ def evaluate_ict_hybrid(
                 or (bias == "SHORT" and c["close"] < c["open"])
             ):
                 event_idx = i
+                event_type = "DISPLACEMENT"
                 break
 
     if event_idx is None:
@@ -150,8 +206,6 @@ def evaluate_ict_hybrid(
     if not mss:
         return None
 
-    # Find a fresh FVG after the event. The FVG detector itself is causal:
-    # its third candle is closed before the setup is evaluated.
     fvg_result = fvg.find_fvg(
         recent,
         min_gap_atr=min_fvg_atr,
@@ -162,13 +216,9 @@ def evaluate_ict_hybrid(
         fvg_result = None
 
     fvg_retest = _fvg_retested(recent, fvg_result, bias)
-
     ob_result = order_blocks.find_order_block(recent, fvg_result) if fvg_result else None
     ob_retest = _ob_retested(recent, ob_result, bias)
 
-    # Entry hierarchy: POI retest is preferred; otherwise use the confirmed
-    # structure-reclaim close. This is materially less restrictive than the
-    # original all-filters stack without accepting a pre-structure signal.
     if fvg_retest:
         entry_mid = (fvg_result["bottom"] + fvg_result["top"]) / 2.0
         entry_zone = (fvg_result["bottom"], fvg_result["top"])
@@ -201,8 +251,10 @@ def evaluate_ict_hybrid(
     buffer = max(atr * stop_atr_buffer, _pip_size(pair))
     stop = extreme - buffer if bias == "LONG" else extreme + buffer
 
-    # Prefer the nearest valid draw-on-liquidity target. If none exists,
-    # preserve the hybrid's structural 2R fallback.
+    context = _confluence_context(
+        candles_1h, candles_4h, bias, recent[-1]["close"], session_context
+    )
+
     pools = liquidity.liquidity_pools(candles_4h[-30:])
     current = recent[-1]["close"]
     directional = [
@@ -262,8 +314,11 @@ def evaluate_ict_hybrid(
         "mss_confirmed": True,
         "mss_level": mss_level,
         "mss_break_idx": break_idx,
-        "displacement_confirmed": True,
+        "event_type": event_type,
+        "displacement_confirmed": event_type == "DISPLACEMENT" or (
+            fvg_result is not None
+        ),
         "entry_trigger": trigger,
-        "premium_discount_zone": "not_required",
+        **context,
         "timestamp": candles_1h[-1]["time"],
     }
