@@ -1,112 +1,93 @@
 #!/usr/bin/env python3
-"""Live ICT Forex Robot — GBPUSD/EURUSD only.
-Includes: real Kraken connection, automatic scanning, automatic orders,
-reconnection logic, kill switch, position recovery, logging.
-Paper mode is the ONLY mode activated (backtest shows FAIL — not viable for live)."""
+"""ICT Forex monitoring daemon using B2TRADER market data.
 
-import json, os, time, signal, sys, threading, traceback
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+This process evaluates the existing ICT strategy and records signals.
+Real-money order submission is deliberately disabled at the application level;
+the B2TRADER execution adapter is kept separate for controlled integration.
+"""
 
-from forex_data import fetch_ohlc
-from strategy import ict_strategy, sessions, risk, liquidity, ict_bias, fvg, displacement, market_structure
+from __future__ import annotations
 
-# Secure key reference — never expose raw values
-# Keys are handled via secrets mechanism (KRAKEN_API_KEY / KRAKEN_API_SECRET)
-PAIRS = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'USDCAD', 'AUDUSD', 'NZDUSD', 'EURGBP', 'EURJPY', 'EURCHF', 'EURAUD', 'EURNZD', 'EURCAD', 'GBPJPY', 'GBPCHF', 'GBPAUD', 'GBPCAD', 'GBPNZD', 'AUDJPY', 'AUDCAD', 'AUDNZD', 'AUDCHF', 'NZDJPY', 'NZDCHF', 'CADJPY', 'CADCHF', 'CHFJPY']
-MODE = os.environ.get("MODE", "LIVE")  # Live execution mode activated per user authorization (DEMO+LIVE)
-LIVE_ACTIVATED = True  # Will remain False — backtest FAIL
+import json
+import os
+import signal
+import time
+from datetime import datetime, timezone
 
-# Kill switch state
-KILL_SWITCH = False
+from data.b2trader import B2TRADERGuestData
+from strategy.ict_strategy import evaluate_ict_2022
 
+PAIRS = os.getenv(
+    "B2TRADER_PAIRS",
+    "EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD",
+).split(",")
+BASE_URL = os.environ.get("B2TRADER_BASE_URL")
+MARKET_PREFIX = os.getenv("B2TRADER_MARKET_PREFIX", "cfd.")
+POLL_SECONDS = int(os.getenv("B2TRADER_POLL_SECONDS", "60"))
+LOG_PATH = os.getenv("B2TRADER_SIGNAL_LOG", "execution/b2trader_signals.jsonl")
 
-def kill_robot(signum=None, frame=None):
-    global KILL_SWITCH
-    KILL_SWITCH = True
-    print("[KILL SWITCH] Emergency stop triggered. Closing all positions.")
-    # In real mode: close positions. In paper mode: log only.
-
-
-def reconnect_mt5():
-    """Automatic reconnection after connection failure."""
-    # The user explicitly requires automatic reconnection
-    # Using the secure secrets mechanism for Kraken REST
-    max_retries = 5
-    for attempt in range(max_retries):
-        try:
-            # Reference the secrets store — never print keys
-            # The actual connection uses the stored SecretRefs
-            return True
-        except Exception as e:
-            time.sleep(2 ** attempt)  # Exponential backoff
-    return False
+STOP = False
 
 
-def recover_positions():
-    """Recover open positions after restart (from persistent state file)."""
-    state_file = "/home/myc/crypto-bot/forex_bot/execution/robot_state.json"
-    if os.path.exists(state_file):
-        with open(state_file) as f:
-            return json.load(f)
-    return {}
+def stop(*_args):
+    global STOP
+    STOP = True
 
 
-def scan_and_execute():
-    """Scan pairs continuously. Generate trades automatically if live activated.
-    Currently DISABLED (paper mode, FAIL backtest)."""
-    # The user explicitly said: after activation, robot operates continuously
-    # But since backtest FAIL, this remains inactive (paper mode only)
-    for pair in PAIRS:
-        # Fetch data
-        candles_4h = fetch_ohlc(pair, interval_minutes=240, count=200)
-        candles_1h = fetch_ohlc(pair, interval_minutes=60, count=500)
-        if not candles_4h or not candles_1h:
-            continue
-        # Evaluate ICT setup
-        result = ict_strategy.evaluate_ict_2022(candles_1h, candles_4h, pair)
-        if result:
-            # In live execution mode: orders executed via MT5 MQL5 bridge. No real orders.
-            # In live mode (not activated due to FAIL): place orders automatically
-            log_entry = {
-                "pair": pair,
-                "side": result.get("side"),
-                "entry_zone": result.get("entry_zone"),
-                "stop_ref": result.get("stop_ref"),
-                "tp_target": result.get("tp_target"),
-                "session": result.get("session"),
-                "quality_score": result.get("quality_score"),
-                "timestamp": time.time(),
-                "mode": "PAPER_ONLY",
-                "note": "No live orders placed. Backtest FAIL."
-            }
-            # Log to execution log
-            with open("/home/myc/crypto-bot/forex_bot/execution/live_log.jsonl", "a") as f:
-                f.write(json.dumps(log_entry) + "\n")
+def market_id(pair: str) -> str:
+    p = pair.strip().lower()
+    return p if p.startswith("cfd.") else f"{MARKET_PREFIX}{p[:3]}_{p[3:]}"
 
 
 def main():
-    print("=== ICT FOREX ROBOT ===")
-    print(f"Pairs: {', '.join(PAIRS)}")
-    print(f"Mode: {MODE}")
-    print(f"Live trading activated: {LIVE_ACTIVATED}")
-    print("Backtest verdict: FAIL — DO NOT ACTIVATE LIVE")
-    print("Paper mode maintained. No real orders will be placed.")
-    print("Kill switch registered (SIGTERM / SIGINT).")
-    signal.signal(signal.SIGTERM, kill_robot)
-    signal.signal(signal.SIGINT, kill_robot)
+    if not BASE_URL:
+        raise SystemExit("B2TRADER_BASE_URL is required")
+    signal.signal(signal.SIGINT, stop)
+    signal.signal(signal.SIGTERM, stop)
 
-    # Continuous scanning loop — in paper mode, only logs
-    while not KILL_SWITCH:
-        if LIVE_ACTIVATED:
-            scan_and_execute()
-        else:
-            # Even in paper mode, we scan to show the framework works
-            # But we don't execute orders automatically (per FAIL verdict)
+    feed = B2TRADERGuestData(BASE_URL)
+    print("=== ICT FOREX / B2TRADER MONITOR ===")
+    print("Strategy files are unchanged.")
+    print("Real-money order submission: DISABLED")
+
+    while not STOP:
+        for pair in PAIRS:
+            pair = pair.strip().upper()
+            if not pair:
+                continue
             try:
-                scan_and_execute()
-            except Exception as e:
-                print(f"[ERROR] Scan failed: {e}")
-        time.sleep(60)  # 1-minute scan interval
+                mid = market_id(pair)
+                end = datetime.now(timezone.utc)
+                # Pull a bounded recent window; the strategy consumes closed bars.
+                start = end.replace(hour=0, minute=0, second=0, microsecond=0)
+                h1 = feed.history_chunked(mid, "1h", start, end)
+                h4 = feed.history_chunked(mid, "4h", start, end)
+                if len(h1) < 60 or len(h4) < 30:
+                    continue
+
+                result = evaluate_ict_2022(h1, h4, pair)
+                if result:
+                    event = {
+                        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                        "pair": pair,
+                        "market_id": mid,
+                        "side": result.get("side"),
+                        "entry_zone": result.get("entry_zone"),
+                        "stop_price": result.get("stop_price"),
+                        "tp_target": result.get("tp_target"),
+                        "rr": result.get("rr"),
+                        "mode": "SIGNAL_ONLY",
+                    }
+                    with open(LOG_PATH, "a", encoding="utf-8") as f:
+                        f.write(json.dumps(event) + "\n")
+                    print(json.dumps(event))
+            except Exception as exc:
+                print(f"[ERROR] {pair}: {exc}")
+
+        if not STOP:
+            time.sleep(POLL_SECONDS)
+
+    print("Stopped.")
 
 
 if __name__ == "__main__":
