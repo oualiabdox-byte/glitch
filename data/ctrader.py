@@ -76,6 +76,31 @@ def _normalize_symbol(name: str) -> str:
     )
 
 
+def normalize_symbol_spec(symbol: Any) -> dict[str, Any]:
+    """Convert cTrader symbol volume fields from protocol cents to units.
+
+    cTrader represents volume and lot size in 0.01 units in Open API messages.
+    Strategy/risk code works in normal base-currency units.
+    """
+    def units(name: str) -> float:
+        return float(getattr(symbol, name, 0) or 0) / 100.0
+
+    return {
+        "symbolId": int(getattr(symbol, "symbolId", 0)),
+        "digits": int(getattr(symbol, "digits", 0)),
+        "pipPosition": int(getattr(symbol, "pipPosition", 0)),
+        "lotSize": units("lotSize"),
+        "minVolume": units("minVolume"),
+        "maxVolume": units("maxVolume"),
+        "stepVolume": units("stepVolume"),
+        "commission": float(getattr(symbol, "commission", 0) or 0),
+        "commissionType": int(getattr(symbol, "commissionType", 0) or 0),
+        "pnlConversionFeeRate": float(
+            getattr(symbol, "pnlConversionFeeRate", 0) or 0
+        ),
+    }
+
+
 def trendbars_to_ohlc(trendbars, digits: Optional[int] = None) -> list[dict[str, Any]]:
     """Convert cTrader's relative trendbar representation to ordinary OHLC."""
     rows = []
