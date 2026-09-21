@@ -176,7 +176,13 @@ def evaluate_ict_2022(
     )
 
     recent_1h = candles_1h[-48:]
-    sweep = _find_recent_sweep(recent_1h, bias, mode="legacy")
+    sweep = _find_recent_sweep(
+        recent_1h,
+        bias,
+        mode="legacy",
+        tolerance_atr=0.0,
+        valid_window_bars=len(recent_1h),
+    )
     if not sweep:
         return None
 
