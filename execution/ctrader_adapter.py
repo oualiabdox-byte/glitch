@@ -5,7 +5,8 @@ Secrets are read only from the environment/OpenClaw secret injection path.
 
 The implementation follows Spotware's official Python SDK flow:
 application auth -> account list by access token -> account auth.
-Order submission is intentionally gated by CTRADER_ALLOW_ORDERS=false.
+Order submission is explicitly gated by CTRADER_ALLOW_ORDERS. The selected
+environment (demo/live) controls which cTrader endpoint is used.
 """
 
 from __future__ import annotations
@@ -26,6 +27,11 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import (
     ProtoOATraderReq,
     ProtoOAReconcileReq,
     ProtoOASubscribeSpotsReq,
+    ProtoOANewOrderReq,
+    ProtoOAAmendPositionSLTPReq,
+    ProtoOAClosePositionReq,
+    ProtoOAOrderType,
+    ProtoOATradeSide,
 )
 from twisted.internet import reactor
 
@@ -198,8 +204,87 @@ class CTraderAdapter:
         request.subscribeToSpotTimestamp = True
         self._send(request)
 
+    def _require_order_permission(self) -> None:
+        if not self.config.allow_orders:
+            raise RuntimeError(
+                "Order submission is disabled. Set CTRADER_ALLOW_ORDERS=true "
+                "only when you intentionally want execution in the selected "
+                f"CTRADER_ENV={self.config.environment!r} environment."
+            )
+
+    def submit_market_order(
+        self,
+        symbol_id: int,
+        side: str,
+        volume_units: float,
+        *,
+        client_order_id: Optional[str] = None,
+        label: Optional[str] = None,
+        comment: Optional[str] = None,
+    ) -> Any:
+        """Submit a market order to the selected cTrader environment.
+
+        Strategy code supplies the direction and size; this adapter only
+        translates them into cTrader protocol fields. Protective SL/TP should
+        be applied after the fill via amend_position_protection because cTrader
+        does not support absolute SL/TP fields on MARKET orders.
+        """
+        self._require_order_permission()
+        if volume_units <= 0:
+            raise ValueError("volume_units must be > 0")
+
+        normalized_side = str(side).upper()
+        if normalized_side not in {"BUY", "SELL", "LONG", "SHORT"}:
+            raise ValueError("side must be BUY/SELL/LONG/SHORT")
+        trade_side = (
+            ProtoOATradeSide.Value("BUY")
+            if normalized_side in {"BUY", "LONG"}
+            else ProtoOATradeSide.Value("SELL")
+        )
+
+        req = ProtoOANewOrderReq()
+        req.ctidTraderAccountId = self._require_account()
+        req.symbolId = int(symbol_id)
+        req.orderType = ProtoOAOrderType.Value("MARKET")
+        req.tradeSide = trade_side
+        req.volume = int(round(float(volume_units) * 100))
+        if client_order_id:
+            req.clientOrderId = str(client_order_id)[:50]
+        if label:
+            req.label = str(label)[:100]
+        if comment:
+            req.comment = str(comment)[:512]
+        return self._send(req)
+
+    def amend_position_protection(
+        self,
+        position_id: int,
+        *,
+        stop_loss: Optional[float] = None,
+        take_profit: Optional[float] = None,
+        trailing_stop_loss: bool = False,
+    ) -> Any:
+        self._require_order_permission()
+        req = ProtoOAAmendPositionSLTPReq()
+        req.ctidTraderAccountId = self._require_account()
+        req.positionId = int(position_id)
+        if stop_loss is not None:
+            req.stopLoss = float(stop_loss)
+        if take_profit is not None:
+            req.takeProfit = float(take_profit)
+        req.trailingStopLoss = bool(trailing_stop_loss)
+        return self._send(req)
+
+    def close_position(self, position_id: int, volume_units: float) -> Any:
+        self._require_order_permission()
+        if volume_units <= 0:
+            raise ValueError("volume_units must be > 0")
+        req = ProtoOAClosePositionReq()
+        req.ctidTraderAccountId = self._require_account()
+        req.positionId = int(position_id)
+        req.volume = int(round(float(volume_units) * 100))
+        return self._send(req)
+
     def assert_orders_disabled(self) -> None:
         if self.config.allow_orders:
-            raise RuntimeError(
-                "CTRADER_ALLOW_ORDERS=true is not permitted by this adapter build yet"
-            )
+            return
