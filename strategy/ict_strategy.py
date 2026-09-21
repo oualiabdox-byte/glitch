@@ -28,25 +28,54 @@ def _pip_size(pair):
     return 0.01 if "JPY" in pair.upper() else 0.0001
 
 
-def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6):
-    """Return the latest valid sweep, excluding the current confirmation candle."""
+def _find_recent_sweep(candles, bias, lookback=12, reference_bars=6, mode="structure"):
+    """Return the latest liquidity sweep before the current candle.
+
+    structure mode uses confirmed swing highs/lows as explicit liquidity levels.
+    legacy mode keeps the older rolling-window level for controlled A/B testing.
+    The current candle is excluded from sweep detection; entry confirmation
+    happens later in the caller.
+    """
     if len(candles) < reference_bars + 3:
         return None
+    if mode not in ("structure", "legacy"):
+        raise ValueError("invalid sweep mode")
+
     start = max(0, len(candles) - lookback - 1)
     end = len(candles) - 1
+
     for i in range(end - 1, start - 1, -1):
+        c = candles[i]
+
+        if mode == "structure":
+            pre = candles[:i]
+            if bias == "LONG":
+                swings = market_structure.find_swing_lows(pre, length=3)
+                if not swings:
+                    continue
+                level = swings[-1]["low"]
+                if c["low"] < level and c["close"] > level:
+                    return {"time": c["time"], "level": level, "extreme": c["low"], "source": "SWING_LOW"}
+            else:
+                swings = market_structure.find_swing_highs(pre, length=3)
+                if not swings:
+                    continue
+                level = swings[-1]["high"]
+                if c["high"] > level and c["close"] < level:
+                    return {"time": c["time"], "level": level, "extreme": c["high"], "source": "SWING_HIGH"}
+            continue
+
         before = candles[max(0, i - reference_bars):i]
         if not before:
             continue
-        c = candles[i]
         if bias == "LONG":
             level = min(x["low"] for x in before)
             if c["low"] < level and c["close"] > level:
-                return {"time": c["time"], "level": level, "extreme": c["low"]}
+                return {"time": c["time"], "level": level, "extreme": c["low"], "source": "ROLLING_LOW"}
         else:
             level = max(x["high"] for x in before)
             if c["high"] > level and c["close"] < level:
-                return {"time": c["time"], "level": level, "extreme": c["high"]}
+                return {"time": c["time"], "level": level, "extreme": c["high"], "source": "ROLLING_HIGH"}
     return None
 
 
