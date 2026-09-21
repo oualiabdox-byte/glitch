@@ -14,7 +14,7 @@ frequency and reduces parameter overfitting. All calculations are causal.
 """
 
 from .ict_strategy import _atr, _pip_size, _find_recent_sweep
-from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks, dominating_candle
+from . import ict_bias, market_structure, liquidity, fvg, displacement, order_blocks, dominating_candle, breaker_blocks, ote, mitigation
 
 
 def _post_event_structure(recent, event_idx, side, swing_length=3):
@@ -148,6 +148,10 @@ def evaluate_ict_hybrid(
     dc_timeframe="1h",
     dc_min_contained=3,
     dc_lookback=8,
+    enable_breaker=True,
+    enable_ote=True,
+    enable_mitigation=True,
+    min_confluence=0,
 ):
     """Calibrated SMC entry model.
 
@@ -267,12 +271,50 @@ def evaluate_ict_hybrid(
     dc_break = dc_context["dc_breakout"]
     dc_aligned = bool(dc_break and dc_break == bias)
 
+    breaker = None
+    if enable_breaker and ob_result:
+        breaker = breaker_blocks.find_breaker_block(
+            recent, ob_result, bias, break_idx=break_idx
+        )
+
+    ote_zone = None
+    ote_aligned = False
+    if enable_ote and event_idx is not None:
+        impulse = recent[event_idx:(break_idx + 1) if break_idx is not None else len(recent)]
+        if impulse:
+            impulse_low = min(c["low"] for c in impulse)
+            impulse_high = max(c["high"] for c in impulse)
+            ote_zone = ote.compute_ote(impulse_low, impulse_high, bias)
+            ote_aligned = ote.price_in_ote(recent[-1]["close"], ote_zone)
+
+    mitigation_fresh = True
+    if enable_mitigation and ob_result:
+        mitigation_fresh = not mitigation.zone_mitigated(recent, ob_result, bias)
+    if enable_mitigation and fvg_result:
+        mitigation_fresh = mitigation_fresh and not mitigation.zone_mitigated(
+            recent, fvg_result, bias
+        )
+
     # Add DC to the descriptive confluence score only. It is deliberately
     # NOT a mandatory gate, preventing the SMC stack from collapsing to zero
     # trades on sparse historical samples.
     if dc_aligned:
         context["confluence_score"] += 1
     context["confluence_max"] = 4
+    if breaker:
+        context["confluence_score"] += 1
+    if ote_aligned:
+        context["confluence_score"] += 1
+    if enable_mitigation and mitigation_fresh:
+        context["confluence_score"] += 1
+
+    context["confluence_max"] = 4 + int(enable_breaker) + int(enable_ote) + int(enable_mitigation)
+    context["advanced_confluence"] = {
+        "breaker_valid": bool(breaker),
+        "ote_valid": bool(ote_zone),
+        "ote_aligned": ote_aligned,
+        "mitigation_fresh": mitigation_fresh,
+    }
     context.update({
         "dc_valid": bool(dc),
         "dc_breakout": dc_break,
@@ -281,6 +323,10 @@ def evaluate_ict_hybrid(
         "dc_high": dc["high"] if dc else None,
         "dc_time": dc["time"] if dc else None,
         "dc_contained_bars": dc["contained_bars"] if dc else 0,
+        "breaker_block": breaker,
+        "ote_zone": ote_zone,
+        "ote_aligned": ote_aligned,
+        "mitigation_fresh": mitigation_fresh,
     })
 
     pools = liquidity.liquidity_pools(candles_4h[-30:])
@@ -323,6 +369,8 @@ def evaluate_ict_hybrid(
 
     rr = reward / risk
     if rr < min_rr:
+        return None
+    if context["confluence_score"] < min_confluence:
         return None
 
     return {
