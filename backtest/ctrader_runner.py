@@ -41,7 +41,7 @@ def _load_or_download(feed, symbol, start, end, cache_dir):
 
 def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
         enable_breaker=True, enable_ote=True, enable_mitigation=True,
-        min_confluence=0, reversal_mode="abc", continuation_mode="price_action"):
+        min_confluence=0, reversal_mode="abc", continuation_mode="price_action", sweep_mode="structure"):
     feed = CTraderData()
     data = _load_or_download(feed, symbol, start, end, cache_dir)
     h1, h4 = data["h1"], data["h4"]
@@ -73,6 +73,7 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
                 min_confluence=min_confluence,
                 reversal_confirmation=reversal_mode,
                 continuation_confirmation=continuation_mode,
+                sweep_confirmation=sweep_mode,
             )
 
         if not setup:
@@ -135,6 +136,7 @@ def run(symbol, start, end, mode="hybrid", cache_dir="data/ctrader_cache",
             "abc_fomo_extreme": setup.get("abc_fomo_extreme"),
             "pullback_trigger_confirmed": setup.get("pullback_trigger_confirmed", False),
             "continuation_confirmation": setup.get("continuation_confirmation"),
+            "sweep_confirmation": setup.get("sweep_confirmation"),
             "confluence_score": setup.get("confluence_score"),
             "confluence_max": setup.get("confluence_max"),
             "premium_discount_zone": setup.get("premium_discount_zone"),
@@ -178,6 +180,10 @@ def metrics(trades):
             "abc": sum(1 for t in trades if t.get("reversal_confirmation") == "abc"),
             "legacy": sum(1 for t in trades if t.get("reversal_confirmation") == "legacy"),
         },
+        "sweep_mode_counts": {
+            "structure": sum(1 for t in trades if t.get("sweep_confirmation") == "structure"),
+            "legacy": sum(1 for t in trades if t.get("sweep_confirmation") == "legacy"),
+        },
         "continuation_mode_counts": {
             "price_action": sum(1 for t in trades if t.get("continuation_confirmation") == "price_action"),
             "legacy": sum(1 for t in trades if t.get("continuation_confirmation") == "legacy"),
@@ -208,6 +214,8 @@ def main():
                         help="Hybrid reversal confirmation variant for controlled A/B testing.")
     parser.add_argument("--continuation-mode", choices=["price_action", "legacy"], default="price_action",
                         help="Hybrid continuation confirmation variant for controlled A/B testing.")
+    parser.add_argument("--sweep-mode", choices=["structure", "legacy"], default="structure",
+                        help="Hybrid liquidity-sweep level variant for controlled A/B testing.")
     parser.add_argument("--json")
     args = parser.parse_args()
 
@@ -229,6 +237,7 @@ def main():
         "min_confluence": args.min_confluence,
         "reversal_mode": args.reversal_mode,
         "continuation_mode": args.continuation_mode,
+        "sweep_mode": args.sweep_mode,
     }
 
     if len(pairs) > 1:
@@ -257,6 +266,7 @@ def main():
         "data_source": "cTrader Open API historical H1/H4",
         "reversal_mode": args.reversal_mode,
         "continuation_mode": args.continuation_mode,
+        "sweep_mode": args.sweep_mode,
         "future_leak_guard": True,
         "pairs": reports,
         "aggregate": metrics(all_trades),
