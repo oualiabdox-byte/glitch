@@ -19,6 +19,9 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import (
     ProtoOAAccountAuthReq,
     ProtoOAApplicationAuthReq,
     ProtoOAGetAccountListByAccessTokenReq,
+    ProtoOAGetAccountListByAccessTokenRes,
+    ProtoOAApplicationAuthRes,
+    ProtoOAAccountAuthRes,
     ProtoOASymbolsListReq,
     ProtoOATraderReq,
     ProtoOAReconcileReq,
@@ -131,14 +134,14 @@ class CTraderAdapter:
     def _on_message(self, _client: Any, message: Any) -> None:
         payload_type = getattr(message, "payloadType", None)
 
-        if payload_type == 2101:  # ProtoOAApplicationAuthRes
+        if payload_type == ProtoOAApplicationAuthRes().payloadType:
             print("[cTrader] application authorized")
             req = ProtoOAGetAccountListByAccessTokenReq()
             req.accessToken = self.config.access_token
             self._send(req)
             return
 
-        if payload_type == 2147:  # ProtoOAGetAccountListByAccessTokenRes
+        if payload_type == ProtoOAGetAccountListByAccessTokenRes().payloadType:
             response = Protobuf.extract(message)
             accounts = list(response.ctidTraderAccount)
             if not accounts:
@@ -158,7 +161,7 @@ class CTraderAdapter:
             self._send(req)
             return
 
-        if payload_type == 2103:  # ProtoOAAccountAuthRes
+        if payload_type == ProtoOAAccountAuthRes().payloadType:
             response = Protobuf.extract(message)
             self.account_id = int(response.ctidTraderAccountId)
             print(f"[cTrader] account authorized: {self.account_id}")
