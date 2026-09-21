@@ -128,11 +128,14 @@ def evaluate_ict_2022(
     min_fvg_atr=0.10,
     stop_atr_buffer=0.10,
     min_rr=2.0,
+    swing_length=3,
 ):
     if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
 
-    htf = ict_bias.htf_context_4h(candles_4h, swing_length=3)
+    if swing_length < 2:
+        raise ValueError("swing_length must be >= 2")
+    htf = ict_bias.htf_context_4h(candles_4h, swing_length=swing_length)
     bias = htf.get("bias")
     if bias not in ("LONG", "SHORT"):
         return None
@@ -159,7 +162,7 @@ def evaluate_ict_2022(
     sweep = _find_recent_sweep(
         recent_1h,
         bias,
-        swing_length=3,
+        swing_length=swing_length,
         tolerance_atr=0.10,
         valid_window_bars=6,
     )
@@ -170,7 +173,7 @@ def evaluate_ict_2022(
         (i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]),
         None,
     )
-    mss_ok, mss_level = _mss_after_sweep(recent_1h, bias, sweep_idx, 3)
+    mss_ok, mss_level = _mss_after_sweep(recent_1h, bias, sweep_idx, swing_length)
     if not mss_ok:
         return None
 
