@@ -49,6 +49,8 @@ class CTraderConfig:
     account_id: Optional[int] = None
     allow_orders: bool = False
     heartbeat_seconds: float = 10.0
+    confirm_live: bool = False
+    max_order_volume_units: float = 0.0
 
     @classmethod
     def from_env(cls) -> "CTraderConfig":
@@ -68,6 +70,9 @@ class CTraderConfig:
         if heartbeat_seconds <= 0:
             raise RuntimeError("CTRADER_HEARTBEAT_SECONDS must be > 0")
 
+        max_volume = float(os.getenv("CTRADER_MAX_ORDER_VOLUME_UNITS", "0"))
+        if max_volume < 0:
+            raise RuntimeError("CTRADER_MAX_ORDER_VOLUME_UNITS must be >= 0")
         return cls(
             client_id=required("CTRADER_CLIENT_ID"),
             client_secret=required("CTRADER_CLIENT_SECRET"),
@@ -76,6 +81,8 @@ class CTraderConfig:
             account_id=int(account_raw) if account_raw else None,
             allow_orders=os.getenv("CTRADER_ALLOW_ORDERS", "false").lower() == "true",
             heartbeat_seconds=heartbeat_seconds,
+            confirm_live=os.getenv("CTRADER_CONFIRM_LIVE", "") == "I_UNDERSTAND",
+            max_order_volume_units=max_volume,
         )
 
 
@@ -109,6 +116,8 @@ class CTraderAdapter:
             "port": self.port,
             "account_id": self.account_id,
             "order_submission": self.config.allow_orders,
+            "live_confirmation": self.config.confirm_live,
+            "max_order_volume_units": self.config.max_order_volume_units,
             "heartbeat_seconds": self.config.heartbeat_seconds,
         }
 
@@ -286,6 +295,21 @@ class CTraderAdapter:
         self._require_order_permission()
         if volume_units <= 0:
             raise ValueError("volume_units must be > 0")
+        if (
+            self.config.max_order_volume_units > 0
+            and volume_units > self.config.max_order_volume_units
+        ):
+            raise RuntimeError(
+                f"volume_units={volume_units} exceeds "
+                f"CTRADER_MAX_ORDER_VOLUME_UNITS={self.config.max_order_volume_units}"
+            )
+        if self.config.environment == "live":
+            if not self.config.confirm_live:
+                raise RuntimeError(
+                    "Live orders require CTRADER_CONFIRM_LIVE=I_UNDERSTAND"
+                )
+            if self.config.account_id is None:
+                raise RuntimeError("Live orders require an explicit CTRADER_ACCOUNT_ID")
 
         normalized_side = str(side).upper()
         if normalized_side not in {"BUY", "SELL", "LONG", "SHORT"}:
@@ -309,6 +333,60 @@ class CTraderAdapter:
         if comment:
             req.comment = str(comment)[:512]
         return self._send(req)
+
+    def submit_market_order_protected(
+        self,
+        symbol_id: int,
+        side: str,
+        volume_units: float,
+        *,
+        stop_loss: float,
+        take_profit: float,
+        client_order_id: Optional[str] = None,
+        label: Optional[str] = None,
+        comment: Optional[str] = None,
+    ) -> Any:
+        """Submit a market order and attach SL/TP immediately after fill.
+
+        cTrader does not support absolute SL/TP fields on MARKET orders, so
+        protection must follow the fill. A failed protection amendment triggers
+        a best-effort close of the newly filled position.
+        """
+        if stop_loss <= 0 or take_profit <= 0:
+            raise ValueError("stop_loss and take_profit must be positive")
+        deferred = self.submit_market_order(
+            symbol_id,
+            side,
+            volume_units,
+            client_order_id=client_order_id,
+            label=label,
+            comment=comment,
+        )
+
+        def on_execution(message):
+            response = Protobuf.extract(message)
+            position = getattr(response, "position", None)
+            if position is None:
+                return message
+            position_id = int(position.positionId)
+            protection = self.amend_position_protection(
+                position_id, stop_loss=stop_loss, take_profit=take_profit
+            )
+
+            def protection_failed(failure):
+                try:
+                    volume_raw = int(getattr(position.tradeData, "volume", 0))
+                    volume_units_filled = volume_raw / 100.0
+                    if volume_units_filled > 0:
+                        self.close_position(position_id, volume_units_filled)
+                finally:
+                    return failure
+
+            protection.addErrback(protection_failed)
+            return message
+
+        deferred.addCallback(on_execution)
+        return deferred
 
     def amend_position_protection(
         self,
