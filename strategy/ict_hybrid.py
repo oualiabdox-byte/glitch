@@ -504,7 +504,7 @@ def evaluate_ict_hybrid(
 
     context = _confluence_context(
         candles_1h, candles_4h, bias, recent[-1]["close"], session_context,
-        eq_tolerance_atr=eq_tolerance_atr, swing_length=2
+        eq_tolerance_atr=eq_tolerance_atr, swing_length=htf_swing_length
     )
     # pyvsmc is optional detector data only; it never becomes a hard gate.
     context["smc_engine"] = smc_engine.analyze(recent)
