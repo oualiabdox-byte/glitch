@@ -12,8 +12,11 @@ __pycache__/
 *.py[cod]
 *.so
 .venv/
+.venv-*/
 venv/
 env/
+py310/
+py310_venv/
 
 # Local databases / runtime state
 *.sqlite
@@ -21,6 +24,8 @@ env/
 *.db
 *.log
 logs/
+execution/*.jsonl
+data/b2trader_cache/
 
 # Backups
 backups/
@@ -43,3 +48,4 @@ models/
 # Trading runtime artifacts
 *.pid
 *.tmp
+results/
