@@ -96,6 +96,13 @@ def run(symbol, market_symbol, start, end, mode="hybrid", base_url=None, cache_d
             "premium_discount_zone": setup.get("premium_discount_zone"),
             "session_valid": setup.get("session_valid"),
             "dol_available": setup.get("dol_available"),
+            "dc_valid": setup.get("dc_valid"),
+            "dc_breakout": setup.get("dc_breakout"),
+            "dc_aligned": setup.get("dc_aligned"),
+            "dc_low": setup.get("dc_low"),
+            "dc_high": setup.get("dc_high"),
+            "dc_time": setup.get("dc_time"),
+            "dc_contained_bars": setup.get("dc_contained_bars"),
             "exit_time_utc": exit_time,
         })
     return trades
