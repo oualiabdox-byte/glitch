@@ -314,8 +314,9 @@ def evaluate_breakout_retest(
     htf = ict_bias.htf_context_4h(candles_4h, swing_length=swing_length)
     bias = htf.get("bias")
     sess = session_context or sessions.current_session()
-    if bias not in ("LONG", "SHORT") or sess not in ("london", "new_york", "overlap"):
+    if bias not in ("LONG", "SHORT"):
         return None
+    session_preferred = sess in ("london", "new_york", "overlap")
 
     pools = liquidity.liquidity_pools(candles_4h[-30:])
     current = candles_1h[-1]["close"]
@@ -388,6 +389,7 @@ def evaluate_breakout_retest(
         "entry_model": "breakout_retest",
         "evidence": {
             "htf_structure": htf.get("structure"),
+            "session_preferred": session_preferred,
             "breakout_close": True,
             "retest_hold": True,
             "follow_through_close": True,
