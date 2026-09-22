@@ -97,6 +97,42 @@ def is_fresh_retest(candles, fvg_result, current_idx=None):
     return current["high"] >= bottom and current["close"] <= top
 
 
+def is_near_or_continuation_retest(
+    candles,
+    fvg_result,
+    current_idx=None,
+    tolerance=0.0,
+    max_wait_bars=6,
+):
+    """Allow a bounded near-touch or post-touch continuation.
+
+    The FVG must be confirmed before the current bar. The current bar may be
+    slightly short of the zone, or a prior bar may have interacted with it and
+    price may then continue in the FVG direction. No future bars are used.
+    """
+    if not fvg_result:
+        return False
+    current_idx = len(candles) - 1 if current_idx is None else int(current_idx)
+    start = fvg_result["confirmation_idx"] + 1
+    if current_idx < start or current_idx - start + 1 > max_wait_bars:
+        return False
+    bottom, top = fvg_result["bottom"], fvg_result["top"]
+    interaction = False
+    for i in range(start, current_idx + 1):
+        c = candles[i]
+        if c["high"] >= bottom - tolerance and c["low"] <= top + tolerance:
+            interaction = True
+            break
+    current = candles[current_idx]
+    if fvg_result["side"] == "LONG":
+        near = current["low"] <= top + tolerance and current["close"] >= bottom - tolerance
+        continuation = interaction and current["close"] >= top
+    else:
+        near = current["high"] >= bottom - tolerance and current["close"] <= top + tolerance
+        continuation = interaction and current["close"] <= bottom
+    return near or continuation
+
+
 def fvg_in_window(candles_1h, window_start_idx, window_end_idx, side):
     return find_fvg(
         candles_1h,

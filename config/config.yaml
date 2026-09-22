@@ -34,7 +34,7 @@ execution:
   spread_pips: 1.5
   commission_per_lot_round_turn: 0.0
   slippage_pips: 0.0
-  allow_fixed_rr_fallback: false
+  allow_fixed_rr_fallback: true  # breakout_retest only; structure_entry remains strict
 
 backtest:
   look_ahead_guard: true

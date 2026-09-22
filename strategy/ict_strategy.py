@@ -126,11 +126,15 @@ def evaluate_ict_2022(
     candles_4h,
     pair,
     session_context="london",
-    min_displacement_atr=1.25,
-    min_fvg_atr=0.10,
+    min_displacement_atr=0.75,
+    min_fvg_atr=0.0,
     stop_atr_buffer=0.10,
-    min_rr=2.0,
+    min_rr=1.5,
     swing_length=3,
+    require_fresh_fvg_retest=False,
+    fvg_retest_tolerance_atr=0.15,
+    fvg_retest_max_wait_bars=6,
+    allow_fixed_rr_fallback=True,
 ):
     if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
@@ -197,7 +201,17 @@ def evaluate_ict_2022(
     if not displacement_ok:
         return None
 
-    if not fvg.is_fresh_retest(recent_1h, fvg_result):
+    retest_atr = _atr(recent_1h, 14)
+    if require_fresh_fvg_retest:
+        retest_ok = fvg.is_fresh_retest(recent_1h, fvg_result)
+    else:
+        retest_ok = fvg.is_near_or_continuation_retest(
+            recent_1h,
+            fvg_result,
+            tolerance=retest_atr * fvg_retest_tolerance_atr,
+            max_wait_bars=fvg_retest_max_wait_bars,
+        )
+    if not retest_ok:
         return None
 
     if bias == "LONG" and htf.get("premium_discount") != "DISCOUNT":
@@ -239,6 +253,19 @@ def evaluate_ict_2022(
         return None
     rr = reward_distance / risk_distance
 
+    if rr + 1e-9 < min_rr and allow_fixed_rr_fallback:
+        target_price = (
+            entry_mid + risk_distance * min_rr
+            if bias == "LONG"
+            else entry_mid - risk_distance * min_rr
+        )
+        target_source = "FIXED_RR_FALLBACK"
+        reward_distance = abs(target_price - entry_mid)
+        rr = reward_distance / risk_distance
+    else:
+        target_price = target_pool["price"]
+        target_source = target_pool["source"]
+
     evidence = setup_analysis.analyze_setup(
         htf=htf,
         sweep=sweep,
@@ -271,8 +298,8 @@ def evaluate_ict_2022(
         "entry_mid": entry_mid,
         "stop_price": stop_price,
         "stop_ref": sweep["extreme"],
-        "tp_target": target_pool["price"],
-        "target_source": target_pool["source"],
+        "tp_target": target_price,
+        "target_source": target_source,
         "rr": rr,
         "bias": bias,
         "session": sess,
@@ -285,6 +312,7 @@ def evaluate_ict_2022(
         "displacement_confirmed": True,
         "displacement_atr": min_displacement_atr,
         "fvg_min_atr": min_fvg_atr,
+        "fvg_retest_mode": "fresh" if require_fresh_fvg_retest else "near_or_continuation",
         "premium_discount_zone": "discount" if bias == "LONG" else "premium",
         "evidence": evidence,
         "timestamp": candles_1h[-1]["time"],
@@ -301,7 +329,7 @@ def evaluate_breakout_retest(
     swing_length=3,
     breakout_body_atr=0.50,
     retest_window=6,
-    allow_fixed_rr_fallback=False,
+    allow_fixed_rr_fallback=True,
 ):
     """Evaluate the causal breakout/retest entry path.
 
@@ -369,7 +397,7 @@ def evaluate_breakout_retest(
     if reward_distance <= 0:
         return None
     rr = reward_distance / risk_distance
-    if rr < min_rr:
+    if rr + 1e-9 < min_rr:
         return None
 
     return {
