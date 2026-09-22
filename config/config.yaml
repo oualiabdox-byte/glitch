@@ -13,6 +13,9 @@ risk:
   max_open_per_pair: 1
   max_correlated_usd_exposure: 3
   max_daily_loss_r: 3.0
+  max_open_positions: 3
+  max_risk_per_trade_r: 0.02
+  max_quote_age_seconds: 60
 
 sessions:
   london:
@@ -31,6 +34,7 @@ execution:
   spread_pips: 1.5
   commission_per_lot_round_turn: 0.0
   slippage_pips: 0.0
+  allow_fixed_rr_fallback: false
 
 backtest:
   look_ahead_guard: true

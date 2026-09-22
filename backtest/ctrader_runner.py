@@ -21,6 +21,7 @@ from strategy.ict_strategy import (
     evaluate_structure_entry,
 )
 from strategy import risk, safety, timing
+from backtest.data_quality import validate_dataset
 
 
 def dt(value) -> datetime:
@@ -99,6 +100,10 @@ def run(
     feed = CTraderData()
     data = load_or_download(feed, symbol, start, end, cache_dir)
     h1, h4 = data["h1"], data["h4"]
+
+    quality = validate_dataset(h1, h4)
+    if not quality["valid"]:
+        raise RuntimeError("Invalid historical data: " + "; ".join(quality["errors"][:8]))
 
     if len(h1) < 100 or len(h4) < 40:
         raise RuntimeError(f"Not enough cTrader data: H1={len(h1)}, H4={len(h4)}")
@@ -275,7 +280,9 @@ def main():
     parser = argparse.ArgumentParser(description="Local cTrader Forex ICT/SMC backtest")
     parser.add_argument("--symbol")
     parser.add_argument(
-        "entry-mode", choices=("ict_fvg", "breakout_retest", "structure_entry"), default="ict_fvg"
+        "--entry-mode",
+        choices=("ict_fvg", "breakout_retest", "structure_entry"),
+        default="ict_fvg",
     )
     parser.add_argument("--all-pairs", action="store_true")
     parser.add_argument("--pairs", default="")

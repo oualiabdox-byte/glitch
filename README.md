@@ -9,6 +9,7 @@ This repository is intentionally kept narrow so an automated agent, VPS deployme
 - `strategy/` — causal ICT/SMC setup engine.
 - `data/ctrader.py` — cTrader historical/live market-data boundary.
 - `backtest/ctrader_runner.py` — local deterministic H1/H4 backtest runner.
+- `backtest/data_quality.py` — fail-closed OHLC, timestamp and H4-axis checks.
 - `execution/ctrader_adapter.py` — cTrader authentication, account state, reconciliation and explicitly gated order boundary.
 - `execution/bot_main.py` — signal-only cTrader scan; order submission is disabled.
 - `execution/ctrader_probe.py` — connectivity/account-state probe; no orders.
@@ -23,6 +24,14 @@ The strict engine evaluates:
 **4H confirmed structure → directional bias → directional liquidity target → 1H sweep → post-sweep MSS → displacement → fresh FVG retest → 4H premium/discount → allowed session → structural stop → minimum R:R → TRADE / NO TRADE**
 
 FVG, order block and Fibonacci-cluster information is retained as auditable evidence. It does not create a trade by itself.
+
+The optional `structure_entry` engine evaluates:
+
+**4H permission → H1 IDM sweep → displacement MSS/BOS/CHOCH → continuation or shallow reclaim → directional 50% check → next-bar entry**
+
+This path does not require an exact FVG or order-block touch. It is an explicitly defined research path, not a claim of profitability.
+
+`strategy/risk_governor.py` is a separate fail-closed pre-trade gate. It checks quote freshness, spread, stop direction, broker volume economics, daily loss plus open worst-case risk, drawdown, position count and volume limits. A rejected candidate returns reason codes and cannot become an order.
 
 There is no arbitrary confidence score and no EMA/MACD/RSI indicator stack.
 
@@ -50,7 +59,7 @@ The current code does not enable live order submission by default.
 
 ## Research discipline
 
-Do not loosen filters merely to increase trade count.
+Do not loosen filters merely to increase trade count. A higher trade count is not evidence of a stronger edge.
 
 Changes to strategy logic must be tested as controlled A/B experiments on identical periods, with at minimum:
 

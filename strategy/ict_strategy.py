@@ -301,6 +301,7 @@ def evaluate_breakout_retest(
     swing_length=3,
     breakout_body_atr=0.50,
     retest_window=6,
+    allow_fixed_rr_fallback=False,
 ):
     """Evaluate the causal breakout/retest entry path.
 
@@ -355,13 +356,15 @@ def evaluate_breakout_retest(
     if target_pool:
         target_price = target_pool["price"]
         target_source = target_pool["source"]
-    else:
+    elif allow_fixed_rr_fallback:
         target_price = (
             entry_mid + risk_distance * min_rr
             if bias == "LONG"
             else entry_mid - risk_distance * min_rr
         )
         target_source = "FIXED_RR_FALLBACK"
+    else:
+        return None
     reward_distance = abs(target_price - entry_mid)
     if reward_distance <= 0:
         return None
@@ -409,6 +412,7 @@ def evaluate_structure_entry(
     stop_atr_buffer=0.10,
     min_rr=1.5,
     swing_length=3,
+    allow_fixed_rr_fallback=False,
 ):
     """Evaluate IDM -> MSS/BOS/CHOCH entry without exact FVG/OB retest."""
     if len(candles_1h) < 30 or len(candles_4h) < 30:
@@ -460,9 +464,11 @@ def evaluate_structure_entry(
     if directional:
         target_pool = min(directional, key=lambda p: abs(p["price"] - entry_mid))
         target_price, target_source = target_pool["price"], target_pool["source"]
-    else:
+    elif allow_fixed_rr_fallback:
         target_price = entry_mid + risk_distance * min_rr if bias == "LONG" else entry_mid - risk_distance * min_rr
         target_source = "FIXED_RR_FALLBACK"
+    else:
+        return None
     reward_distance = abs(target_price - entry_mid)
     rr = reward_distance / risk_distance
     if rr < min_rr:
