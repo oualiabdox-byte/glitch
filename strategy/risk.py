@@ -96,7 +96,8 @@ def position_size_from_symbol(
 
     units = min(raw_units, max_volume)
     if step_volume > 0:
-        units = floor(units / step_volume) * step_volume
+        # Floating-point noise must not round an exact broker step down.
+        units = floor(units / step_volume + 1e-9) * step_volume
 
     if units < min_volume:
         return 0.0

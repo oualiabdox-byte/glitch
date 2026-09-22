@@ -18,7 +18,7 @@ def find_fvg(
     start_idx=0,
     min_gap_atr=0.0,
     required_side=None,
-    displacement_min_atr=0.0,
+    displacement_min_atr=1.0,
     end_idx=None,
 ):
     """Find the latest FVG using only bars through end_idx, inclusive.

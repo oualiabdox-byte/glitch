@@ -15,6 +15,12 @@ def find_order_block(candles_1h, fvg_result, lookback=10):
             return _build(candles_1h, j, side)
         if side == "SHORT" and c["close"] > c["open"]:
             return _build(candles_1h, j, side)
+
+    # A flat/base candle can still define the launch zone when the small
+    # calibration window contains no coloured opposing candle. It remains
+    # causal because it is strictly before the displacement candle.
+    if creator_idx > start:
+        return _build(candles_1h, creator_idx - 1, side)
     return None
 
 

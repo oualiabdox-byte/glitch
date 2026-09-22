@@ -25,8 +25,8 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import (
     ProtoOASymbolsListRes,
     ProtoOAGetTrendbarsReq,
     ProtoOAGetTrendbarsRes,
-    ProtoOATrendbarPeriod,
 )
+from ctrader_open_api.messages.OpenApiModelMessages_pb2 import ProtoOATrendbarPeriod
 from twisted.internet import reactor
 
 from execution.ctrader_adapter import CTraderAdapter
