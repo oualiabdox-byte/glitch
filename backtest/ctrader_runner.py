@@ -93,6 +93,7 @@ def run(
     slippage_pips=0.0,
     commission_per_lot=0.0,
     risk_amount=50.0,
+    strategy_flags=None,
 ):
     feed = CTraderData()
     data = load_or_download(feed, symbol, start, end, cache_dir)
@@ -152,6 +153,7 @@ def run(
             window, h4_visible, symbol, entry_mode,
             session_context=session,
             swing_length=swing_length,
+            flags=strategy_flags,
         )
         if not decision.is_signal:
             for reason in decision.reason_codes:

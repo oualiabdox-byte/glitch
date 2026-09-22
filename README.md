@@ -36,6 +36,8 @@ This path does not require an exact FVG or order-block touch. It is an explicitl
 
 The backtester consumes `Decision` objects at the strategy boundary instead of treating `None` as an unexplained rejection. Rejection counts are available after a run through `run.last_rejection_counts` and are intended for diagnostics, not as a performance metric.
 
+Evaluator ablation flags are available for controlled one-condition-at-a-time experiments. ICT flags include `require_sweep`, `require_mss`, `require_displacement`, `require_fvg`, `require_order_block`, `require_session`, `require_premium_discount`, and `require_min_rr`; breakout flags include `require_target_pool` and `require_min_rr`. Defaults preserve the normal strategy behavior.
+
 There is no arbitrary confidence score and no EMA/MACD/RSI indicator stack.
 
 ## Data and execution

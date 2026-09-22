@@ -49,7 +49,7 @@ def no_trade(*reasons: str, data_cutoff_utc=None, evidence=None) -> Decision:
     )
 
 
-def evaluate_entry_decision(candles_1h, candles_4h, pair, mode, session_context="london", swing_length=3):
+def evaluate_entry_decision(candles_1h, candles_4h, pair, mode, session_context="london", swing_length=3, flags=None):
     """Evaluate one entry mode without exposing ``None`` at the boundary."""
     from . import ict_bias, liquidity, breakout_retest
     from .ict_strategy import evaluate_ict_2022, evaluate_breakout_retest, evaluate_structure_entry
@@ -67,7 +67,7 @@ def evaluate_entry_decision(candles_1h, candles_4h, pair, mode, session_context=
     }
     if bias not in ("LONG", "SHORT"):
         return no_trade("HTF_NO_DIRECTIONAL_BIAS", data_cutoff_utc=cutoff, evidence=evidence)
-    if session_context not in ("london", "new_york", "overlap") and mode == "ict_fvg":
+    if (flags or {}).get("require_session", True) and session_context not in ("london", "new_york", "overlap") and mode == "ict_fvg":
         return no_trade("SESSION_BLOCK", data_cutoff_utc=cutoff, evidence=evidence)
 
     if mode == "breakout_retest":
@@ -86,10 +86,12 @@ def evaluate_entry_decision(candles_1h, candles_4h, pair, mode, session_context=
     else:
         return no_trade("UNKNOWN_ENTRY_MODE", data_cutoff_utc=cutoff, evidence=evidence)
 
+    evaluator_flags = dict(flags or {})
     setup = evaluator(
         candles_1h, candles_4h, pair,
         session_context=session_context,
         swing_length=swing_length,
+        **evaluator_flags,
     )
     if setup is None:
         code = {

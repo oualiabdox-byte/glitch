@@ -135,6 +135,14 @@ def evaluate_ict_2022(
     fvg_retest_tolerance_atr=0.15,
     fvg_retest_max_wait_bars=6,
     allow_fixed_rr_fallback=True,
+    require_sweep=True,
+    require_mss=True,
+    require_displacement=True,
+    require_fvg=True,
+    require_order_block=False,
+    require_session=True,
+    require_premium_discount=True,
+    require_min_rr=True,
 ):
     if len(candles_1h) < 30 or len(candles_4h) < 30:
         return None
@@ -147,7 +155,7 @@ def evaluate_ict_2022(
         return None
 
     sess = session_context or sessions.current_session()
-    if sess not in ("london", "new_york", "overlap"):
+    if require_session and sess not in ("london", "new_york", "overlap"):
         return None
 
     pools = liquidity.liquidity_pools(candles_4h[-30:])
@@ -172,15 +180,15 @@ def evaluate_ict_2022(
         tolerance_atr=0.10,
         valid_window_bars=6,
     )
-    if not sweep:
+    if require_sweep and not sweep:
         return None
 
-    sweep_idx = next(
-        (i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]),
-        None,
+    sweep_idx = (
+        next((i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]), None)
+        if sweep else None
     )
     mss_ok, mss_level = _mss_after_sweep(recent_1h, bias, sweep_idx, swing_length)
-    if not mss_ok:
+    if require_mss and not mss_ok:
         return None
 
     fvg_result = fvg.find_fvg(
@@ -189,20 +197,24 @@ def evaluate_ict_2022(
         required_side=bias,
         displacement_min_atr=min_displacement_atr,
     )
-    if not fvg_result or fvg_result["creator_idx"] <= sweep_idx:
+    if require_fvg and (not fvg_result or fvg_result["creator_idx"] <= (sweep_idx if sweep_idx is not None else -1)):
         return None
 
-    creator_idx = fvg_result["creator_idx"]
-    displacement_ok = displacement.is_displaced(
-        recent_1h,
-        creator_idx,
-        min_body_atr_ratio=min_displacement_atr,
+    creator_idx = fvg_result["creator_idx"] if fvg_result else None
+    displacement_ok = bool(
+        fvg_result and displacement.is_displaced(
+            recent_1h,
+            creator_idx,
+            min_body_atr_ratio=min_displacement_atr,
+        )
     )
-    if not displacement_ok:
+    if require_displacement and not displacement_ok:
         return None
 
     retest_atr = _atr(recent_1h, 14)
-    if require_fresh_fvg_retest:
+    if not fvg_result:
+        retest_ok = False
+    elif require_fresh_fvg_retest:
         retest_ok = fvg.is_fresh_retest(recent_1h, fvg_result)
     else:
         retest_ok = fvg.is_near_or_continuation_retest(
@@ -211,19 +223,21 @@ def evaluate_ict_2022(
             tolerance=retest_atr * fvg_retest_tolerance_atr,
             max_wait_bars=fvg_retest_max_wait_bars,
         )
-    if not retest_ok:
+    if require_fvg and not retest_ok:
         return None
 
-    if bias == "LONG" and htf.get("premium_discount") != "DISCOUNT":
+    if require_premium_discount and bias == "LONG" and htf.get("premium_discount") != "DISCOUNT":
         return None
-    if bias == "SHORT" and htf.get("premium_discount") != "PREMIUM":
+    if require_premium_discount and bias == "SHORT" and htf.get("premium_discount") != "PREMIUM":
         return None
 
     atr = _atr(recent_1h, 14)
     if atr <= 0:
         return None
 
-    ob = order_blocks.find_order_block(recent_1h, fvg_result)
+    ob = order_blocks.find_order_block(recent_1h, fvg_result) if fvg_result else None
+    if require_order_block and not ob:
+        return None
     fib = None
     if htf.get("external_high") is not None and htf.get("external_low") is not None:
         fib = fib_cluster.find_cluster(
@@ -239,13 +253,16 @@ def evaluate_ict_2022(
     }
 
     buffer = max(atr * stop_atr_buffer, _pip_size(pair))
-    entry_mid = (fvg_result["bottom"] + fvg_result["top"]) / 2.0
+    entry_mid = (
+        (fvg_result["bottom"] + fvg_result["top"]) / 2.0
+        if fvg_result else recent_1h[-1]["close"]
+    )
     if bias == "LONG":
-        stop_price = sweep["extreme"] - buffer
+        stop_price = (sweep["extreme"] if sweep else recent_1h[-1]["low"]) - buffer
         risk_distance = entry_mid - stop_price
         reward_distance = target_pool["price"] - entry_mid
     else:
-        stop_price = sweep["extreme"] + buffer
+        stop_price = (sweep["extreme"] if sweep else recent_1h[-1]["high"]) + buffer
         risk_distance = stop_price - entry_mid
         reward_distance = entry_mid - target_pool["price"]
 
@@ -253,7 +270,7 @@ def evaluate_ict_2022(
         return None
     rr = reward_distance / risk_distance
 
-    if rr + 1e-9 < min_rr and allow_fixed_rr_fallback:
+    if rr + 1e-9 < min_rr and allow_fixed_rr_fallback and require_min_rr:
         target_price = (
             entry_mid + risk_distance * min_rr
             if bias == "LONG"
@@ -287,6 +304,13 @@ def evaluate_ict_2022(
         session=sess,
         rr=rr,
         min_rr=min_rr,
+        require_sweep=require_sweep,
+        require_mss=require_mss,
+        require_displacement=require_displacement,
+        require_fvg=require_fvg,
+        require_session=require_session,
+        require_premium_discount=require_premium_discount,
+        require_min_rr=require_min_rr,
     )
     if not validation["valid"]:
         return None
@@ -294,10 +318,13 @@ def evaluate_ict_2022(
     return {
         "pair": pair,
         "side": bias,
-        "entry_zone": (fvg_result["bottom"], fvg_result["top"]),
+        "entry_zone": (
+            (fvg_result["bottom"], fvg_result["top"])
+            if fvg_result else (entry_mid, entry_mid)
+        ),
         "entry_mid": entry_mid,
         "stop_price": stop_price,
-        "stop_ref": sweep["extreme"],
+        "stop_ref": sweep["extreme"] if sweep else None,
         "tp_target": target_price,
         "target_source": target_source,
         "rr": rr,
@@ -330,6 +357,8 @@ def evaluate_breakout_retest(
     breakout_body_atr=0.50,
     retest_window=6,
     allow_fixed_rr_fallback=True,
+    require_target_pool=False,
+    require_min_rr=True,
 ):
     """Evaluate the causal breakout/retest entry path.
 
@@ -356,6 +385,8 @@ def evaluate_breakout_retest(
         or (bias == "SHORT" and p["type"] == "support" and p["price"] < current)
     ]
     target_pool = min(directional, key=lambda p: abs(p["price"] - current)) if directional else None
+    if require_target_pool and target_pool is None:
+        return None
 
     signal = breakout_retest.find_breakout_retest(
         candles_1h,
@@ -384,7 +415,7 @@ def evaluate_breakout_retest(
     if target_pool:
         target_price = target_pool["price"]
         target_source = target_pool["source"]
-    elif allow_fixed_rr_fallback:
+    elif allow_fixed_rr_fallback and not require_target_pool:
         target_price = (
             entry_mid + risk_distance * min_rr
             if bias == "LONG"
@@ -397,7 +428,7 @@ def evaluate_breakout_retest(
     if reward_distance <= 0:
         return None
     rr = reward_distance / risk_distance
-    if rr + 1e-9 < min_rr:
+    if require_min_rr and rr + 1e-9 < min_rr:
         return None
 
     return {
