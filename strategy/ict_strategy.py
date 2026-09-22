@@ -20,6 +20,7 @@ from . import (
     fib_cluster,
     setup_analysis,
     breakout_retest,
+    structure_entry,
 )
 
 
@@ -395,6 +396,93 @@ def evaluate_breakout_retest(
             "follow_through_close": True,
             "breakout_body_atr": signal["breakout_body_atr"],
             "rr": rr,
+        },
+        "timestamp": candles_1h[-1]["time"],
+    }
+
+
+def evaluate_structure_entry(
+    candles_1h,
+    candles_4h,
+    pair,
+    session_context="london",
+    stop_atr_buffer=0.10,
+    min_rr=1.5,
+    swing_length=3,
+):
+    """Evaluate IDM -> MSS/BOS/CHOCH entry without exact FVG/OB retest."""
+    if len(candles_1h) < 30 or len(candles_4h) < 30:
+        return None
+    if swing_length < 2:
+        raise ValueError("swing_length must be >= 2")
+
+    htf = ict_bias.htf_context_4h(candles_4h, swing_length=swing_length)
+    bias = htf.get("bias")
+    if bias not in ("LONG", "SHORT"):
+        return None
+    sess = session_context or sessions.current_session()
+    session_preferred = sess in ("london", "new_york", "overlap")
+    equilibrium = htf.get("equilibrium")
+    if equilibrium is None:
+        return None
+
+    signal = structure_entry.find_entry(
+        candles_1h, bias, end_idx=len(candles_1h) - 1,
+        internal_lookback=max(2, swing_length + 1),
+    )
+    if not signal:
+        return None
+    entry_mid = candles_1h[-1]["close"]
+    # Directional midpoint rule: long in discount, short in premium.
+    if bias == "LONG" and entry_mid > equilibrium:
+        return None
+    if bias == "SHORT" and entry_mid < equilibrium:
+        return None
+
+    atr = _atr(candles_1h, 14)
+    if atr <= 0:
+        return None
+    buffer = max(atr * stop_atr_buffer, _pip_size(pair))
+    stop_price = (
+        signal["stop_extreme"] - buffer
+        if bias == "LONG"
+        else signal["stop_extreme"] + buffer
+    )
+    risk_distance = entry_mid - stop_price if bias == "LONG" else stop_price - entry_mid
+    if risk_distance <= 0:
+        return None
+    pools = liquidity.liquidity_pools(candles_4h[-30:])
+    directional = [
+        p for p in pools
+        if (bias == "LONG" and p["type"] == "resistance" and p["price"] > entry_mid)
+        or (bias == "SHORT" and p["type"] == "support" and p["price"] < entry_mid)
+    ]
+    if directional:
+        target_pool = min(directional, key=lambda p: abs(p["price"] - entry_mid))
+        target_price, target_source = target_pool["price"], target_pool["source"]
+    else:
+        target_price = entry_mid + risk_distance * min_rr if bias == "LONG" else entry_mid - risk_distance * min_rr
+        target_source = "FIXED_RR_FALLBACK"
+    reward_distance = abs(target_price - entry_mid)
+    rr = reward_distance / risk_distance
+    if rr < min_rr:
+        return None
+
+    return {
+        "pair": pair, "side": bias, "entry_mid": entry_mid,
+        "entry_zone": (signal["break_level"], signal["break_level"]),
+        "stop_price": stop_price, "stop_ref": signal["stop_extreme"],
+        "tp_target": target_price, "target_source": target_source,
+        "rr": rr, "bias": bias, "session": sess,
+        "session_preferred": session_preferred, "htf_context": htf,
+        "structure_signal": signal, "entry_model": "structure_entry",
+        "fvg": None, "order_block": None,
+        "premium_discount_zone": "discount" if bias == "LONG" else "premium",
+        "evidence": {
+            "idm": True, "mss": signal["mss"], "bos": signal["bos"],
+            "choch": signal["choch"], "h4_equilibrium": equilibrium,
+            "entry_below_or_above_50": True, "session_preferred": session_preferred,
+            "path": signal["path"], "rr": rr,
         },
         "timestamp": candles_1h[-1]["time"],
     }

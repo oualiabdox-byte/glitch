@@ -15,7 +15,11 @@ from pathlib import Path
 
 from config.settings import load_config, pairs as configured_pairs
 from data.ctrader import CTraderData
-from strategy.ict_strategy import evaluate_ict_2022, evaluate_breakout_retest
+from strategy.ict_strategy import (
+    evaluate_ict_2022,
+    evaluate_breakout_retest,
+    evaluate_structure_entry,
+)
 from strategy import risk, safety, timing
 
 
@@ -110,13 +114,14 @@ def run(
     peak_equity_r = 0.0
     ambiguous_bars = 0
 
-    if entry_mode not in {"ict_fvg", "breakout_retest"}:
-        raise ValueError("entry_mode must be ict_fvg or breakout_retest")
-    evaluator = (
-        evaluate_breakout_retest
-        if entry_mode == "breakout_retest"
-        else evaluate_ict_2022
-    )
+    evaluators = {
+        "ict_fvg": evaluate_ict_2022,
+        "breakout_retest": evaluate_breakout_retest,
+        "structure_entry": evaluate_structure_entry,
+    }
+    if entry_mode not in evaluators:
+        raise ValueError("entry_mode must be ict_fvg, breakout_retest, or structure_entry")
+    evaluator = evaluators[entry_mode]
 
     # i is a CLOSED H1 signal bar. Its close is the information boundary.
     for i in range(60, len(h1) - 1):
@@ -270,7 +275,7 @@ def main():
     parser = argparse.ArgumentParser(description="Local cTrader Forex ICT/SMC backtest")
     parser.add_argument("--symbol")
     parser.add_argument(
-        "--entry-mode", choices=("ict_fvg", "breakout_retest"), default="ict_fvg"
+        "entry-mode", choices=("ict_fvg", "breakout_retest", "structure_entry"), default="ict_fvg"
     )
     parser.add_argument("--all-pairs", action="store_true")
     parser.add_argument("--pairs", default="")
