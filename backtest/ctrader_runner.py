@@ -10,16 +10,13 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config.settings import load_config, pairs as configured_pairs
 from data.ctrader import CTraderData
-from strategy.ict_strategy import (
-    evaluate_ict_2022,
-    evaluate_breakout_retest,
-    evaluate_structure_entry,
-)
+from strategy.decision import evaluate_entry_decision
 from strategy import risk, safety, timing
 from backtest.data_quality import validate_dataset
 
@@ -118,15 +115,9 @@ def run(
     equity_r = 0.0
     peak_equity_r = 0.0
     ambiguous_bars = 0
-
-    evaluators = {
-        "ict_fvg": evaluate_ict_2022,
-        "breakout_retest": evaluate_breakout_retest,
-        "structure_entry": evaluate_structure_entry,
-    }
-    if entry_mode not in evaluators:
+    decision_rejections = Counter()
+    if entry_mode not in {"ict_fvg", "breakout_retest", "structure_entry"}:
         raise ValueError("entry_mode must be ict_fvg, breakout_retest, or structure_entry")
-    evaluator = evaluators[entry_mode]
 
     # i is a CLOSED H1 signal bar. Its close is the information boundary.
     for i in range(60, len(h1) - 1):
@@ -157,15 +148,16 @@ def run(
         if len(h4_visible) < 30:
             continue
 
-        setup = evaluator(
-            window,
-            h4_visible,
-            symbol,
+        decision = evaluate_entry_decision(
+            window, h4_visible, symbol, entry_mode,
             session_context=session,
             swing_length=swing_length,
         )
-        if not setup:
+        if not decision.is_signal:
+            for reason in decision.reason_codes:
+                decision_rejections[reason] += 1
             continue
+        setup = decision.setup
 
         entry_idx = i + 1
         side = setup["side"]
@@ -250,6 +242,7 @@ def run(
             "intrabar_ambiguous": trade_ambiguous,
         })
 
+    run.last_rejection_counts = dict(decision_rejections)
     return trades, ambiguous_bars
 
 

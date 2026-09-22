@@ -7,6 +7,7 @@ This repository is intentionally kept narrow so an automated agent, VPS deployme
 ## Active components
 
 - `strategy/` — causal ICT/SMC setup engine.
+- `strategy/decision.py` — auditable SIGNAL/NO_TRADE decisions with reason codes and data cutoffs.
 - `data/ctrader.py` — cTrader historical/live market-data boundary.
 - `backtest/ctrader_runner.py` — local deterministic H1/H4 backtest runner.
 - `backtest/data_quality.py` — fail-closed OHLC, timestamp and H4-axis checks.
@@ -32,6 +33,8 @@ The optional `structure_entry` engine evaluates:
 This path does not require an exact FVG or order-block touch. It is an explicitly defined research path, not a claim of profitability.
 
 `strategy/risk_governor.py` is a separate fail-closed pre-trade gate. It checks quote freshness, spread, stop direction, broker volume economics, daily loss plus open worst-case risk, drawdown, position count and volume limits. A rejected candidate returns reason codes and cannot become an order.
+
+The backtester consumes `Decision` objects at the strategy boundary instead of treating `None` as an unexplained rejection. Rejection counts are available after a run through `run.last_rejection_counts` and are intended for diagnostics, not as a performance metric.
 
 There is no arbitrary confidence score and no EMA/MACD/RSI indicator stack.
 
