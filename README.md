@@ -18,6 +18,39 @@ This repository is intentionally kept narrow so an automated agent, VPS deployme
 - `config/config.yaml` — Forex symbols, risk and execution defaults.
 - `requirements.txt` — runtime/test dependencies.
 
+## Local installation and cTrader connectivity
+
+The repository is designed to be copied to a local computer and installed
+without manually hunting for Python packages. Use Python 3.10 or newer:
+
+```bash
+git clone https://github.com/oualiabdox-byte/forex_bot.git
+cd forex_bot
+python -m venv .venv
+# Linux/macOS
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+Copy `.env.example` to `.env` and fill in the cTrader Open API application and
+account values supplied by cTrader. The adapter loads `.env` automatically;
+shell environment variables still take precedence. Keep the safety setting
+disabled while testing:
+
+```bash
+cp .env.example .env
+# edit .env; keep CTRADER_ENV=demo and CTRADER_ALLOW_ORDERS=false
+python -m execution.ctrader_probe
+python -m pytest -q
+```
+
+`ctrader-open-api`, `service-identity`, `python-dotenv`, Twisted, protobuf,
+PyYAML, NumPy, and pytest are declared in `requirements.txt`. The probe only
+authenticates and reads account/symbol state; it never submits an order when
+`CTRADER_ALLOW_ORDERS=false`. Never commit `.env` or real credentials.
+
 ## Strategy decision path
 
 The strict engine evaluates:

@@ -18,6 +18,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from dotenv import load_dotenv
 from ctrader_open_api import Client, Protobuf, TcpProtocol, EndPoints
 from ctrader_open_api.messages.OpenApiCommonMessages_pb2 import ProtoHeartbeatEvent
 from ctrader_open_api.messages.OpenApiMessages_pb2 import (
@@ -56,6 +57,10 @@ class CTraderConfig:
 
     @classmethod
     def from_env(cls) -> "CTraderConfig":
+        # Load a local, git-ignored .env when present. Existing environment
+        # variables take precedence, and secrets are never written by the bot.
+        load_dotenv()
+
         def required(name: str) -> str:
             value = os.getenv(name, "").strip()
             if not value:
