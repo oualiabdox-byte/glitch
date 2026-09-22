@@ -158,6 +158,11 @@ class CTraderAdapter:
         return deferred
 
     def _on_connected(self, _client: Any) -> None:
+        # Some SDK versions invoke the callback with the live client before
+        # the service reference is observable through the adapter. Preserve
+        # that reference so the first auth request is not dropped.
+        if self.client is None:
+            self.client = _client
         request = ProtoOAApplicationAuthReq()
         request.clientId = self.config.client_id
         request.clientSecret = self.config.client_secret
