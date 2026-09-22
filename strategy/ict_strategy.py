@@ -19,6 +19,7 @@ from . import (
     sessions,
     fib_cluster,
     setup_analysis,
+    breakout_retest,
 )
 
 
@@ -285,5 +286,113 @@ def evaluate_ict_2022(
         "fvg_min_atr": min_fvg_atr,
         "premium_discount_zone": "discount" if bias == "LONG" else "premium",
         "evidence": evidence,
+        "timestamp": candles_1h[-1]["time"],
+    }
+
+
+def evaluate_breakout_retest(
+    candles_1h,
+    candles_4h,
+    pair,
+    session_context="london",
+    stop_atr_buffer=0.10,
+    min_rr=1.5,
+    swing_length=3,
+    breakout_body_atr=0.50,
+    retest_window=6,
+):
+    """Evaluate the causal breakout/retest entry path.
+
+    This is deliberately a separate path so the original ICT/FVG engine can
+    be compared against it without changing its historical behavior.
+    """
+    if len(candles_1h) < 30 or len(candles_4h) < 30:
+        return None
+    if swing_length < 2:
+        raise ValueError("swing_length must be >= 2")
+
+    htf = ict_bias.htf_context_4h(candles_4h, swing_length=swing_length)
+    bias = htf.get("bias")
+    sess = session_context or sessions.current_session()
+    if bias not in ("LONG", "SHORT") or sess not in ("london", "new_york", "overlap"):
+        return None
+
+    pools = liquidity.liquidity_pools(candles_4h[-30:])
+    current = candles_1h[-1]["close"]
+    directional = [
+        p for p in pools
+        if (bias == "LONG" and p["type"] == "resistance" and p["price"] > current)
+        or (bias == "SHORT" and p["type"] == "support" and p["price"] < current)
+    ]
+    target_pool = min(directional, key=lambda p: abs(p["price"] - current)) if directional else None
+
+    signal = breakout_retest.find_breakout_retest(
+        candles_1h,
+        bias,
+        end_idx=len(candles_1h) - 1,
+        swing_length=swing_length,
+        breakout_body_atr=breakout_body_atr,
+        retest_window=retest_window,
+    )
+    if not signal:
+        return None
+
+    atr = _atr(candles_1h, 14)
+    if atr <= 0:
+        return None
+    entry_mid = candles_1h[-1]["close"]
+    buffer = max(atr * stop_atr_buffer, _pip_size(pair))
+    if bias == "LONG":
+        stop_price = signal["stop_extreme"] - buffer
+        risk_distance = entry_mid - stop_price
+    else:
+        stop_price = signal["stop_extreme"] + buffer
+        risk_distance = stop_price - entry_mid
+    if risk_distance <= 0:
+        return None
+    if target_pool:
+        target_price = target_pool["price"]
+        target_source = target_pool["source"]
+    else:
+        target_price = (
+            entry_mid + risk_distance * min_rr
+            if bias == "LONG"
+            else entry_mid - risk_distance * min_rr
+        )
+        target_source = "FIXED_RR_FALLBACK"
+    reward_distance = abs(target_price - entry_mid)
+    if reward_distance <= 0:
+        return None
+    rr = reward_distance / risk_distance
+    if rr < min_rr:
+        return None
+
+    return {
+        "pair": pair,
+        "side": bias,
+        "entry_zone": (signal["level"] - signal["zone_buffer"], signal["level"] + signal["zone_buffer"]),
+        "entry_mid": entry_mid,
+        "stop_price": stop_price,
+        "stop_ref": signal["stop_extreme"],
+        "tp_target": target_price,
+        "target_source": target_source,
+        "rr": rr,
+        "bias": bias,
+        "session": sess,
+        "htf_context": htf,
+        "breakout_retest": signal,
+        "mss_confirmed": False,
+        "displacement_confirmed": True,
+        "fvg": None,
+        "order_block": None,
+        "entry_model": "breakout_retest",
+        "evidence": {
+            "htf_structure": htf.get("structure"),
+            "breakout_close": True,
+            "retest_hold": True,
+            "follow_through_close": True,
+            "breakout_body_atr": signal["breakout_body_atr"],
+            "rr": rr,
+        },
         "timestamp": candles_1h[-1]["time"],
     }

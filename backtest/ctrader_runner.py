@@ -15,7 +15,7 @@ from pathlib import Path
 
 from config.settings import load_config, pairs as configured_pairs
 from data.ctrader import CTraderData
-from strategy.ict_strategy import evaluate_ict_2022
+from strategy.ict_strategy import evaluate_ict_2022, evaluate_breakout_retest
 from strategy import risk, safety, timing
 
 
@@ -77,6 +77,7 @@ def run(
     start,
     end,
     cache_dir="data/ctrader_cache",
+    entry_mode="ict_fvg",
     swing_length=3,
     max_trades_per_day=0,
     cooldown_minutes=0,
@@ -109,6 +110,14 @@ def run(
     peak_equity_r = 0.0
     ambiguous_bars = 0
 
+    if entry_mode not in {"ict_fvg", "breakout_retest"}:
+        raise ValueError("entry_mode must be ict_fvg or breakout_retest")
+    evaluator = (
+        evaluate_breakout_retest
+        if entry_mode == "breakout_retest"
+        else evaluate_ict_2022
+    )
+
     # i is a CLOSED H1 signal bar. Its close is the information boundary.
     for i in range(60, len(h1) - 1):
         if i < next_available_idx:
@@ -138,7 +147,7 @@ def run(
         if len(h4_visible) < 30:
             continue
 
-        setup = evaluate_ict_2022(
+        setup = evaluator(
             window,
             h4_visible,
             symbol,
@@ -260,6 +269,9 @@ def metrics(trades, ambiguous_bars=0):
 def main():
     parser = argparse.ArgumentParser(description="Local cTrader Forex ICT/SMC backtest")
     parser.add_argument("--symbol")
+    parser.add_argument(
+        "--entry-mode", choices=("ict_fvg", "breakout_retest"), default="ict_fvg"
+    )
     parser.add_argument("--all-pairs", action="store_true")
     parser.add_argument("--pairs", default="")
     parser.add_argument("--start", required=True)
@@ -317,6 +329,7 @@ def main():
         trades, amb = run(
             symbol, dt(args.start), dt(args.end),
             cache_dir=args.cache_dir,
+            entry_mode=args.entry_mode,
             swing_length=args.swing_length,
             max_trades_per_day=args.max_trades_per_day,
             cooldown_minutes=args.cooldown_minutes,
@@ -340,6 +353,7 @@ def main():
         "start": args.start,
         "end": args.end,
         "mode": "strict_ict_smc",
+        "entry_mode": args.entry_mode,
         "data_source": "cTrader Open API historical H1/H4",
         "signal_boundary": "H1_CLOSE",
         "future_leak_guard": True,
