@@ -112,6 +112,11 @@ entry on a later closed candle**. A BOS candle is never itself an entry. The
 strict model defaults to `NO TRADE` for weak/neutral D1 and does not alter the
 execution or broker layer.
 
+H1 rejections are split into `H1_NO_LIQUIDITY_SWEEP`,
+`H1_SWEEP_NO_FVG_AFTER`, `H1_FVG_WRONG_PREMIUM_DISCOUNT`,
+`H1_POI_EXPIRED`, and `H1_PRICE_NOT_AT_POI`, so the strict diagnostic path no
+longer collapses these into one generic POI rejection.
+
 The implementation was informed by the operational descriptions in
 [`smartmoneyconcepts`](https://github.com/joshyattridge/smart-money-concepts),
 the vectorized `pyvsmc` package listing

@@ -1,6 +1,6 @@
 import pytest
 
-from strategy.ict_mtf import ICTMTFConfig, fib_ote
+from strategy.ict_mtf import ICTMTFConfig, fib_ote, h1_poi_rejection_reasons
 
 
 def test_long_fib_ote_is_built_from_displacement_leg():
@@ -28,3 +28,11 @@ def test_invalid_fib_order_is_rejected():
 
 def test_default_model_is_strict_about_weak_daily_bias():
     assert ICTMTFConfig().allow_weak_daily is False
+
+
+def test_h1_poi_diagnostics_are_specific_for_insufficient_history():
+    assert h1_poi_rejection_reasons([], "LONG") == ["H1_INSUFFICIENT_HISTORY"]
+
+
+def test_h1_poi_diagnostics_reject_invalid_side_explicitly():
+    assert h1_poi_rejection_reasons([], "SIDEWAYS") == ["H1_INVALID_SIDE"]

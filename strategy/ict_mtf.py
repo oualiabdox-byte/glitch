@@ -169,6 +169,54 @@ def find_h1_poi(h1: list[dict], side: str, cfg: ICTMTFConfig = ICTMTFConfig()) -
     return None
 
 
+def h1_poi_rejection_reasons(h1: list[dict], side: str, cfg: ICTMTFConfig = ICTMTFConfig()) -> list[str]:
+    """Explain exactly which H1 POI gate prevented a valid POI."""
+    cfg.validate()
+    minimum = max(30, cfg.h1_swing_length * 2 + 5)
+    if side not in {"LONG", "SHORT"}:
+        return ["H1_INVALID_SIDE"]
+    if len(h1) < minimum:
+        return ["H1_INSUFFICIENT_HISTORY"]
+    sweeps = _h1_liquidity_sweeps(h1, side, cfg)
+    if not sweeps:
+        return ["H1_NO_LIQUIDITY_SWEEP"]
+    last = len(h1) - 1
+    pivots = _alternating(confirmed_pivots(h1, last, cfg.h1_swing_length))
+    if not pivots:
+        return ["H1_NO_CONFIRMED_SWING_RANGE"]
+    range_high = max(p.price for p in pivots)
+    range_low = min(p.price for p in pivots)
+    eq = (range_high + range_low) / 2
+    atr = _atr(h1, last)
+    tolerance = cfg.h1_poi_tolerance_atr * atr
+    eligible_sweeps = [s for s in sweeps if last - s["idx"] <= cfg.h1_poi_max_age]
+    if not eligible_sweeps:
+        return ["H1_POI_EXPIRED"]
+    saw_fvg = saw_location = saw_far = False
+    for sweep in reversed(eligible_sweeps):
+        for idx in range(last, sweep["idx"], -1):
+            fvg = detect_fvg(h1, idx, "BULLISH" if side == "LONG" else "BEARISH", min_width_atr=cfg.h1_fvg_min_atr)
+            if not fvg or fvg.created_idx <= sweep["idx"]:
+                continue
+            saw_fvg = True
+            mid = (fvg.bottom + fvg.top) / 2
+            location = "DISCOUNT" if mid <= eq else "PREMIUM"
+            if (side == "LONG" and location != "DISCOUNT") or (side == "SHORT" and location != "PREMIUM"):
+                continue
+            saw_location = True
+            current = h1[last]["close"]
+            if fvg.bottom - tolerance <= current <= fvg.top + tolerance:
+                return []
+            saw_far = True
+    if not saw_fvg:
+        return ["H1_SWEEP_NO_FVG_AFTER"]
+    if not saw_location:
+        return ["H1_FVG_WRONG_PREMIUM_DISCOUNT"]
+    if saw_far:
+        return ["H1_PRICE_NOT_AT_POI"]
+    return ["H1_POI_UNRESOLVED"]
+
+
 def fib_ote(origin: float, extreme: float, side: str, cfg: ICTMTFConfig = ICTMTFConfig()) -> FibZone:
     """Build Fib from the 5M displacement leg, never from an arbitrary range."""
     cfg.validate()
@@ -278,7 +326,7 @@ def rejection_reasons_ict_mtf(d1: list[dict], h1: list[dict], m5: list[dict], cf
         return ["D1_NO_DIRECTIONAL_BIAS"]
     poi = find_h1_poi(h1, side, cfg)
     if poi is None:
-        return ["H1_NO_ALIGNED_POI_AFTER_LIQUIDITY"]
+        return h1_poi_rejection_reasons(h1, side, cfg)
     current = m5[-1]
     if not (current["low"] <= poi.top and current["high"] >= poi.bottom):
         return ["M5_NOT_AT_H1_POI"]
@@ -290,4 +338,4 @@ def rejection_reasons_ict_mtf(d1: list[dict], h1: list[dict], m5: list[dict], cf
     return ["M5_NO_CHoCH_MSS_FIB_ENTRY"]
 
 
-__all__ = ["ICTMTFConfig", "H1POI", "FibZone", "find_h1_poi", "fib_ote", "evaluate_ict_mtf", "rejection_reasons_ict_mtf"]
+__all__ = ["ICTMTFConfig", "H1POI", "FibZone", "find_h1_poi", "h1_poi_rejection_reasons", "fib_ote", "evaluate_ict_mtf", "rejection_reasons_ict_mtf"]
