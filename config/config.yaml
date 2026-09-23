@@ -82,4 +82,6 @@ irl_erl_retest:
   m5_displacement_body_atr: 0.75
   m5_displacement_body_range: 0.50
   m5_two_bar_displacement_atr: 1.00
+  m5_poi_min_atr: 0.05
+  target_rr: 1.50
   allow_weak_daily: false

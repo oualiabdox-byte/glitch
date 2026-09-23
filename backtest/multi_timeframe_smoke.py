@@ -34,6 +34,18 @@ def day_key(bar) -> str:
     return dt(bar["time"]).date().isoformat()
 
 
+def weekday_days_in_window(bars: list[dict], start: str, end: str) -> list[str]:
+    """Return weekday session dates inside the half-open UTC test window."""
+    requested_start = dt(start).date().isoformat()
+    requested_end = dt(end).date().isoformat()
+    return sorted({
+        day_key(bar)
+        for bar in bars
+        if dt(bar["time"]).weekday() < 5
+        and requested_start <= day_key(bar) < requested_end
+    })
+
+
 def choose_block(days: list[str], manifest: str, length: int = 4) -> list[str]:
     if len(days) < length:
         raise RuntimeError(f"need at least {length} valid daily sessions, got {len(days)}")
@@ -83,7 +95,7 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float,
     # their UTC calendar date does not always equal the M5 session date. Pick
     # weekday M5 sessions and verify higher-timeframe history at each close
     # below instead of requiring string-date equality across timeframes.
-    m5_days = sorted({day_key(x) for x in m5 if dt(x["time"]).weekday() < 5})
+    m5_days = weekday_days_in_window(m5, start, end)
     days = m5_days
     if len(days) < 4:
         raise RuntimeError(
@@ -137,7 +149,7 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float,
         "signals": signals,
         "signal_count": len(signals),
         "rejections": rejection,
-        "weak_daily_enabled": model != "strict_ict_mtf",
+        "weak_daily_enabled": model == "legacy_mtf",
         "weak_daily_risk_multiplier": 0.5,
         "note": "extended historical diagnostic only; not evidence of profitability",
     }

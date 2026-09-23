@@ -120,9 +120,22 @@ longer collapses these into one generic POI rejection.
 A separate, non-default research model `irl_erl_retest` is also available. It
 first finds internal H1 liquidity (FVG/POI), then searches for external
 liquidity above/below a later swing only to validate the range/Fibonacci. For
-LONG, an H1 retest may wick below 50% but must close above 50%; SHORT is the
-mirror image. Only after that validation does it require M5 sweep → close BOS →
-displacement → CHoCH/MSS. It does not modify `strict_ict_mtf`.
+LONG, an H1 retest only needs to reach/touch 50%; an H1 close above or below
+50% is not a gate. SHORT is the mirror image. Only after that validation does
+it require M5 close-confirmed BOS → CHoCH (no M5 sweep gate and no M5 MSS) →
+POI inside the BOS-to-CHoCH leg → POI retest. The candidate uses the BOS-forming
+swing for SL and requires a confirmed new liquidity target at or above 1:1.5 R.
+It does not modify `strict_ict_mtf`.
+
+The 10-trading-day research command is:
+
+```bash
+PYTHONPATH=. python -m backtest.multi_timeframe_smoke \
+  --model irl_erl_retest --symbol EURUSD \
+  --start 2026-09-10T00:00:00Z --end 2026-09-24T00:00:00Z \
+  --cache-dir /tmp/forex_bot_side_10d_cache \
+  --output results/irl_erl_retest_10d.json
+```
 
 The implementation was informed by the operational descriptions in
 [`smartmoneyconcepts`](https://github.com/joshyattridge/smart-money-concepts),
