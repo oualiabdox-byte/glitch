@@ -17,6 +17,7 @@ from pathlib import Path
 from data.ctrader import CTraderData
 from strategy.multi_timeframe import evaluate_setup, setup_rejection_reasons
 from strategy.ict_mtf import evaluate_ict_mtf, rejection_reasons_ict_mtf
+from strategy.irl_erl_retest import evaluate_irl_erl_retest, rejection_reasons_irl_erl
 
 
 def dt(value) -> datetime:
@@ -109,6 +110,8 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float,
             continue
         if model == "strict_ict_mtf":
             setup = evaluate_ict_mtf(d1_visible, h1_visible, m5_visible)
+        elif model == "irl_erl_retest":
+            setup = evaluate_irl_erl_retest(d1_visible, h1_visible, m5_visible)
         else:
             setup = evaluate_setup(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
         if setup:
@@ -118,6 +121,8 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float,
         else:
             if model == "strict_ict_mtf":
                 reasons = rejection_reasons_ict_mtf(d1_visible, h1_visible, m5_visible)
+            elif model == "irl_erl_retest":
+                reasons = rejection_reasons_irl_erl(d1_visible, h1_visible, m5_visible)
             else:
                 reasons = setup_rejection_reasons(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
             for reason in reasons or ["SIGNAL_DIAGNOSTIC_MISMATCH"]:
@@ -146,7 +151,7 @@ def main() -> None:
     parser.add_argument("--cache-dir", default="/tmp/forex_bot_mtf_cache")
     parser.add_argument("--tick-size", type=float, default=0.00001)
     parser.add_argument("--output", default="results/mtf_four_session_smoke.json")
-    parser.add_argument("--model", choices=("legacy_mtf", "strict_ict_mtf"), default="legacy_mtf")
+    parser.add_argument("--model", choices=("legacy_mtf", "strict_ict_mtf", "irl_erl_retest"), default="legacy_mtf")
     args = parser.parse_args()
     result = run(args.symbol, args.start, args.end, args.cache_dir, args.tick_size, args.model)
     output = Path(args.output)

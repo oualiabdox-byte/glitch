@@ -117,6 +117,13 @@ H1 rejections are split into `H1_NO_LIQUIDITY_SWEEP`,
 `H1_POI_EXPIRED`, and `H1_PRICE_NOT_AT_POI`, so the strict diagnostic path no
 longer collapses these into one generic POI rejection.
 
+A separate, non-default research model `irl_erl_retest` is also available. It
+first finds internal H1 liquidity (FVG/POI), then searches for external
+liquidity above/below a later swing only to validate the range/Fibonacci. For
+LONG, an H1 retest may wick below 50% but must close above 50%; SHORT is the
+mirror image. Only after that validation does it require M5 sweep → close BOS →
+displacement → CHoCH/MSS. It does not modify `strict_ict_mtf`.
+
 The implementation was informed by the operational descriptions in
 [`smartmoneyconcepts`](https://github.com/joshyattridge/smart-money-concepts),
 the vectorized `pyvsmc` package listing

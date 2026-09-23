@@ -66,3 +66,20 @@ ict_mtf:
   entry_expiry_bars: 8
   m5_fvg_min_atr: 0.05
   require_m5_confluence: false
+
+# Side-by-side research model: external liquidity validates the H1 range/Fib.
+irl_erl_retest:
+  model: irl_erl_retest
+  h1_swing_length: 5
+  h1_fvg_min_atr: 0.10
+  h1_external_lookback: 72
+  h1_sweep_buffer_atr: 0.10
+  h1_retest_max_bars: 24
+  fib_half: 0.50
+  m5_swing_length: 3
+  m5_confirmation_lookback: 36
+  m5_break_buffer_atr: 0.10
+  m5_displacement_body_atr: 0.75
+  m5_displacement_body_range: 0.50
+  m5_two_bar_displacement_atr: 1.00
+  allow_weak_daily: false
