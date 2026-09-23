@@ -25,6 +25,7 @@ py310_venv/
 *.log
 logs/
 execution/*.jsonl
+execution/demo_state.json
 data/b2trader_cache/
 
 # Backups

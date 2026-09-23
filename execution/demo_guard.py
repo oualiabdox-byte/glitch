@@ -1,4 +1,4 @@
-"""Safety gates for the optional demo execution path.
+"""Safety gates for the demo execution path.
 
 Live order routing is intentionally unsupported by this project.  This module
 keeps the distinction explicit so a terminal environment cannot accidentally

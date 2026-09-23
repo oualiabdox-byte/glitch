@@ -100,6 +100,7 @@ class CTraderAdapter:
         self.config = config or CTraderConfig.from_env()
         self.client = None
         self.account_id = self.config.account_id
+        self.on_account_ready = None
         self._deferreds: list[Any] = []
         self._heartbeat_call = None
 
@@ -244,6 +245,8 @@ class CTraderAdapter:
             self.account_id = int(response.ctidTraderAccountId)
             print(f"[cTrader] account authorized: {self.account_id}")
             self.request_account_state()
+            if self.on_account_ready is not None:
+                self.on_account_ready()
             return
 
         if payload_type == ProtoHeartbeatEvent().payloadType:

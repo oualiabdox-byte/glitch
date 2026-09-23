@@ -16,6 +16,8 @@ This repository is intentionally kept narrow so an automated agent, VPS deployme
 - `execution/bot_main.py` — signal-only cTrader scan; order submission is disabled.
 - `execution/ctrader_probe.py` — connectivity/account-state probe; no orders.
 - `execution/demo_guard.py` — fail-closed guard for any future demo runner; live routing is not implemented.
+- `execution/demo_runner.py` — one-cycle all-pairs automatic demo runner with duplicate protection.
+- `execution/demo_order.py` — one protected demo market-order child process.
 - `tests/` — regression and look-ahead safeguards.
 - `config/config.yaml` — Forex symbols, risk and execution defaults.
 - `requirements.txt` — runtime/test dependencies.
@@ -23,7 +25,8 @@ This repository is intentionally kept narrow so an automated agent, VPS deployme
 ## Local installation and cTrader connectivity
 
 The repository is designed to be copied to a local computer and installed
-without manually hunting for Python packages. Use Python 3.10 or newer:
+without manually hunting for Python packages. Use Python 3.10 or newer
+(Python 3.11 is recommended):
 
 ```bash
 git clone https://github.com/oualiabdox-byte/forex_bot.git
@@ -48,10 +51,44 @@ python -m execution.ctrader_probe
 python -m pytest -q
 ```
 
-The repository does **not** currently contain an autonomous order loop. The
-adapter has low-level order methods, but `execution/bot_main.py` is signal-only
-and never submits orders. Do not treat a successful probe or backtest as
-authorization to trade. Any future demo runner must require
+### Automatic demo execution
+
+The automatic runner is **demo-only** and dry-run by default. It scans every
+pair in `config/config.yaml`, evaluates only closed candles, and submits a
+market order only when the signal contains a valid stop and target. The order
+request includes relative stop-loss and take-profit protection. Each pair is
+handled in a separate process so cTrader's asynchronous reactor is not
+restarted in one process. Signal state is stored in the ignored
+`execution/demo_state.json` file to prevent duplicate submissions.
+
+After rotating any credentials that were previously exposed, set these values
+in local `.env`:
+
+```env
+CTRADER_ENV=demo
+CTRADER_ALLOW_ORDERS=true
+CTRADER_DEMO_EXECUTE=true
+CTRADER_DEMO_CONFIRM=I_UNDERSTAND_DEMO_TRADING
+CTRADER_ORDER_VOLUME_UNITS=1000
+CTRADER_MAX_ORDER_VOLUME_UNITS=1000
+CTRADER_PAIRS=EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD
+```
+
+Run one scan/execution cycle with:
+
+```bash
+PYTHONPATH=. python -m execution.demo_runner
+```
+
+To scan without submitting orders, use `CTRADER_DEMO_EXECUTE=false`.
+The runner refuses `CTRADER_ENV=live`; live execution is not implemented.
+The configured volume is a fixed demo volume, not a claim of optimal risk
+sizing. Verify the broker's minimum and step volume for every symbol before
+enabling demo submission.
+
+`execution/bot_main.py` remains a signal-only scanner; automatic submission is
+implemented separately in `execution/demo_runner.py`. Do not treat a successful
+probe or backtest as authorization to trade. The demo runner requires
 `CTRADER_ENV=demo`, `CTRADER_ALLOW_ORDERS=true`,
 `CTRADER_DEMO_CONFIRM=I_UNDERSTAND_DEMO_TRADING`, and a positive
 `CTRADER_MAX_ORDER_VOLUME_UNITS`. Live routing is intentionally not implemented

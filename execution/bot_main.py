@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import argparse
 from datetime import datetime, timezone, timedelta
 
 from config.settings import load_config, pairs as configured_pairs
@@ -93,8 +94,11 @@ def scan(pair: str):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pair", help="scan one pair instead of all configured pairs")
+    args = parser.parse_args()
     cfg = load_config()
-    pairs = [
+    pairs = [args.pair.upper()] if args.pair else [
         p.strip().upper()
         for p in os.getenv("CTRADER_PAIRS", ",".join(configured_pairs(cfg))).split(",")
         if p.strip()
