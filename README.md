@@ -15,6 +15,7 @@ This repository is intentionally kept narrow so an automated agent, VPS deployme
 - `execution/ctrader_adapter.py` — cTrader authentication, account state, reconciliation and explicitly gated order boundary.
 - `execution/bot_main.py` — signal-only cTrader scan; order submission is disabled.
 - `execution/ctrader_probe.py` — connectivity/account-state probe; no orders.
+- `execution/demo_guard.py` — fail-closed guard for any future demo runner; live routing is not implemented.
 - `tests/` — regression and look-ahead safeguards.
 - `config/config.yaml` — Forex symbols, risk and execution defaults.
 - `requirements.txt` — runtime/test dependencies.
@@ -46,6 +47,15 @@ cp .env.example .env
 python -m execution.ctrader_probe
 python -m pytest -q
 ```
+
+The repository does **not** currently contain an autonomous order loop. The
+adapter has low-level order methods, but `execution/bot_main.py` is signal-only
+and never submits orders. Do not treat a successful probe or backtest as
+authorization to trade. Any future demo runner must require
+`CTRADER_ENV=demo`, `CTRADER_ALLOW_ORDERS=true`,
+`CTRADER_DEMO_CONFIRM=I_UNDERSTAND_DEMO_TRADING`, and a positive
+`CTRADER_MAX_ORDER_VOLUME_UNITS`. Live routing is intentionally not implemented
+in this project.
 
 After cTrader credentials are configured, the four-session MTF smoke test can
 be run without enabling orders:
