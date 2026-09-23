@@ -42,3 +42,27 @@ backtest:
   intrabar_policy: sl_first
   data_prices: mid
   require_closed_bars: true
+
+# Extended model layered above the existing strategy; execution is unchanged.
+ict_mtf:
+  model: strict_d1_h1_poi_m5_confirmation
+  allow_weak_daily: false
+  weak_daily_risk_multiplier: 0.50
+  h1_swing_length: 5
+  h1_fvg_min_atr: 0.10
+  h1_liquidity_lookback: 24
+  h1_poi_max_age: 48
+  h1_poi_tolerance_atr: 0.25
+  m5_swing_length: 3
+  m5_sweep_lookback: 18
+  m5_sweep_buffer_atr: 0.10
+  m5_bos_buffer_atr: 0.10
+  m5_displacement_body_atr: 0.75
+  m5_displacement_body_range: 0.50
+  m5_two_bar_displacement_atr: 1.00
+  fib_equilibrium: 0.50
+  fib_ote_low: 0.618
+  fib_ote_high: 0.786
+  entry_expiry_bars: 8
+  m5_fvg_min_atr: 0.05
+  require_m5_confluence: false

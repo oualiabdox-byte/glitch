@@ -16,6 +16,7 @@ from pathlib import Path
 
 from data.ctrader import CTraderData
 from strategy.multi_timeframe import evaluate_setup, setup_rejection_reasons
+from strategy.ict_mtf import evaluate_ict_mtf, rejection_reasons_ict_mtf
 
 
 def dt(value) -> datetime:
@@ -70,7 +71,8 @@ def _download_windowed(feed: CTraderData, symbol: str, start: str, end: str) -> 
     return result
 
 
-def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> dict:
+def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float,
+        model: str = "legacy_mtf") -> dict:
     feed = CTraderData(cache_dir=cache_dir)
     data = _download_windowed(feed, symbol, start, end)
     d1, h1, m5 = data["d1"], data["h1"], data["m5"]
@@ -105,17 +107,24 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> 
         if len(d1_visible) < 2 or len(h1_visible) < 20 or len(m5_visible) < 30:
             rejection["INSUFFICIENT_HISTORY"] = rejection.get("INSUFFICIENT_HISTORY", 0) + 1
             continue
-        setup = evaluate_setup(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
+        if model == "strict_ict_mtf":
+            setup = evaluate_ict_mtf(d1_visible, h1_visible, m5_visible)
+        else:
+            setup = evaluate_setup(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
         if setup:
             setup["signal_time"] = bar["time"]
             setup["available_at"] = available_at.isoformat()
             signals.append(setup)
         else:
-            reasons = setup_rejection_reasons(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
+            if model == "strict_ict_mtf":
+                reasons = rejection_reasons_ict_mtf(d1_visible, h1_visible, m5_visible)
+            else:
+                reasons = setup_rejection_reasons(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
             for reason in reasons or ["SIGNAL_DIAGNOSTIC_MISMATCH"]:
                 rejection[reason] = rejection.get(reason, 0) + 1
     return {
         "symbol": symbol,
+        "model": model,
         "selected_days": selected,
         "seed_manifest": manifest,
         "bar_counts": {"d1": len(d1), "h1": len(h1), "m5": len(m5)},
@@ -137,12 +146,13 @@ def main() -> None:
     parser.add_argument("--cache-dir", default="/tmp/forex_bot_mtf_cache")
     parser.add_argument("--tick-size", type=float, default=0.00001)
     parser.add_argument("--output", default="results/mtf_four_session_smoke.json")
+    parser.add_argument("--model", choices=("legacy_mtf", "strict_ict_mtf"), default="legacy_mtf")
     args = parser.parse_args()
-    result = run(args.symbol, args.start, args.end, args.cache_dir, args.tick_size)
+    result = run(args.symbol, args.start, args.end, args.cache_dir, args.tick_size, args.model)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2, default=str))
-    print(json.dumps({k: result[k] for k in ("symbol", "selected_days", "bar_counts", "selected_m5_bars", "signal_count", "rejections", "note")}, indent=2))
+    print(json.dumps({k: result[k] for k in ("symbol", "model", "selected_days", "bar_counts", "selected_m5_bars", "signal_count", "rejections", "note")}, indent=2))
 
 
 if __name__ == "__main__":

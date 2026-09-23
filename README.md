@@ -93,6 +93,35 @@ daily body in that direction; it is not a daily breakout. The extended runner
 opts into this tier with `risk_multiplier=0.5`, while the core evaluator keeps
 `allow_weak_daily=False` by default so callers must opt in explicitly.
 
+The new strict model is available without replacing the legacy model:
+
+```bash
+PYTHONPATH=. python -m backtest.multi_timeframe_smoke \
+  --model strict_ict_mtf \
+  --symbol EURUSD \
+  --start 2026-08-24T00:00:00Z \
+  --end 2026-09-23T00:00:00Z \
+  --cache-dir /tmp/forex_bot_mtf_cache_30d \
+  --output results/strict_ict_mtf_30d.json
+```
+
+Its mandatory order is **D1 directional bias → H1 liquidity sweep and
+discount/premium FVG POI → M5 POI sweep → close-confirmed BOS → objective
+displacement → post-BOS CHoCH/MSS → Fib leg OTE → optional M5 FVG confluence →
+entry on a later closed candle**. A BOS candle is never itself an entry. The
+strict model defaults to `NO TRADE` for weak/neutral D1 and does not alter the
+execution or broker layer.
+
+The implementation was informed by the operational descriptions in
+[`smartmoneyconcepts`](https://github.com/joshyattridge/smart-money-concepts),
+the vectorized `pyvsmc` package listing
+([piwheels](https://www.piwheels.org/project/pyvsmc)), and the open-source
+[Liquidity Swings & Sweeps](https://www.tradingview.com/script/sheX75nN-Liquidity-Swings-Sweeps/)
+description. TradingKit was also reviewed; its public site is primarily a
+MetaTrader tooling and risk-control hub rather than a source implementation of
+ICT/SMC definitions, so only its risk-discipline emphasis was considered:
+[TradingKit](https://tradingkit.net/). No external code was copied.
+
 `ctrader-open-api`, `service-identity`, `python-dotenv`, Twisted, protobuf,
 PyYAML, NumPy, and pytest are declared in `requirements.txt`. The probe only
 authenticates and reads account/symbol state; it never submits an order when
