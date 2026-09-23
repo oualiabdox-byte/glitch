@@ -7,6 +7,7 @@ This repository is intentionally kept narrow so an automated agent, VPS deployme
 ## Active components
 
 - `strategy/` — causal ICT/SMC setup engine.
+- `strategy/multi_timeframe.py` — closed-bar 1D bias, causal H1 structure, and M5 sweep/FVG entry research engine.
 - `strategy/decision.py` — auditable SIGNAL/NO_TRADE decisions with reason codes and data cutoffs.
 - `data/ctrader.py` — cTrader historical/live market-data boundary.
 - `backtest/ctrader_runner.py` — local deterministic H1/H4 backtest runner.
@@ -46,6 +47,21 @@ python -m execution.ctrader_probe
 python -m pytest -q
 ```
 
+After cTrader credentials are configured, the four-session MTF smoke test can
+be run without enabling orders:
+
+```bash
+PYTHONPATH=. python -m backtest.multi_timeframe_smoke \
+  --symbol EURUSD \
+  --start 2026-09-17T00:00:00Z \
+  --end 2026-09-23T00:00:00Z \
+  --output results/mtf_four_session_smoke.json
+```
+
+The runner selects four weekday M5 sessions deterministically, aligns D1 and
+H1 by completed-bar close time, and treats the result as an integration smoke
+test—not as evidence of profitability.
+
 `ctrader-open-api`, `service-identity`, `python-dotenv`, Twisted, protobuf,
 PyYAML, NumPy, and pytest are declared in `requirements.txt`. The probe only
 authenticates and reads account/symbol state; it never submits an order when
@@ -58,6 +74,12 @@ The strict engine evaluates:
 **4H confirmed structure → directional bias → directional liquidity target → 1H sweep → post-sweep MSS → displacement → fresh FVG retest → 4H premium/discount → allowed session → structural stop → minimum R:R → TRADE / NO TRADE**
 
 FVG, order block and Fibonacci-cluster information is retained as auditable evidence. It does not create a trade by itself.
+
+The research multi-timeframe engine uses a separate clock:
+
+**Closed D1 candle bias → confirmed H1 BOS/CHoCH/MSS → H1 FVG → frozen H1 range → M5 internal-liquidity sweep/reclaim → M5 displacement → first FVG retest/rejection → next-M5-open entry.**
+
+Every stage is closed-bar and causal. Daily bias becomes effective for the next session; centered pivots are available only after their right-side confirmation bars; and an M5 setup cannot enter on the same candle that creates its rejection. IRL/ERL and BB/mitigation/Unicorn are explicit, versioned research filters rather than standalone triggers. Their terminology is community-defined and their default filter is disabled until separately validated.
 
 The optional `structure_entry` engine evaluates:
 
