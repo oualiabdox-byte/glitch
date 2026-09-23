@@ -132,7 +132,7 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float,
         "signals": signals,
         "signal_count": len(signals),
         "rejections": rejection,
-        "weak_daily_enabled": True,
+        "weak_daily_enabled": model != "strict_ict_mtf",
         "weak_daily_risk_multiplier": 0.5,
         "note": "extended historical diagnostic only; not evidence of profitability",
     }
