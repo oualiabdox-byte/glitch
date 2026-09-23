@@ -62,6 +62,13 @@ The runner selects four weekday M5 sessions deterministically, aligns D1 and
 H1 by completed-bar close time, and treats the result as an integration smoke
 test—not as evidence of profitability.
 
+The first conservative expansion keeps D1/H1, sweep buffer, FVG width, R:R,
+and risk gates unchanged. It only permits a same-direction two-bar displacement
+whose combined bodies reach `1.00 ATR`, and extends the first-retest window to
+six completed M5 bars. The four-session comparison on the same EURUSD data
+remained at 0 completed signals; this is a valid smoke-test observation, not a
+profitability conclusion.
+
 `ctrader-open-api`, `service-identity`, `python-dotenv`, Twisted, protobuf,
 PyYAML, NumPy, and pytest are declared in `requirements.txt`. The probe only
 authenticates and reads account/symbol state; it never submits an order when

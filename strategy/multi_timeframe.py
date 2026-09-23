@@ -137,6 +137,28 @@ def _body_metrics(candle: dict, atr: float) -> dict[str, float | bool]:
     }
 
 
+def _displacement_qualified(candles: list[dict], idx: int, atr: float,
+                            min_body_atr: float = 0.75,
+                            min_body_range: float = 0.50,
+                            two_bar_sum_atr: float = 1.00) -> tuple[bool, str]:
+    """Accept one strong bar or a same-direction two-bar impulse."""
+    if atr <= 0 or idx < 0 or idx >= len(candles):
+        return False, "NONE"
+    one = _body_metrics(candles[idx], atr)
+    if one["directional"] and one["body_atr"] >= min_body_atr and one["body_range"] >= min_body_range:
+        return True, "ONE_BAR"
+    if idx < 1:
+        return False, "NONE"
+    previous = candles[idx - 1]
+    previous_body = previous["close"] - previous["open"]
+    current_body = candles[idx]["close"] - candles[idx]["open"]
+    same_direction = previous_body != 0 and current_body != 0 and previous_body * current_body > 0
+    combined = (abs(previous_body) + abs(current_body)) / atr
+    if same_direction and combined >= two_bar_sum_atr and one["body_range"] >= min_body_range:
+        return True, "TWO_BAR"
+    return False, "NONE"
+
+
 def h1_structure(candles: list[dict], end_idx: int | None = None, radius: int = 3,
                   break_buffer_atr: float = 0.10, displacement_body_atr: float = 1.0,
                   displacement_body_range: float = 0.60) -> dict[str, Any]:
@@ -235,8 +257,9 @@ def transition_state(m5: list[dict], parent_low: float | None, parent_high: floa
             br_atr = _atr(m5, break_idx)
             metrics = _body_metrics(b, br_atr)
             broken = b["close"] > level + break_buffer_atr * br_atr if side == "LONG" else b["close"] < level - break_buffer_atr * br_atr
-            if broken and metrics["body_atr"] >= 0.75 and metrics["body_range"] >= 0.50:
-                return {"state": "DISPLACEMENT_CONFIRMED", "signal": {"side": side, "pool": pool, "sweep_idx": sweep_idx, "break_idx": break_idx, "break_level": level, "sweep_extreme": sweep["low"] if side == "LONG" else sweep["high"]}}
+            qualified, mode = _displacement_qualified(m5, break_idx, br_atr)
+            if broken and qualified:
+                return {"state": "DISPLACEMENT_CONFIRMED", "signal": {"side": side, "pool": pool, "sweep_idx": sweep_idx, "break_idx": break_idx, "break_level": level, "sweep_extreme": sweep["low"] if side == "LONG" else sweep["high"], "displacement_mode": mode}}
     return {"state": "INTERNAL_SWEPT", "signal": None, "pools": pools}
 
 
@@ -266,7 +289,9 @@ def evaluate_setup(d1: list[dict], h1: list[dict], m5: list[dict], end_idx: int 
     unicorn = find_unicorn_zone(m5, side, sig["break_idx"], tick_size=tick_size)
     if require_unicorn and not unicorn:
         return None
-    for i in range(sig["break_idx"] + 1, min(len(m5), sig["break_idx"] + 5)):
+    # Phase-1 conservative default: allow six completed M5 retest bars, but
+    # still require a first touch and a closed rejection before entry.
+    for i in range(sig["break_idx"] + 1, min(len(m5), sig["break_idx"] + 7)):
         bar = m5[i]
         touched = bar["low"] <= fvg.top and bar["high"] >= fvg.bottom
         rejected = bar["close"] > fvg.top if side == "LONG" else bar["close"] < fvg.bottom
