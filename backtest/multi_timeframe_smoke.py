@@ -105,13 +105,13 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> 
         if len(d1_visible) < 2 or len(h1_visible) < 20 or len(m5_visible) < 30:
             rejection["INSUFFICIENT_HISTORY"] = rejection.get("INSUFFICIENT_HISTORY", 0) + 1
             continue
-        setup = evaluate_setup(d1_visible, h1_visible, m5_visible, tick_size=tick_size)
+        setup = evaluate_setup(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
         if setup:
             setup["signal_time"] = bar["time"]
             setup["available_at"] = available_at.isoformat()
             signals.append(setup)
         else:
-            reasons = setup_rejection_reasons(d1_visible, h1_visible, m5_visible, tick_size=tick_size)
+            reasons = setup_rejection_reasons(d1_visible, h1_visible, m5_visible, tick_size=tick_size, allow_weak_daily=True)
             for reason in reasons or ["SIGNAL_DIAGNOSTIC_MISMATCH"]:
                 rejection[reason] = rejection.get(reason, 0) + 1
     return {
@@ -123,6 +123,8 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> 
         "signals": signals,
         "signal_count": len(signals),
         "rejections": rejection,
+        "weak_daily_enabled": True,
+        "weak_daily_risk_multiplier": 0.5,
         "note": "extended historical diagnostic only; not evidence of profitability",
     }
 

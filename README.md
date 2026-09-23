@@ -86,6 +86,13 @@ The JSON output separates `D1_NEUTRAL_OR_UNCONFIRMED`, H1 state/mismatch,
 M5 transition, FVG, history, retest, and other gate reasons instead of
 collapsing them into `NO_SETUP`.
 
+The revised D1 policy has two tiers. Confirmed break/reclaim bias remains
+unchanged. An optional `BULLISH_WEAK` or `BEARISH_WEAK` location bias requires
+two consecutive daily closes on the same side of equilibrium and a current
+daily body in that direction; it is not a daily breakout. The extended runner
+opts into this tier with `risk_multiplier=0.5`, while the core evaluator keeps
+`allow_weak_daily=False` by default so callers must opt in explicitly.
+
 `ctrader-open-api`, `service-identity`, `python-dotenv`, Twisted, protobuf,
 PyYAML, NumPy, and pytest are declared in `requirements.txt`. The probe only
 authenticates and reads account/symbol state; it never submits an order when

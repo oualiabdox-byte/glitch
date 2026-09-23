@@ -92,7 +92,16 @@ def daily_bias(candles: list[dict], end_idx: int | None = None, tick_size: float
     elif bear_reclaim and not bull_reclaim:
         state, strength, reason = "BEARISH", "CONFIRMED_RECLAIM", "SWEEP_PDH_REJECT_BELOW_EQ"
     else:
-        state, strength, reason = "NEUTRAL", "NONE", "NO_CLOSED_DIRECTIONAL_CONFIRMATION"
+        # Location is not a breakout. Opt-in consumers may use this weak tier
+        # only when both the prior and current daily closes remain on the same
+        # side of equilibrium and the current body agrees with that side.
+        current_body = cur["close"] - cur["open"]
+        if cur["close"] > eq + eps and prev["close"] > eq + eps and current_body > 0:
+            state, strength, reason = "BULLISH_WEAK", "WEAK_LOCATION", "TWO_DAILY_CLOSES_ABOVE_EQ"
+        elif cur["close"] < eq - eps and prev["close"] < eq - eps and current_body < 0:
+            state, strength, reason = "BEARISH_WEAK", "WEAK_LOCATION", "TWO_DAILY_CLOSES_BELOW_EQ"
+        else:
+            state, strength, reason = "NEUTRAL", "NONE", "NO_CLOSED_DIRECTIONAL_CONFIRMATION"
     location = "PREMIUM" if cur["close"] > eq + eps else "DISCOUNT" if cur["close"] < eq - eps else "EQUILIBRIUM"
     return DailyBias(state, strength, reason, last, last + 1, pdh, pdl, eq, location)
 
@@ -264,18 +273,20 @@ def transition_state(m5: list[dict], parent_low: float | None, parent_high: floa
 
 
 def evaluate_setup(d1: list[dict], h1: list[dict], m5: list[dict], end_idx: int | None = None,
-                   tick_size: float = 1e-5, require_unicorn: bool = False) -> dict[str, Any] | None:
+                   tick_size: float = 1e-5, require_unicorn: bool = False,
+                   allow_weak_daily: bool = False) -> dict[str, Any] | None:
     """Evaluate one M5 close. Returns a setup only after a closed rejection bar."""
     if len(d1) < 2 or len(h1) < 20 or len(m5) < 30:
         return None
     d_bias = daily_bias(d1, tick_size=tick_size)
-    if d_bias.state not in {"BULLISH", "BEARISH"}:
+    weak_daily = d_bias.state in {"BULLISH_WEAK", "BEARISH_WEAK"}
+    if d_bias.state not in {"BULLISH", "BEARISH"} and not (allow_weak_daily and weak_daily):
         return None
     h = h1[-1]
     structure = h1_structure(h1)
     if structure["state"] not in {"BULL", "BEAR"}:
         return None
-    side = "LONG" if d_bias.state == "BULLISH" else "SHORT"
+    side = "LONG" if d_bias.state in {"BULLISH", "BULLISH_WEAK"} else "SHORT"
     if (side == "LONG" and structure["state"] != "BULL") or (side == "SHORT" and structure["state"] != "BEAR"):
         return None
     transition = transition_state(m5, structure["external_low"], structure["external_high"], side)
@@ -298,13 +309,14 @@ def evaluate_setup(d1: list[dict], h1: list[dict], m5: list[dict], end_idx: int 
         if touched and rejected:
             if i != len(m5) - 1:
                 continue
-            return {"side": side, "entry_idx": i + 1, "entry_price": None, "stop_extreme": sig["sweep_extreme"], "fvg": asdict(fvg), "unicorn": unicorn, "transition": sig, "daily_bias": asdict(d_bias), "h1_structure": {"state": structure["state"], "event": structure["event"]}, "unicorn_required": require_unicorn, "entry_model": "D1_H1_M5_SWEEP_FVG_REJECTION"}
+            return {"side": side, "entry_idx": i + 1, "entry_price": None, "stop_extreme": sig["sweep_extreme"], "fvg": asdict(fvg), "unicorn": unicorn, "transition": sig, "daily_bias": asdict(d_bias), "risk_tier": "REDUCED" if weak_daily else "STANDARD", "risk_multiplier": 0.5 if weak_daily else 1.0, "h1_structure": {"state": structure["state"], "event": structure["event"]}, "unicorn_required": require_unicorn, "entry_model": "D1_H1_M5_SWEEP_FVG_REJECTION"}
     return None
 
 
 def setup_rejection_reasons(d1: list[dict], h1: list[dict], m5: list[dict],
                             end_idx: int | None = None, tick_size: float = 1e-5,
-                            require_unicorn: bool = False) -> list[str]:
+                            require_unicorn: bool = False,
+                            allow_weak_daily: bool = False) -> list[str]:
     """Return all major gate failures for one closed M5 prefix.
 
     This is diagnostic only. It intentionally reports the first failed stage
@@ -315,12 +327,13 @@ def setup_rejection_reasons(d1: list[dict], h1: list[dict], m5: list[dict],
     if len(d1) < 2 or len(h1) < 20 or last < 29:
         return ["INSUFFICIENT_HISTORY"]
     d_bias = daily_bias(d1, tick_size=tick_size)
-    if d_bias.state not in {"BULLISH", "BEARISH"}:
+    weak_daily = d_bias.state in {"BULLISH_WEAK", "BEARISH_WEAK"}
+    if d_bias.state not in {"BULLISH", "BEARISH"} and not (allow_weak_daily and weak_daily):
         return ["D1_NEUTRAL_OR_UNCONFIRMED"]
     structure = h1_structure(h1)
     if structure["state"] not in {"BULL", "BEAR"}:
         return ["H1_RANGE_OR_UNKNOWN"]
-    side = "LONG" if d_bias.state == "BULLISH" else "SHORT"
+    side = "LONG" if d_bias.state in {"BULLISH", "BULLISH_WEAK"} else "SHORT"
     if (side == "LONG" and structure["state"] != "BULL") or (side == "SHORT" and structure["state"] != "BEAR"):
         return ["D1_H1_DIRECTION_MISMATCH"]
     transition = transition_state(m5[:last + 1], structure["external_low"], structure["external_high"], side)
