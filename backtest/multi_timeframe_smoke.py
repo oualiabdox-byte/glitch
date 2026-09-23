@@ -9,11 +9,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from data.ctrader import CTraderData
-from strategy.multi_timeframe import evaluate_setup
+from strategy.multi_timeframe import evaluate_setup, setup_rejection_reasons
 
 
 def dt(value) -> datetime:
@@ -38,9 +40,39 @@ def choose_block(days: list[str], manifest: str, length: int = 4) -> list[str]:
     return days[start:start + length]
 
 
+def _download_windowed(feed: CTraderData, symbol: str, start: str, end: str) -> dict[str, list[dict]]:
+    """Avoid the provider's single-page 999-bar ceiling for M5 data."""
+    start_dt, end_dt = dt(start), dt(end)
+    result = {"d1": [], "h1": [], "m5": []}
+    work = Path(feed.cache_dir) / "window_fetch"
+    work.mkdir(parents=True, exist_ok=True)
+    for period, chunk_days in (("d1", 40), ("h1", 40), ("m5", 5)):
+        cursor = start_dt
+        window_no = 0
+        while cursor < end_dt:
+            chunk_end = min(cursor + timedelta(days=chunk_days), end_dt)
+            output = work / f"{period}_{window_no}.json"
+            command = [
+                sys.executable, "-m", "backtest.fetch_window",
+                "--symbol", symbol, "--period", period,
+                "--start", cursor.isoformat(), "--end", chunk_end.isoformat(),
+                "--cache-dir", str(feed.cache_dir), "--output", str(output),
+            ]
+            completed = subprocess.run(command, cwd=Path(__file__).parents[1], capture_output=True, text=True)
+            if completed.returncode != 0:
+                raise RuntimeError(f"cTrader {period} window failed: {completed.stderr[-1000:]}")
+            rows = json.loads(output.read_text())
+            result[period].extend(rows.get(period, []))
+            cursor = chunk_end
+            window_no += 1
+    for period in result:
+        result[period] = [dict(x) for _, x in sorted({x["time"]: x for x in result[period]}.items())]
+    return result
+
+
 def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> dict:
     feed = CTraderData(cache_dir=cache_dir)
-    data = feed.download(symbol, start, end, periods=("d1", "h1", "m5"))
+    data = _download_windowed(feed, symbol, start, end)
     d1, h1, m5 = data["d1"], data["h1"], data["m5"]
     if not d1 or not h1 or not m5:
         raise RuntimeError(f"empty data: d1={len(d1)} h1={len(h1)} m5={len(m5)}")
@@ -56,10 +88,13 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> 
             f"d1={len(d1)}, h1={len(h1)}, m5={len(m5)}, m5_days={days}"
         )
     manifest = json.dumps({"symbol": symbol, "start": start, "end": end, "counts": {"d1": len(d1), "h1": len(h1), "m5": len(m5)}}, sort_keys=True)
-    selected = choose_block(days, manifest)
+    # Extended runs evaluate every available weekday in the requested window.
+    # The deterministic four-day selection remains available through the
+    # original helper for smoke tests and unit-level reproducibility.
+    selected = days
     selected_set = set(selected)
     signals = []
-    rejection = {"insufficient_htf": 0, "no_setup": 0}
+    rejection: dict[str, int] = {}
     for i, bar in enumerate(m5):
         if day_key(bar) not in selected_set:
             continue
@@ -68,7 +103,7 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> 
         h1_visible = [x for x in h1 if close_time(x, 60) <= available_at]
         m5_visible = m5[: i + 1]
         if len(d1_visible) < 2 or len(h1_visible) < 20 or len(m5_visible) < 30:
-            rejection["insufficient_htf"] += 1
+            rejection["INSUFFICIENT_HISTORY"] = rejection.get("INSUFFICIENT_HISTORY", 0) + 1
             continue
         setup = evaluate_setup(d1_visible, h1_visible, m5_visible, tick_size=tick_size)
         if setup:
@@ -76,7 +111,9 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> 
             setup["available_at"] = available_at.isoformat()
             signals.append(setup)
         else:
-            rejection["no_setup"] += 1
+            reasons = setup_rejection_reasons(d1_visible, h1_visible, m5_visible, tick_size=tick_size)
+            for reason in reasons or ["SIGNAL_DIAGNOSTIC_MISMATCH"]:
+                rejection[reason] = rejection.get(reason, 0) + 1
     return {
         "symbol": symbol,
         "selected_days": selected,
@@ -86,7 +123,7 @@ def run(symbol: str, start: str, end: str, cache_dir: str, tick_size: float) -> 
         "signals": signals,
         "signal_count": len(signals),
         "rejections": rejection,
-        "note": "four-session smoke test only; not evidence of profitability",
+        "note": "extended historical diagnostic only; not evidence of profitability",
     }
 
 

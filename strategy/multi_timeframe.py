@@ -302,6 +302,47 @@ def evaluate_setup(d1: list[dict], h1: list[dict], m5: list[dict], end_idx: int 
     return None
 
 
+def setup_rejection_reasons(d1: list[dict], h1: list[dict], m5: list[dict],
+                            end_idx: int | None = None, tick_size: float = 1e-5,
+                            require_unicorn: bool = False) -> list[str]:
+    """Return all major gate failures for one closed M5 prefix.
+
+    This is diagnostic only. It intentionally reports the first failed stage
+    in the causal pipeline and preserves the reason codes used by the smoke
+    runner, rather than collapsing every rejection into ``NO_SETUP``.
+    """
+    last = len(m5) - 1 if end_idx is None else int(end_idx)
+    if len(d1) < 2 or len(h1) < 20 or last < 29:
+        return ["INSUFFICIENT_HISTORY"]
+    d_bias = daily_bias(d1, tick_size=tick_size)
+    if d_bias.state not in {"BULLISH", "BEARISH"}:
+        return ["D1_NEUTRAL_OR_UNCONFIRMED"]
+    structure = h1_structure(h1)
+    if structure["state"] not in {"BULL", "BEAR"}:
+        return ["H1_RANGE_OR_UNKNOWN"]
+    side = "LONG" if d_bias.state == "BULLISH" else "SHORT"
+    if (side == "LONG" and structure["state"] != "BULL") or (side == "SHORT" and structure["state"] != "BEAR"):
+        return ["D1_H1_DIRECTION_MISMATCH"]
+    transition = transition_state(m5[:last + 1], structure["external_low"], structure["external_high"], side)
+    if transition.get("state") != "DISPLACEMENT_CONFIRMED":
+        return [f"M5_TRANSITION_{transition.get('state', 'UNKNOWN')}"]
+    sig = transition["signal"]
+    fvg = detect_fvg(m5[:last + 1], sig["break_idx"], "BULLISH" if side == "LONG" else "BEARISH", tick_size=tick_size)
+    if not fvg:
+        return ["M5_NO_QUALIFIED_FVG"]
+    from .unicorn import find_unicorn_zone
+    unicorn = find_unicorn_zone(m5[:last + 1], side, sig["break_idx"], tick_size=tick_size)
+    if require_unicorn and not unicorn:
+        return ["UNICORN_REQUIRED_BUT_NOT_CONFIRMED"]
+    for i in range(sig["break_idx"] + 1, min(last + 1, sig["break_idx"] + 7)):
+        bar = m5[i]
+        touched = bar["low"] <= fvg.top and bar["high"] >= fvg.bottom
+        rejected = bar["close"] > fvg.top if side == "LONG" else bar["close"] < fvg.bottom
+        if touched and rejected and i == last:
+            return []
+    return ["M5_NO_FIRST_RETEST_REJECTION"]
+
+
 def evaluate_stream(d1: list[dict], h1: list[dict], m5: list[dict], tick_size: float = 1e-5) -> list[dict[str, Any]]:
     """Deterministic smoke-test helper; each returned signal uses a closed M5 prefix."""
     signals = []

@@ -69,6 +69,23 @@ six completed M5 bars. The four-session comparison on the same EURUSD data
 remained at 0 completed signals; this is a valid smoke-test observation, not a
 profitability conclusion.
 
+For detailed rejection diagnostics over a longer window, use the windowed
+runner. It splits M5 downloads into fresh processes so cTrader's Twisted
+reactor is not restarted in one process:
+
+```bash
+PYTHONPATH=. python -m backtest.multi_timeframe_smoke \
+  --symbol EURUSD \
+  --start 2026-08-24T00:00:00Z \
+  --end 2026-09-23T00:00:00Z \
+  --cache-dir /tmp/forex_bot_mtf_cache_30d \
+  --output results/mtf_30d_diagnostics.json
+```
+
+The JSON output separates `D1_NEUTRAL_OR_UNCONFIRMED`, H1 state/mismatch,
+M5 transition, FVG, history, retest, and other gate reasons instead of
+collapsing them into `NO_SETUP`.
+
 `ctrader-open-api`, `service-identity`, `python-dotenv`, Twisted, protobuf,
 PyYAML, NumPy, and pytest are declared in `requirements.txt`. The probe only
 authenticates and reads account/symbol state; it never submits an order when
