@@ -121,6 +121,126 @@ def _mss_after_sweep(candles, bias, sweep_idx, swing_length=3):
     return False, None
 
 
+def _aggregate_daily_from_4h(candles_4h):
+    """Build causal D1 candles from closed 4H candles."""
+    if not candles_4h:
+        return []
+    out = []
+    current_key = None
+    bucket = None
+    for c in candles_4h:
+        key = str(c["time"])[:10]
+        if key != current_key:
+            if bucket is not None:
+                out.append(bucket)
+            current_key = key
+            bucket = {
+                "time": c["time"],
+                "open": c["open"],
+                "high": c["high"],
+                "low": c["low"],
+                "close": c["close"],
+            }
+        else:
+            bucket["high"] = max(bucket["high"], c["high"])
+            bucket["low"] = min(bucket["low"], c["low"])
+            bucket["close"] = c["close"]
+    if bucket is not None:
+        out.append(bucket)
+    return out
+
+
+def _crt_external_sweep(candles, bias, reference_high, reference_low,
+                        lookback=12, tolerance_atr=0.05):
+    """Find the most recent external liquidity sweep and reclaim."""
+    if len(candles) < 3:
+        return None
+    atr = _atr(candles, 14)
+    if atr <= 0:
+        return None
+    start = max(1, len(candles) - lookback)
+    for i in range(len(candles) - 1, start - 1, -1):
+        c = candles[i]
+        if bias == "LONG" and reference_low is not None:
+            penetration = reference_low - c["low"]
+            if penetration >= atr * tolerance_atr and c["low"] < reference_low and c["close"] > reference_low:
+                return {
+                    "idx": i, "time": c["time"], "side": "LONG",
+                    "level": reference_low, "extreme": c["low"],
+                    "range_high": c["high"], "range_low": c["low"],
+                    "range_mid": (c["high"] + c["low"]) / 2.0,
+                    "penetration_atr": penetration / atr,
+                }
+        if bias == "SHORT" and reference_high is not None:
+            penetration = c["high"] - reference_high
+            if penetration >= atr * tolerance_atr and c["high"] > reference_high and c["close"] < reference_high:
+                return {
+                    "idx": i, "time": c["time"], "side": "SHORT",
+                    "level": reference_high, "extreme": c["high"],
+                    "range_high": c["high"], "range_low": c["low"],
+                    "range_mid": (c["high"] + c["low"]) / 2.0,
+                    "penetration_atr": penetration / atr,
+                }
+    return None
+
+
+def _crt_bos_after_sweep(candles, bias, sweep_idx, swing_length=3):
+    """Confirm post-sweep BOS/CHOCH by candle-body close through a swing."""
+    if sweep_idx is None or sweep_idx >= len(candles) - 1:
+        return None
+    pre = candles[:sweep_idx + 1]
+    if bias == "LONG":
+        swings = market_structure.find_swing_highs(pre, swing_length)
+        if not swings:
+            return None
+        level = swings[-1]["high"]
+        for i in range(sweep_idx + 1, len(candles)):
+            if candles[i]["close"] > level:
+                return {
+                    "idx": i, "time": candles[i]["time"],
+                    "type": "BOS_OR_CHOCH", "direction": "LONG",
+                    "level": level,
+                }
+    else:
+        swings = market_structure.find_swing_lows(pre, swing_length)
+        if not swings:
+            return None
+        level = swings[-1]["low"]
+        for i in range(sweep_idx + 1, len(candles)):
+            if candles[i]["close"] < level:
+                return {
+                    "idx": i, "time": candles[i]["time"],
+                    "type": "BOS_OR_CHOCH", "direction": "SHORT",
+                    "level": level,
+                }
+    return None
+
+
+def _crt_inducement_flags(candles, bias, zone_low, zone_high, lookback=24):
+    """Classify nearby EQH/EQL liquidity as an inducement warning."""
+    sample = candles[-lookback:]
+    tolerance = _atr(candles, 14) * 0.15
+    if tolerance <= 0:
+        return {"inducement": False, "equal_liquidity": None}
+
+    highs = [c["high"] for c in sample]
+    lows = [c["low"] for c in sample]
+
+    if bias == "LONG":
+        candidates = [x for x in lows if zone_low <= x <= zone_high + tolerance]
+        for a in candidates:
+            for b in candidates:
+                if a != b and abs(a - b) <= tolerance:
+                    return {"inducement": True, "equal_liquidity": "EQL"}
+    else:
+        candidates = [x for x in highs if zone_low - tolerance <= x <= zone_high]
+        for a in candidates:
+            for b in candidates:
+                if a != b and abs(a - b) <= tolerance:
+                    return {"inducement": True, "equal_liquidity": "EQH"}
+    return {"inducement": False, "equal_liquidity": None}
+
+
 def evaluate_ict_2022(
     candles_1h,
     candles_4h,
@@ -144,207 +264,205 @@ def evaluate_ict_2022(
     require_premium_discount=True,
     require_min_rr=True,
 ):
-    if len(candles_1h) < 30 or len(candles_4h) < 30:
+    """CRT execution engine.
+
+    The public API is retained for compatibility, but the decision model is
+    now CRT rather than the former generic ICT/SMC confluence chain:
+
+        D1 bias -> H1 IRL/POI -> external liquidity sweep ->
+        H1 BOS/CHOCH -> 50% range retest -> target liquidity.
+
+    FVG/OB are no longer mandatory entry triggers. Inducement is used as a
+    zone-selection filter, not as a standalone entry signal.
+    """
+    if len(candles_1h) < 40 or len(candles_4h) < 30:
         return None
 
     if swing_length < 2:
         raise ValueError("swing_length must be >= 2")
-    htf = ict_bias.htf_context_4h(candles_4h, swing_length=swing_length)
-    bias = htf.get("bias")
-    if bias not in ("LONG", "SHORT"):
-        return None
 
     sess = session_context or sessions.current_session()
     if require_session and sess not in ("london", "new_york", "overlap"):
         return None
 
-    pools = liquidity.liquidity_pools(candles_4h[-30:])
-    if not pools:
+    # D1 directional context derived only from closed 4H candles.
+    daily = _aggregate_daily_from_4h(candles_4h)
+    if len(daily) < 4:
+        return None
+    d1_context = market_structure.analyze_structure(daily, swing_length=2)
+    bias = d1_context.get("bias")
+    if bias not in ("LONG", "SHORT"):
         return None
 
-    current = candles_1h[-1]["close"]
-    directional = [
-        p for p in pools
-        if (bias == "LONG" and p["type"] == "resistance" and p["price"] > current)
-        or (bias == "SHORT" and p["type"] == "support" and p["price"] < current)
-    ]
-    if not directional:
+    # H1 external range / IRL context.
+    h1 = candles_1h[-48:]
+    h1_context = market_structure.analyze_structure(h1, swing_length=swing_length)
+    external_high = h1_context.get("external_high")
+    external_low = h1_context.get("external_low")
+    if external_high is None or external_low is None:
         return None
-    target_pool = min(directional, key=lambda p: abs(p["price"] - current))
 
-    recent_1h = candles_1h[-48:]
-    sweep = _find_recent_sweep(
-        recent_1h,
+    # Longs must sweep external sell-side liquidity; shorts external buy-side.
+    sweep = _crt_external_sweep(
+        h1,
         bias,
-        swing_length=swing_length,
-        tolerance_atr=0.10,
-        valid_window_bars=6,
+        reference_high=external_high,
+        reference_low=external_low,
+        lookback=12,
+        tolerance_atr=0.05,
     )
     if require_sweep and not sweep:
         return None
 
-    sweep_idx = (
-        next((i for i, c in enumerate(recent_1h) if c["time"] == sweep["time"]), None)
-        if sweep else None
-    )
-    mss_ok, mss_level = _mss_after_sweep(recent_1h, bias, sweep_idx, swing_length)
-    if require_mss and not mss_ok:
+    # The post-sweep structural confirmation is a body-close BOS/CHOCH.
+    bos = _crt_bos_after_sweep(h1, bias, sweep["idx"], swing_length=swing_length) if sweep else None
+    if require_mss and bos is None:
         return None
 
-    fvg_result = fvg.find_fvg(
-        recent_1h,
-        min_gap_atr=min_fvg_atr,
-        required_side=bias,
-        displacement_min_atr=min_displacement_atr,
-    )
-    if require_fvg and (not fvg_result or fvg_result["creator_idx"] <= (sweep_idx if sweep_idx is not None else -1)):
+    # CRT 50% retest is the primary entry zone.
+    zone_mid = sweep["range_mid"] if sweep else h1[-1]["close"]
+    zone_low = sweep["range_low"] if sweep else h1[-1]["low"]
+    zone_high = sweep["range_high"] if sweep else h1[-1]["high"]
+
+    current = h1[-1]["close"]
+    # Directional premium/discount is mandatory when enabled.
+    dealing_high = external_high
+    dealing_low = external_low
+    dealing_range = dealing_high - dealing_low
+    if dealing_range <= 0:
+        return None
+    position = (zone_mid - dealing_low) / dealing_range
+    if require_premium_discount:
+        if bias == "LONG" and position >= 0.50:
+            return None
+        if bias == "SHORT" and position <= 0.50:
+            return None
+
+    # Reject an inducement zone when equal liquidity is sitting directly in it.
+    inducement = _crt_inducement_flags(h1, bias, zone_low, zone_high)
+    if inducement["inducement"]:
         return None
 
-    creator_idx = fvg_result["creator_idx"] if fvg_result else None
-    displacement_ok = bool(
-        fvg_result and displacement.is_displaced(
-            recent_1h,
-            creator_idx,
-            min_body_atr_ratio=min_displacement_atr,
-        )
-    )
-    if require_displacement and not displacement_ok:
+    # The actual entry must revisit the 50% level after BOS, not merely touch
+    # the sweep candle before structural confirmation.
+    confirmation_idx = bos["idx"] if bos else (sweep["idx"] if sweep else 0)
+    retest = False
+    retest_idx = None
+    tolerance = _atr(h1, 14) * 0.10
+    for i in range(confirmation_idx + 1, len(h1)):
+        c = h1[i]
+        if c["low"] - tolerance <= zone_mid <= c["high"] + tolerance:
+            if bias == "LONG" and c["close"] >= zone_mid - tolerance:
+                retest = True
+                retest_idx = i
+                break
+            if bias == "SHORT" and c["close"] <= zone_mid + tolerance:
+                retest = True
+                retest_idx = i
+                break
+    if not retest:
         return None
 
-    retest_atr = _atr(recent_1h, 14)
-    if not fvg_result:
-        retest_ok = False
-    elif require_fresh_fvg_retest:
-        retest_ok = fvg.is_fresh_retest(recent_1h, fvg_result)
-    else:
-        retest_ok = fvg.is_near_or_continuation_retest(
-            recent_1h,
-            fvg_result,
-            tolerance=retest_atr * fvg_retest_tolerance_atr,
-            max_wait_bars=fvg_retest_max_wait_bars,
-        )
-    if require_fvg and not retest_ok:
-        return None
-
-    if require_premium_discount and bias == "LONG" and htf.get("premium_discount") != "DISCOUNT":
-        return None
-    if require_premium_discount and bias == "SHORT" and htf.get("premium_discount") != "PREMIUM":
-        return None
-
-    atr = _atr(recent_1h, 14)
+    entry_mid = zone_mid
+    atr = _atr(h1, 14)
     if atr <= 0:
         return None
-
-    ob = order_blocks.find_order_block(recent_1h, fvg_result) if fvg_result else None
-    if require_order_block and not ob:
-        return None
-    fib = None
-    if htf.get("external_high") is not None and htf.get("external_low") is not None:
-        fib = fib_cluster.find_cluster(
-            htf["external_high"],
-            htf["external_low"],
-            tolerance=atr * 0.20,
-        )
-
-    poi = {
-        "fvg": fvg_result,
-        "order_block": ob,
-        "fib_cluster": fib.get("best") if fib else None,
-    }
-
     buffer = max(atr * stop_atr_buffer, _pip_size(pair))
-    entry_mid = (
-        (fvg_result["bottom"] + fvg_result["top"]) / 2.0
-        if fvg_result else recent_1h[-1]["close"]
-    )
+
     if bias == "LONG":
-        stop_price = (sweep["extreme"] if sweep else recent_1h[-1]["low"]) - buffer
-        risk_distance = entry_mid - stop_price
-        reward_distance = target_pool["price"] - entry_mid
+        stop_price = sweep["extreme"] - buffer
     else:
-        stop_price = (sweep["extreme"] if sweep else recent_1h[-1]["high"]) + buffer
-        risk_distance = stop_price - entry_mid
-        reward_distance = entry_mid - target_pool["price"]
+        stop_price = sweep["extreme"] + buffer
 
-    if risk_distance <= 0 or reward_distance <= 0:
+    risk_distance = entry_mid - stop_price if bias == "LONG" else stop_price - entry_mid
+    if risk_distance <= 0:
         return None
-    rr = reward_distance / risk_distance
 
-    if rr + 1e-9 < min_rr and allow_fixed_rr_fallback and require_min_rr:
+    # DOL: nearest opposing external liquidity in the trade direction.
+    pools = liquidity.liquidity_pools(candles_4h[-30:])
+    directional = [
+        p for p in pools
+        if (bias == "LONG" and p["type"] == "resistance" and p["price"] > entry_mid)
+        or (bias == "SHORT" and p["type"] == "support" and p["price"] < entry_mid)
+    ]
+    target_pool = min(directional, key=lambda p: abs(p["price"] - entry_mid)) if directional else None
+
+    if target_pool:
+        target_price = target_pool["price"]
+        target_source = target_pool["source"]
+    elif allow_fixed_rr_fallback:
         target_price = (
             entry_mid + risk_distance * min_rr
             if bias == "LONG"
             else entry_mid - risk_distance * min_rr
         )
         target_source = "FIXED_RR_FALLBACK"
-        reward_distance = abs(target_price - entry_mid)
-        rr = reward_distance / risk_distance
     else:
-        target_price = target_pool["price"]
-        target_source = target_pool["source"]
-
-    evidence = setup_analysis.analyze_setup(
-        htf=htf,
-        sweep=sweep,
-        mss=mss_level,
-        displacement_ok=displacement_ok,
-        fvg=fvg_result,
-        ob=ob,
-        fib=fib,
-        session=sess,
-        rr=rr,
-    )
-    validation = setup_analysis.validate_setup(
-        bias=bias,
-        htf=htf,
-        sweep=sweep,
-        mss=mss_level,
-        displacement_ok=displacement_ok,
-        fvg=fvg_result,
-        session=sess,
-        rr=rr,
-        min_rr=min_rr,
-        require_sweep=require_sweep,
-        require_mss=require_mss,
-        require_displacement=require_displacement,
-        require_fvg=require_fvg,
-        require_session=require_session,
-        require_premium_discount=require_premium_discount,
-        require_min_rr=require_min_rr,
-    )
-    if not validation["valid"]:
         return None
+
+    reward_distance = abs(target_price - entry_mid)
+    if reward_distance <= 0:
+        return None
+    rr = reward_distance / risk_distance
+    if require_min_rr and rr + 1e-9 < min_rr:
+        return None
+
+    evidence = {
+        "model": "CRT",
+        "d1_bias": bias,
+        "d1_structure": d1_context.get("structure"),
+        "h1_structure": h1_context.get("structure"),
+        "external_sweep": True,
+        "sweep_level": sweep["level"],
+        "sweep_extreme": sweep["extreme"],
+        "bos_or_choch": bos,
+        "crt_50_percent": entry_mid,
+        "premium_discount": "DISCOUNT" if bias == "LONG" else "PREMIUM",
+        "inducement": inducement,
+        "retest_confirmed": True,
+        "retest_idx": retest_idx,
+        "dol_target": target_source,
+        "rr": rr,
+    }
 
     return {
         "pair": pair,
         "side": bias,
-        "entry_zone": (
-            (fvg_result["bottom"], fvg_result["top"])
-            if fvg_result else (entry_mid, entry_mid)
-        ),
+        "entry_zone": (zone_low, zone_high),
         "entry_mid": entry_mid,
         "stop_price": stop_price,
-        "stop_ref": sweep["extreme"] if sweep else None,
+        "stop_ref": sweep["extreme"],
         "tp_target": target_price,
         "target_source": target_source,
         "rr": rr,
         "bias": bias,
         "session": sess,
-        "htf_context": htf,
+        "htf_context": {
+            "daily": d1_context,
+            "h1": h1_context,
+            "timeframe": "D1/H1",
+            "premium_discount": "DISCOUNT" if bias == "LONG" else "PREMIUM",
+        },
         "sweep": sweep,
-        "mss_level": mss_level,
-        "poi": poi,
-        "fvg": fvg_result,
-        "mss_confirmed": True,
+        "mss_level": bos["level"] if bos else None,
+        "poi": {
+            "type": "CRT_50_PERCENT",
+            "range_low": zone_low,
+            "range_high": zone_high,
+            "midpoint": entry_mid,
+            "inducement": inducement,
+        },
+        "fvg": None,
+        "mss_confirmed": bos is not None,
         "displacement_confirmed": True,
         "displacement_atr": min_displacement_atr,
         "fvg_min_atr": min_fvg_atr,
-        "fvg_retest_mode": "fresh" if require_fresh_fvg_retest else "near_or_continuation",
+        "fvg_retest_mode": "CRT_50_PERCENT",
         "premium_discount_zone": "discount" if bias == "LONG" else "premium",
+        "entry_model": "CRT",
         "evidence": evidence,
         "timestamp": candles_1h[-1]["time"],
     }
-
 
 def evaluate_breakout_retest(
     candles_1h,
