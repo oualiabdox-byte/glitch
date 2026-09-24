@@ -12,10 +12,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from config.settings import load_config, pairs as configured_pairs
 from execution.demo_guard import require_demo_execution
 
 STATE_PATH = Path(os.getenv("CTRADER_DEMO_STATE", "execution/demo_state.json"))
+load_dotenv()
 
 
 def _load_state() -> dict:
