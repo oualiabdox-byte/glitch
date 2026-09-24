@@ -70,6 +70,9 @@ The same events are stored in the local SQLite database configured by
 for scans, order events, and future closed-trade outcomes. On Ubuntu this is a
 professional zero-cost starting point; the machine must remain online and the
 `results/` directory should be backed up periodically.
+`CTRADER_STORAGE_LIMIT_MB=550` applies a hard combined quota to files under
+`results/`; when the quota is reached, new diagnostic writes stop and the bot
+prints `STORAGE_QUOTA_REACHED` rather than growing beyond the limit.
 
 After rotating any credentials that were previously exposed, set these values
 in local `.env`:
@@ -93,6 +96,14 @@ Run the all-pairs runner with:
 ```bash
 PYTHONPATH=. python -m execution.demo_runner
 ```
+
+Create a readable report at any time with:
+
+```bash
+PYTHONPATH=. python -m execution.export_report
+```
+
+Read the generated file at `results/research_report.md`.
 
 With `CTRADER_RUN_UNTIL_TRADE=true`, it continues scanning every configured
 pair and sleeps for `CTRADER_POLL_SECONDS` between rounds until a demo order is

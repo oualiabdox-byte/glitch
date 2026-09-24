@@ -26,6 +26,7 @@ DIAGNOSTICS_PATH = Path(os.getenv(
     "CTRADER_DIAGNOSTICS_PATH", "results/demo_diagnostics.jsonl"
 ))
 DATABASE_PATH = os.getenv("CTRADER_DATABASE_PATH", "results/trading.db")
+STORAGE_LIMIT_BYTES = int(float(os.getenv("CTRADER_STORAGE_LIMIT_MB", "550")) * 1024 * 1024)
 
 
 def _load_state() -> dict:
@@ -41,9 +42,20 @@ def _save_state(state: dict) -> None:
 
 
 def _record(event: dict, store: EventStore) -> None:
-    DIAGNOSTICS_PATH.parent.mkdir(parents=True, exist_ok=True)
     recorded_at = datetime.now(timezone.utc).isoformat()
     row = {"recorded_at_utc": recorded_at, **event}
+    encoded = (json.dumps(row, sort_keys=True) + "\n").encode()
+    current_bytes = sum(
+        path.stat().st_size for path in DIAGNOSTICS_PATH.parent.glob("*")
+        if path.is_file()
+    )
+    if current_bytes + len(encoded) >= STORAGE_LIMIT_BYTES:
+        print(json.dumps({"status": "STORAGE_QUOTA_REACHED",
+                          "limit_mb": STORAGE_LIMIT_BYTES / 1024 / 1024,
+                          "path": str(DIAGNOSTICS_PATH.parent)}, sort_keys=True),
+              flush=True)
+        return
+    DIAGNOSTICS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with DIAGNOSTICS_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
     if event.get("event") == "scan":
