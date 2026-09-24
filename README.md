@@ -69,16 +69,23 @@ CTRADER_ENV=demo
 CTRADER_ALLOW_ORDERS=true
 CTRADER_DEMO_EXECUTE=true
 CTRADER_DEMO_CONFIRM=I_UNDERSTAND_DEMO_TRADING
+CTRADER_RUN_UNTIL_TRADE=true
+CTRADER_POLL_SECONDS=300
 CTRADER_ORDER_VOLUME_UNITS=1000
 CTRADER_MAX_ORDER_VOLUME_UNITS=1000
 CTRADER_PAIRS=EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD
 ```
 
-Run one scan/execution cycle with:
+Run the all-pairs runner with:
 
 ```bash
 PYTHONPATH=. python -m execution.demo_runner
 ```
+
+With `CTRADER_RUN_UNTIL_TRADE=true`, it continues scanning every configured
+pair and sleeps for `CTRADER_POLL_SECONDS` between rounds until a demo order is
+acknowledged. Press `Ctrl+C` to stop it. Set `CTRADER_RUN_UNTIL_TRADE=false`
+for a single scan.
 
 To scan without submitting orders, use `CTRADER_DEMO_EXECUTE=false`.
 The runner refuses `CTRADER_ENV=live`; live execution is not implemented.
