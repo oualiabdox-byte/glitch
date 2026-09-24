@@ -65,6 +65,11 @@ Every scan is appended to the ignored JSONL file configured by
 record includes the pair, status, rejection reason codes, strategy evidence,
 and order-attempt output. This separates why a setup was rejected from the
 eventual win/loss outcome of a submitted trade.
+The same events are stored in the local SQLite database configured by
+`CTRADER_DATABASE_PATH` (default: `results/trading.db`), with separate tables
+for scans, order events, and future closed-trade outcomes. On Ubuntu this is a
+professional zero-cost starting point; the machine must remain online and the
+`results/` directory should be backed up periodically.
 
 After rotating any credentials that were previously exposed, set these values
 in local `.env`:
@@ -77,6 +82,7 @@ CTRADER_DEMO_CONFIRM=I_UNDERSTAND_DEMO_TRADING
 CTRADER_RUN_UNTIL_TRADE=true
 CTRADER_POLL_SECONDS=300
 CTRADER_DIAGNOSTICS_PATH=results/demo_diagnostics.jsonl
+CTRADER_DATABASE_PATH=results/trading.db
 CTRADER_ORDER_VOLUME_UNITS=1000
 CTRADER_MAX_ORDER_VOLUME_UNITS=1000
 CTRADER_PAIRS=EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD

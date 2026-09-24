@@ -18,12 +18,14 @@ from dotenv import load_dotenv
 
 from config.settings import load_config, pairs as configured_pairs
 from execution.demo_guard import require_demo_execution
+from execution.storage import EventStore
 
 load_dotenv()
 STATE_PATH = Path(os.getenv("CTRADER_DEMO_STATE", "execution/demo_state.json"))
 DIAGNOSTICS_PATH = Path(os.getenv(
     "CTRADER_DIAGNOSTICS_PATH", "results/demo_diagnostics.jsonl"
 ))
+DATABASE_PATH = os.getenv("CTRADER_DATABASE_PATH", "results/trading.db")
 
 
 def _load_state() -> dict:
@@ -38,11 +40,16 @@ def _save_state(state: dict) -> None:
     STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
 
 
-def _record(event: dict) -> None:
+def _record(event: dict, store: EventStore) -> None:
     DIAGNOSTICS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    row = {"recorded_at_utc": datetime.now(timezone.utc).isoformat(), **event}
+    recorded_at = datetime.now(timezone.utc).isoformat()
+    row = {"recorded_at_utc": recorded_at, **event}
     with DIAGNOSTICS_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
+    if event.get("event") == "scan":
+        store.record_scan(recorded_at, event["pair"], event["result"])
+    elif event.get("event") == "order_attempt":
+        store.record_order(recorded_at, event["pair"], event)
 
 
 def _scan(pair: str) -> dict:
@@ -77,13 +84,14 @@ def main() -> int:
             raise RuntimeError("CTRADER_ORDER_VOLUME_UNITS is required for demo execution")
     state = _load_state()
     state.setdefault("signals", {})
+    store = EventStore(DATABASE_PATH)
     print(json.dumps({"mode": ("DEMO_EXECUTE_UNTIL_TRADE" if execute and until_trade
                                 else "DEMO_EXECUTE" if execute else "DRY_RUN"),
                       "pairs": pairs, "poll_seconds": poll_seconds}, sort_keys=True))
     while True:
         for pair in pairs:
             signal = _scan(pair)
-            _record({"event": "scan", "pair": pair, "result": signal})
+            _record({"event": "scan", "pair": pair, "result": signal}, store)
             if signal.get("status") != "SIGNAL_ONLY":
                 print(json.dumps(signal, sort_keys=True), flush=True)
                 continue
@@ -105,7 +113,7 @@ def main() -> int:
             print(output or json.dumps({"pair": pair, "status": "ORDER_NO_OUTPUT"}), flush=True)
             _record({"event": "order_attempt", "pair": pair,
                      "signal": signal, "returncode": proc.returncode,
-                     "output": output})
+                     "output": output}, store)
             if proc.returncode == 0 and "ORDER_ACKNOWLEDGED" in output:
                 state["signals"][key] = signal
                 _save_state(state)
