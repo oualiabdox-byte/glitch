@@ -60,6 +60,11 @@ request includes relative stop-loss and take-profit protection. Each pair is
 handled in a separate process so cTrader's asynchronous reactor is not
 restarted in one process. Signal state is stored in the ignored
 `execution/demo_state.json` file to prevent duplicate submissions.
+Every scan is appended to the ignored JSONL file configured by
+`CTRADER_DIAGNOSTICS_PATH` (default: `results/demo_diagnostics.jsonl`). Each
+record includes the pair, status, rejection reason codes, strategy evidence,
+and order-attempt output. This separates why a setup was rejected from the
+eventual win/loss outcome of a submitted trade.
 
 After rotating any credentials that were previously exposed, set these values
 in local `.env`:
@@ -71,6 +76,7 @@ CTRADER_DEMO_EXECUTE=true
 CTRADER_DEMO_CONFIRM=I_UNDERSTAND_DEMO_TRADING
 CTRADER_RUN_UNTIL_TRADE=true
 CTRADER_POLL_SECONDS=300
+CTRADER_DIAGNOSTICS_PATH=results/demo_diagnostics.jsonl
 CTRADER_ORDER_VOLUME_UNITS=1000
 CTRADER_MAX_ORDER_VOLUME_UNITS=1000
 CTRADER_PAIRS=EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,AUDUSD,NZDUSD

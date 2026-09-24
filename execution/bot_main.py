@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 
 from config.settings import load_config, pairs as configured_pairs
 from data.ctrader import CTraderData
-from strategy.ict_strategy import evaluate_ict_2022
+from strategy.decision import evaluate_entry_decision
 from strategy import safety, timing
 
 
@@ -67,11 +67,15 @@ def scan(pair: str):
                 "signal_close_utc": signal_close.isoformat(), "data_source": "cTrader Open API"}
 
     session = timing.session_context(signal_close).session
-    setup = evaluate_ict_2022(h1, h4, pair, session_context=session)
-    if not setup:
+    decision = evaluate_entry_decision(
+        h1, h4, pair, "ict_fvg", session_context=session,
+    )
+    if not decision.is_signal:
         return {
             "pair": pair,
             "status": "NO_TRADE",
+            "reason_codes": list(decision.reason_codes),
+            "evidence": decision.evidence,
             "data_source": "cTrader Open API",
             "signal_close_utc": signal_close.isoformat(),
             "h1_closed": len(h1),
@@ -82,14 +86,16 @@ def scan(pair: str):
         "pair": pair,
         "status": "SIGNAL_ONLY",
         "data_source": "cTrader Open API",
-        "side": setup["side"],
-        "entry_zone": setup["entry_zone"],
-        "stop_price": setup["stop_price"],
-        "tp_target": setup["tp_target"],
-        "rr": setup["rr"],
-        "session": setup["session"],
+        "side": decision.setup["side"],
+        "entry_zone": decision.setup["entry_zone"],
+        "stop_price": decision.setup["stop_price"],
+        "tp_target": decision.setup["tp_target"],
+        "rr": decision.setup["rr"],
+        "session": decision.setup["session"],
         "signal_close_utc": signal_close.isoformat(),
-        "timestamp": setup["timestamp"],
+        "timestamp": decision.setup["timestamp"],
+        "reason_codes": [],
+        "evidence": decision.evidence,
     }
 
 

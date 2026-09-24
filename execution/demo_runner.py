@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -20,6 +21,9 @@ from execution.demo_guard import require_demo_execution
 
 load_dotenv()
 STATE_PATH = Path(os.getenv("CTRADER_DEMO_STATE", "execution/demo_state.json"))
+DIAGNOSTICS_PATH = Path(os.getenv(
+    "CTRADER_DIAGNOSTICS_PATH", "results/demo_diagnostics.jsonl"
+))
 
 
 def _load_state() -> dict:
@@ -32,6 +36,13 @@ def _load_state() -> dict:
 def _save_state(state: dict) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+
+
+def _record(event: dict) -> None:
+    DIAGNOSTICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    row = {"recorded_at_utc": datetime.now(timezone.utc).isoformat(), **event}
+    with DIAGNOSTICS_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(row, sort_keys=True) + "\n")
 
 
 def _scan(pair: str) -> dict:
@@ -72,6 +83,7 @@ def main() -> int:
     while True:
         for pair in pairs:
             signal = _scan(pair)
+            _record({"event": "scan", "pair": pair, "result": signal})
             if signal.get("status") != "SIGNAL_ONLY":
                 print(json.dumps(signal, sort_keys=True), flush=True)
                 continue
@@ -91,6 +103,9 @@ def main() -> int:
             )
             output = proc.stdout.strip() or proc.stderr.strip()
             print(output or json.dumps({"pair": pair, "status": "ORDER_NO_OUTPUT"}), flush=True)
+            _record({"event": "order_attempt", "pair": pair,
+                     "signal": signal, "returncode": proc.returncode,
+                     "output": output})
             if proc.returncode == 0 and "ORDER_ACKNOWLEDGED" in output:
                 state["signals"][key] = signal
                 _save_state(state)
