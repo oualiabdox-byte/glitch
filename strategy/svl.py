@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from .models import Candle, Side
-from .structure import analyze_structure, detect_structure_events
+from .structure import analyze_structure, get_m5_execution_confirmation
 
 
 @dataclass(frozen=True)
@@ -198,23 +198,14 @@ def alignment_for_execution(h1_rows: list[dict[str, Any]], m5_rows: list[dict[st
     """
     h1 = analyze_svl(h1_rows, swing_length, profile_bins, equal_tolerance_pct)
     m5_candles = [Candle.from_dict(row) for row in m5_rows]
-    m5_events = detect_structure_events(m5_candles, swing_length) if m5_candles else []
-    latest = m5_events[-1] if m5_events else None
-    execution_reason_codes: list[str] = []
-    if latest is None:
-        execution_reason_codes.append("M5_EVENT_NOT_FOUND")
-    elif latest["index"] != len(m5_candles) - 1:
-        execution_reason_codes.append("M5_EVENT_STALE")
-    elif latest["side"] != h1.side:
-        execution_reason_codes.append("M5_EVENT_DIRECTION_MISMATCH")
+    confirmation = get_m5_execution_confirmation(m5_candles, h1.side, swing_length)
+    execution_reason_codes = list(confirmation.reason_codes)
     if not h1.aligned:
         execution_reason_codes.extend(h1.alignment_reasons)
     output = h1.as_dict()
     output["execution"] = {
         "timeframe": "M5",
-        "latest_event": latest,
-        "event_is_latest_close": bool(latest and latest["index"] == len(m5_candles) - 1),
-        "required_side": h1.side,
+        **confirmation.as_dict(),
         "reason_codes": execution_reason_codes,
     }
     output["aligned_for_trade"] = bool(

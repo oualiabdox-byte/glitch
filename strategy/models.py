@@ -54,6 +54,36 @@ class BosEvent:
     event_type: str = "BOS"
 
 
+@dataclass(frozen=True)
+class M5ExecutionConfirmation:
+    latest_closed_index: int | None
+    latest_closed_time: str | None
+    latest_event: dict[str, Any] | None
+    latest_event_index: int | None
+    latest_event_time: str | None
+    latest_event_side: Side | None
+    latest_event_type: str | None
+    required_side: Side | None
+    event_is_latest_close: bool
+    valid: bool
+    reason_codes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "latest_closed_index": self.latest_closed_index,
+            "latest_closed_time": self.latest_closed_time,
+            "latest_event": self.latest_event,
+            "latest_event_index": self.latest_event_index,
+            "latest_event_time": self.latest_event_time,
+            "latest_event_side": self.latest_event_side,
+            "latest_event_type": self.latest_event_type,
+            "required_side": self.required_side,
+            "event_is_latest_close": self.event_is_latest_close,
+            "valid": self.valid,
+            "reason_codes": list(self.reason_codes),
+        }
+
+
 @dataclass
 class Decision:
     status: str

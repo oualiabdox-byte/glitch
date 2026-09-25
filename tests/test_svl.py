@@ -1,5 +1,7 @@
 from strategy.engine import Strategy
 from strategy.svl import alignment_for_execution, analyze_svl, market_profile
+from strategy.structure import get_m5_execution_confirmation
+from strategy.models import Candle
 
 
 def row(i, o, h, l, c, volume=1):
@@ -35,6 +37,11 @@ def test_alignment_has_h1_context_and_latest_m5_event_fields():
     result = alignment_for_execution(h1, m5, swing_length=2)
     assert result["execution"]["timeframe"] == "M5"
     assert "aligned_for_trade" in result
+    assert "latest_closed_index" in result["execution"]
+    assert "latest_closed_time" in result["execution"]
+    assert "latest_event_index" in result["execution"]
+    assert "latest_event_side" in result["execution"]
+    assert "latest_event_type" in result["execution"]
 
 
 def test_strategy_keeps_svl_as_auditable_layer_by_default():
@@ -69,8 +76,9 @@ def test_execution_diagnostics_identify_stale_event_separately_from_h1_reasons()
 
 
 def test_execution_diagnostics_identify_opposite_current_event():
-    h1 = [row(i, 100, 101, 99, 100) for i in range(30)]
-    result = alignment_for_execution(h1, _m5_rows("SHORT"), swing_length=2)
-    assert result["execution"]["event_is_latest_close"] is True
-    assert result["execution"]["reason_codes"][0] == "M5_EVENT_DIRECTION_MISMATCH"
-    assert result["aligned_for_trade"] is False
+    confirmation = get_m5_execution_confirmation(
+        [Candle.from_dict(value) for value in _m5_rows("SHORT")], "LONG", 2,
+    )
+    assert confirmation.event_is_latest_close is True
+    assert confirmation.reason_codes == ("M5_EVENT_DIRECTION_MISMATCH",)
+    assert confirmation.valid is False

@@ -3,8 +3,8 @@ from __future__ import annotations
 from statistics import median
 from typing import Any
 
-from .models import BosEvent, Candle, Decision, FairValueGap, Side, Swing
-from .structure import analyze_structure, detect_structure_events, find_swing_highs, find_swing_lows
+from .models import BosEvent, Candle, Decision, FairValueGap, M5ExecutionConfirmation, Side, Swing
+from .structure import analyze_structure, get_m5_execution_confirmation, find_swing_highs, find_swing_lows
 from .svl import alignment_for_execution
 
 
@@ -82,7 +82,7 @@ class Strategy:
         if bos is None:
             execution_codes = evidence["svl"].get("execution", {}).get("reason_codes", [])
             m5_reason = next((code for code in execution_codes if code.startswith("M5_")),
-                             "M5_BOS_NOT_CONFIRMED")
+                             "M5_NO_STRUCTURE_EVENT")
             return Decision("NO_TRADE", [m5_reason], side=side, evidence=evidence)
         evidence["m5_bos"] = {"index": bos.index, "level": bos.level, "close": bos.close,
                                "strength": bos.strength, "body_ratio": bos.body_ratio,
@@ -188,16 +188,13 @@ def find_location_fvg(candles: list[Candle], side: Side, low: float, high: float
     return candidates[-1] if candidates else None
 
 
-def find_latest_bos(candles: list[Candle], swings: list[Swing], side: Side, swing_length: int = 3) -> BosEvent | None:
-    events = [event for event in detect_structure_events(candles, swing_length)
-              if event["side"] == side]
-    if not events:
+def find_latest_bos(candles: list[Candle], swings: list[Swing], side: Side,
+                    swing_length: int = 3,
+                    confirmation: M5ExecutionConfirmation | None = None) -> BosEvent | None:
+    confirmation = confirmation or get_m5_execution_confirmation(candles, side, swing_length)
+    if not confirmation.valid or confirmation.latest_event is None:
         return None
-    event = events[-1]
-    # A setup is actionable only on the close that confirms the break. Do not
-    # reuse an old BOS/CHOCH while later candles remain inside the POI.
-    if event["index"] != len(candles) - 1:
-        return None
+    event = confirmation.latest_event
     i = event["index"]
     c = candles[i]
     bodies = [abs(x.close - x.open) for x in candles[max(0, i-10):i] if x.close != x.open]
