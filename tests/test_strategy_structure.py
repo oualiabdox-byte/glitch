@@ -94,6 +94,20 @@ def test_authoritative_confirmation_accepts_current_short_bos():
     assert confirmation.latest_event_index == confirmation.latest_closed_index == 29
 
 
+def test_authoritative_confirmation_rejects_current_opposite_short_bos():
+    confirmation = get_m5_execution_confirmation(_short_bos_fixture(), "LONG", 2)
+    assert confirmation.valid is False
+    assert confirmation.reason_codes == ("M5_EVENT_DIRECTION_MISMATCH",)
+    assert confirmation.latest_event_type == "BOS"
+
+
+def test_authoritative_confirmation_rejects_current_opposite_long_bos():
+    confirmation = get_m5_execution_confirmation(_m5_fixture("LONG"), "SHORT", 2)
+    assert confirmation.valid is False
+    assert confirmation.reason_codes == ("M5_EVENT_DIRECTION_MISMATCH",)
+    assert confirmation.latest_event_side == "LONG"
+
+
 def test_authoritative_confirmation_reports_no_structure_event():
     confirmation = get_m5_execution_confirmation(
         [bar(i, 10, 10.5, 9.5, 10) for i in range(30)], "LONG", 2,
