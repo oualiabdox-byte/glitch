@@ -52,7 +52,7 @@ PYTHONPATH=. python -m execution.ctrader_probe
 
 ## cTrader scanning
 
-The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, and emits auditable decisions:
+The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then rejects either timeframe if its latest completed bar remains behind the expected latest close beyond `risk.max_quote_age_seconds` (default `60`, overridable with `CTRADER_MAX_QUOTE_AGE_SECONDS`). The setting is a grace period after the expected bar close, not the raw age of an hourly candle. Freshness decisions are included in scan output:
 
 ```bash
 PYTHONPATH=. python -m execution.bot_main --pair EURUSD

@@ -36,3 +36,13 @@ def test_setup_state_save_is_complete_and_replaces_destination_atomically(tmp_pa
     demo_runner._save_state(payload)
     assert json.loads(path.read_text()) == payload
     assert not path.with_name(path.name + ".tmp").exists()
+
+
+def test_transient_data_and_api_failures_preserve_setup_but_missing_premise_does_not():
+    assert demo_runner._preserve_setup_on_scan_result({
+        "status": "NO_TRADE", "reason_codes": ["STALE_M5_DATA"],
+    })
+    assert demo_runner._preserve_setup_on_scan_result({"status": "ERROR"})
+    assert not demo_runner._preserve_setup_on_scan_result({
+        "status": "NO_TRADE", "reason_codes": ["H1_STRUCTURE_UNCLEAR"],
+    })

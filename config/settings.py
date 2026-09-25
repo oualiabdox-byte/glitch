@@ -30,8 +30,15 @@ def pairs(config: dict[str, Any]) -> list[str]:
     return [x.strip().upper() for x in values if x.strip()]
 
 
-def risk_config(config: dict[str, Any]) -> dict[str, Any]:
-    return dict(config.get("risk", {}))
+def risk_config(config: dict[str, Any], environ: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Resolve risk settings from YAML, with explicit environment overrides."""
+    env = os.environ if environ is None else environ
+    risk = dict(config.get("risk", {}))
+    risk["max_quote_age_seconds"] = _env_value(
+        env, "CTRADER_MAX_QUOTE_AGE_SECONDS", risk.get("max_quote_age_seconds", 60), int)
+    if risk["max_quote_age_seconds"] < 1:
+        raise ValueError("max_quote_age_seconds must be >= 1")
+    return risk
 
 
 def execution_config(config: dict[str, Any]) -> dict[str, Any]:

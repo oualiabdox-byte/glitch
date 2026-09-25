@@ -27,6 +27,10 @@ DIAGNOSTICS_PATH = Path(os.getenv(
 ))
 DATABASE_PATH = os.getenv("CTRADER_DATABASE_PATH", "results/trading.db")
 STORAGE_LIMIT_BYTES = int(float(os.getenv("CTRADER_STORAGE_LIMIT_MB", "550")) * 1024 * 1024)
+TRANSIENT_SCAN_REASONS = {
+    "INSUFFICIENT_CLOSED_DATA", "ABNORMAL_VOLATILITY", "NEWS_BLACKOUT",
+    "STALE_H1_DATA", "STALE_M5_DATA",
+}
 
 
 def _load_state() -> dict:
@@ -75,6 +79,13 @@ def _save_state(state: dict) -> None:
     temporary = STATE_PATH.with_name(STATE_PATH.name + ".tmp")
     temporary.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
     temporary.replace(STATE_PATH)
+
+
+def _preserve_setup_on_scan_result(signal: dict) -> bool:
+    """Transient feed/safety failures do not invalidate an existing H1 premise."""
+    return (signal.get("status") == "ERROR"
+            or (signal.get("status") == "NO_TRADE"
+                and bool(set(signal.get("reason_codes", [])) & TRANSIENT_SCAN_REASONS)))
 
 
 def _record(event: dict, store: EventStore) -> None:
@@ -151,10 +162,7 @@ def main() -> int:
                     next_setup["terminal_at"] = datetime.now(timezone.utc).isoformat()
                 state["setups"][pair] = next_setup
                 _save_state(state)
-            elif not (signal.get("status") == "ERROR"
-                      or (signal.get("status") == "NO_TRADE"
-                          and set(signal.get("reason_codes", []))
-                          & {"INSUFFICIENT_CLOSED_DATA", "ABNORMAL_VOLATILITY", "NEWS_BLACKOUT"})):
+            elif not _preserve_setup_on_scan_result(signal):
                 state["setups"].pop(pair, None)
                 _save_state(state)
             if signal.get("status") != "SIGNAL_ONLY":
