@@ -53,9 +53,11 @@ def scan(pair: str):
         return {"pair": pair, "status": "NO_TRADE", "reason_codes": ["NEWS_BLACKOUT"],
                 "signal_close_utc": signal_close.isoformat(), "data_source": "cTrader Open API"}
 
+    strategy_cfg = cfg.get("strategy", {})
+    swing_length = int(os.getenv("CTRADER_SWING_LENGTH", strategy_cfg.get("swing_length", 2)))
     strategy = Strategy(
-        swing_left=int(os.getenv("CTRADER_SWING_LENGTH", "3")),
-        swing_right=int(os.getenv("CTRADER_SWING_LENGTH", "3")),
+        swing_left=swing_length,
+        swing_right=swing_length,
         min_rr=float(os.getenv("CTRADER_MIN_RR", "0")),
         stop_buffer=float(os.getenv("CTRADER_STOP_BUFFER", "0")),
         svl_require_alignment=os.getenv("CTRADER_SVL_REQUIRE_ALIGNMENT", "false").lower() == "true",

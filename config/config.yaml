@@ -44,7 +44,7 @@ backtest:
 strategy:
   context_timeframe: H1
   execution_timeframe: M5
-  swing_length: 3
+  swing_length: 2
   min_rr: 0.0
   stop_buffer: 0.0
   allow_weak_structure: true
