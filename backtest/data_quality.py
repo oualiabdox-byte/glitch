@@ -1,24 +1,18 @@
-"""Deterministic data-quality checks for historical OHLC backtests."""
+"""Deterministic data-quality checks for the cTrader H1/M5 strategy."""
 from __future__ import annotations
-
 from datetime import datetime, timedelta, timezone
 
 
 def _utc(value):
-    if isinstance(value, datetime):
-        dt = value
-    else:
-        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    dt = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     return (dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)).astimezone(timezone.utc)
 
 
 def validate_ohlc(bars, interval_minutes, name="bars"):
-    """Return errors/warnings without silently repairing source data."""
     errors, warnings = [], []
     if not bars:
         return {"valid": False, "errors": [f"{name}:EMPTY"], "warnings": []}
-    previous = None
-    seen = set()
+    previous, seen = None, set()
     expected = timedelta(minutes=interval_minutes)
     for index, bar in enumerate(bars):
         try:
@@ -45,30 +39,22 @@ def validate_ohlc(bars, interval_minutes, name="bars"):
     return {"valid": not errors, "errors": errors, "warnings": warnings, "bars": len(bars)}
 
 
-def validate_h1_h4_alignment(h1, h4):
-    """Check a stable broker bar axis, without assuming UTC hour zero."""
+def validate_h1_m5_alignment(h1, m5):
     errors = []
-    if h4:
-        first = _utc(h4[0]["time"])
-        axis = (first.minute, first.second, first.microsecond, first.hour % 4)
-        for bar in h4:
-            timestamp = _utc(bar["time"])
-            if (timestamp.minute, timestamp.second, timestamp.microsecond, timestamp.hour % 4) != axis:
-                errors.append(f"h4:UNSTABLE_AXIS:{timestamp.isoformat()}")
-    for previous, current in zip(h4, h4[1:]):
-        delta = _utc(current["time"]) - _utc(previous["time"])
-        if delta > timedelta(hours=4):
-            continue  # Weekend/market-closed gap; retain it as a warning upstream.
-        if delta != timedelta(hours=4):
-            errors.append(f"h4:INVALID_INTERVAL:{_utc(current['time']).isoformat()}")
-    return {"valid": not errors, "errors": errors, "warnings": [], "h1_bars": len(h1), "h4_bars": len(h4)}
+    for series, interval, name in ((h1, 60, "h1"), (m5, 5, "m5")):
+        for previous, current in zip(series, series[1:]):
+            delta = _utc(current["time"]) - _utc(previous["time"])
+            if delta <= timedelta(minutes=interval) or delta > timedelta(minutes=interval * 2):
+                continue
+            errors.append(f"{name}:INVALID_INTERVAL:{_utc(current['time']).isoformat()}")
+    return {"valid": not errors, "errors": errors, "warnings": [], "h1_bars": len(h1), "m5_bars": len(m5)}
 
 
-def validate_dataset(h1, h4):
+def validate_dataset(h1, m5):
     h1_report = validate_ohlc(h1, 60, "h1")
-    h4_report = validate_ohlc(h4, 240, "h4")
-    alignment = validate_h1_h4_alignment(h1, h4)
-    errors = h1_report["errors"] + h4_report["errors"] + alignment["errors"]
-    warnings = h1_report["warnings"] + h4_report["warnings"]
+    m5_report = validate_ohlc(m5, 5, "m5")
+    alignment = validate_h1_m5_alignment(h1, m5)
+    errors = h1_report["errors"] + m5_report["errors"] + alignment["errors"]
+    warnings = h1_report["warnings"] + m5_report["warnings"]
     return {"valid": not errors, "errors": errors, "warnings": warnings,
-            "h1": h1_report, "h4": h4_report, "alignment": alignment}
+            "h1": h1_report, "m5": m5_report, "alignment": alignment}

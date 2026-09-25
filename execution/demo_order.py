@@ -27,11 +27,11 @@ def main() -> int:
     if side not in {"LONG", "SHORT", "BUY", "SELL"}:
         raise ValueError("signal side must be LONG or SHORT")
     stop = float(signal["stop_price"])
-    target = float(signal["tp_target"])
-    zone = signal.get("entry_zone")
-    if not isinstance(zone, (list, tuple)) or len(zone) != 2:
-        raise ValueError("signal entry_zone must contain two prices")
-    entry = (float(zone[0]) + float(zone[1])) / 2.0
+    target_value = signal.get("target_price")
+    if target_value is None:
+        target_value = signal["tp_target"]
+    target = float(target_value)
+    entry = float(signal["entry_price"])
     stop_distance = abs(entry - stop)
     target_distance = abs(target - entry)
     if stop_distance <= 0 or target_distance <= 0:
