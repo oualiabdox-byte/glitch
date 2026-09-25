@@ -58,6 +58,9 @@ def scan(pair: str):
         swing_right=int(os.getenv("CTRADER_SWING_LENGTH", "3")),
         min_rr=float(os.getenv("CTRADER_MIN_RR", "0")),
         stop_buffer=float(os.getenv("CTRADER_STOP_BUFFER", "0")),
+        svl_require_alignment=os.getenv("CTRADER_SVL_REQUIRE_ALIGNMENT", "false").lower() == "true",
+        svl_profile_bins=int(os.getenv("CTRADER_SVL_PROFILE_BINS", "24")),
+        svl_equal_tolerance_pct=float(os.getenv("CTRADER_SVL_EQUAL_TOLERANCE_PCT", "0.001")),
     )
     decision = strategy.evaluate(h1, m5)
     base = {"pair": pair, "data_source": "cTrader Open API", "signal_close_utc": signal_close.isoformat(),

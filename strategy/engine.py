@@ -5,6 +5,7 @@ from typing import Any
 
 from .models import BosEvent, Candle, Decision, FairValueGap, Side, Swing
 from .structure import analyze_structure, detect_structure_events, find_swing_highs, find_swing_lows
+from .svl import alignment_for_execution
 
 
 class Strategy:
@@ -15,13 +16,17 @@ class Strategy:
     """
 
     def __init__(self, swing_left: int = 3, swing_right: int = 3, min_rr: float = 0.0,
-                 stop_buffer: float = 0.0):
+                 stop_buffer: float = 0.0, svl_require_alignment: bool = False,
+                 svl_profile_bins: int = 24, svl_equal_tolerance_pct: float = 0.001):
         if swing_left != swing_right:
             raise ValueError("swing_left and swing_right must match for causal structure")
         self.swing_left = swing_left
         self.swing_right = swing_right
         self.min_rr = min_rr
         self.stop_buffer = max(0.0, stop_buffer)
+        self.svl_require_alignment = bool(svl_require_alignment)
+        self.svl_profile_bins = max(4, int(svl_profile_bins))
+        self.svl_equal_tolerance_pct = max(0.0, float(svl_equal_tolerance_pct))
 
     def evaluate(self, h1_rows: list[dict[str, Any]], m5_rows: list[dict[str, Any]]) -> Decision:
         h1 = [Candle.from_dict(row) for row in h1_rows]
@@ -29,6 +34,11 @@ class Strategy:
         evidence: dict[str, Any] = {"timeframes": {"context": "1H", "execution": "M5"}}
         if len(h1) < 20 or len(m5) < 20:
             return Decision("NO_TRADE", ["INSUFFICIENT_HISTORY"], evidence=evidence)
+
+        evidence["svl"] = alignment_for_execution(
+            h1_rows, m5_rows, self.swing_left, self.svl_profile_bins,
+            self.svl_equal_tolerance_pct,
+        )
 
         h_structure = analyze_structure(h1, self.swing_left)
         structure = {
@@ -41,6 +51,8 @@ class Strategy:
         if structure["side"] is None:
             return Decision("NO_TRADE", ["H1_STRUCTURE_UNCLEAR"], evidence=evidence)
         side: Side = structure["side"]
+        if self.svl_require_alignment and not evidence["svl"]["aligned_for_trade"]:
+            return Decision("NO_TRADE", ["SVL_NOT_ALIGNED"], side=side, evidence=evidence)
 
         dealing = (h_structure["external_low"], h_structure["external_high"])
         if dealing[0] is None or dealing[1] is None or dealing[1] <= dealing[0]:

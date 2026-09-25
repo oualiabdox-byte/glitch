@@ -17,6 +17,19 @@ H1 confirmed structure
 
 The engine records `BOS` and `CHOCH` separately. Displacement is evidence, not a mandatory gate. Recent directional swing-label agreement can produce `BULLISH_WEAK` or `BEARISH_WEAK`. A qualified FVG may overlap equilibrium when it reaches the correct half of the H1 range. Stale M5 breaks are never reused.
 
+## SVL alignment engine
+
+The strategy also emits an auditable **Structure-Value-Liquidity (SVL)** context:
+
+```text
+Structure: HH/HL/LL/LH + BOS/CHOCH
+Value:     OHLC-based Market Profile + VAH/POC/VAL + HVN/LVN
+Liquidity: EQH/EQL and close-confirmed sweeps
+Alignment: H1 context + latest M5 BOS/CHOCH direction
+```
+
+The native implementation in `strategy/svl.py` is dependency-free and works with cTrader trendbars. Third-party SMC libraries can be used for research comparison, but are not required by the trading bot. SVL evidence is included in every eligible scanner decision. To make SVL alignment a hard entry gate, set `CTRADER_SVL_REQUIRE_ALIGNMENT=true`; it is disabled by default so existing H1/M5 behavior is preserved while collecting diagnostics.
+
 ## Install and configure cTrader
 
 ```bash
@@ -94,6 +107,7 @@ The tests cover closed-bar causal structure, BOS/CHOCH behavior, H1 POI filterin
 - `strategy/engine.py` — H1 location/M5 execution strategy.
 - `strategy/structure.py` — confirmed swing labels and consumed BOS/CHOCH levels.
 - `strategy/models.py` — candles and auditable decisions.
+- `strategy/svl.py` — native Structure-Value-Liquidity analysis.
 - `data/ctrader.py` — cTrader historical-data boundary.
 - `execution/bot_main.py` — signal-only cTrader scanner.
 - `execution/demo_guard.py` — fail-closed demo authorization.
