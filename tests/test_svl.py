@@ -43,3 +43,34 @@ def test_strategy_keeps_svl_as_auditable_layer_by_default():
     assert decision.status == "NO_TRADE"
     assert decision.reason_codes == ["H1_STRUCTURE_UNCLEAR"]
     assert "svl" in decision.evidence
+
+
+def _m5_rows(current_event=None):
+    rows = [row(i, 10, 10.5, 9.5, 10) for i in range(30)]
+    rows[5] = row(5, 10, 12, 9.8, 11)
+    rows[6] = row(6, 11, 11.2, 10.2, 10.8)
+    rows[9] = row(9, 10.8, 13, 10.7, 12.5)
+    rows[10] = row(10, 12.5, 12.6, 11.8, 12.1)
+    if current_event == "LONG":
+        rows[-1] = row(29, 12, 14, 11.5, 13.5)
+    elif current_event == "SHORT":
+        rows[-1] = row(29, 10, 10.4, 8, 8.5)
+    return rows
+
+
+def test_execution_diagnostics_identify_stale_event_separately_from_h1_reasons():
+    h1 = [row(i, 100, 101, 99, 100) for i in range(30)]
+    result = alignment_for_execution(h1, _m5_rows(), swing_length=2)
+    assert result["aligned"] is False
+    assert result["alignment_reasons"]
+    assert result["execution"]["reason_codes"][:1] == ["M5_EVENT_STALE"]
+    assert result["execution"]["event_is_latest_close"] is False
+    assert result["aligned_for_trade"] is False
+
+
+def test_execution_diagnostics_identify_opposite_current_event():
+    h1 = [row(i, 100, 101, 99, 100) for i in range(30)]
+    result = alignment_for_execution(h1, _m5_rows("SHORT"), swing_length=2)
+    assert result["execution"]["event_is_latest_close"] is True
+    assert result["execution"]["reason_codes"][0] == "M5_EVENT_DIRECTION_MISMATCH"
+    assert result["aligned_for_trade"] is False

@@ -189,19 +189,35 @@ def analyze_svl(rows: list[dict[str, Any]], swing_length: int = 3, profile_bins:
 def alignment_for_execution(h1_rows: list[dict[str, Any]], m5_rows: list[dict[str, Any]],
                             swing_length: int = 3, profile_bins: int = 24,
                             equal_tolerance_pct: float = 0.001) -> dict[str, Any]:
-    """Return H1 SVL context plus the latest M5 BOS/CHOCH evidence."""
+    """Return H1 SVL context plus auditable M5 execution alignment.
+
+    ``alignment_reasons`` remains the H1 SVL field for backwards compatibility.
+    M5 freshness and direction checks are reported separately under ``execution``
+    so a combined ``aligned_for_trade`` result cannot be mistaken for H1-only
+    alignment.
+    """
     h1 = analyze_svl(h1_rows, swing_length, profile_bins, equal_tolerance_pct)
     m5_candles = [Candle.from_dict(row) for row in m5_rows]
     m5_events = detect_structure_events(m5_candles, swing_length) if m5_candles else []
     latest = m5_events[-1] if m5_events else None
+    execution_reason_codes: list[str] = []
+    if latest is None:
+        execution_reason_codes.append("M5_EVENT_NOT_FOUND")
+    elif latest["index"] != len(m5_candles) - 1:
+        execution_reason_codes.append("M5_EVENT_STALE")
+    elif latest["side"] != h1.side:
+        execution_reason_codes.append("M5_EVENT_DIRECTION_MISMATCH")
+    if not h1.aligned:
+        execution_reason_codes.extend(h1.alignment_reasons)
     output = h1.as_dict()
     output["execution"] = {
         "timeframe": "M5",
         "latest_event": latest,
         "event_is_latest_close": bool(latest and latest["index"] == len(m5_candles) - 1),
+        "required_side": h1.side,
+        "reason_codes": execution_reason_codes,
     }
     output["aligned_for_trade"] = bool(
-        h1.aligned and latest and latest["index"] == len(m5_candles) - 1
-        and latest["side"] == h1.side
+        not execution_reason_codes
     )
     return output

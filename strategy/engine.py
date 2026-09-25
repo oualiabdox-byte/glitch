@@ -80,7 +80,10 @@ class Strategy:
                      for item in m_structure["lows"]]
         bos = find_latest_bos(m5, m_swings, side, self.swing_left)
         if bos is None:
-            return Decision("NO_TRADE", ["M5_BOS_NOT_CONFIRMED"], side=side, evidence=evidence)
+            execution_codes = evidence["svl"].get("execution", {}).get("reason_codes", [])
+            m5_reason = next((code for code in execution_codes if code.startswith("M5_")),
+                             "M5_BOS_NOT_CONFIRMED")
+            return Decision("NO_TRADE", [m5_reason], side=side, evidence=evidence)
         evidence["m5_bos"] = {"index": bos.index, "level": bos.level, "close": bos.close,
                                "strength": bos.strength, "body_ratio": bos.body_ratio,
                                "type": getattr(bos, "event_type", "BOS"), "time": bos.time}
