@@ -11,7 +11,7 @@ import os
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -27,18 +27,65 @@ DIAGNOSTICS_PATH = Path(os.getenv(
 ))
 DATABASE_PATH = os.getenv("CTRADER_DATABASE_PATH", "results/trading.db")
 STORAGE_LIMIT_BYTES = int(float(os.getenv("CTRADER_STORAGE_LIMIT_MB", "550")) * 1024 * 1024)
+TRANSIENT_SCAN_REASONS = {
+    "INSUFFICIENT_CLOSED_DATA", "ABNORMAL_VOLATILITY", "NEWS_BLACKOUT",
+    "STALE_H1_DATA", "STALE_M5_DATA",
+}
 
 
 def _load_state() -> dict:
     if not STATE_PATH.exists():
-        return {"signals": {}}
+        return {"signals": {}, "setups": {}}
     data = json.loads(STATE_PATH.read_text())
-    return data if isinstance(data, dict) else {"signals": {}}
+    if not isinstance(data, dict):
+        return {"signals": {}, "setups": {}}
+    if not isinstance(data.get("signals"), dict):
+        data["signals"] = {}
+    if not isinstance(data.get("setups"), dict):
+        data["setups"] = {}
+    now = datetime.now(timezone.utc)
+    for key, value in list(data["signals"].items()):
+        signal = value.get("signal", value) if isinstance(value, dict) else {}
+        timestamp = signal.get("signal_close_utc") or signal.get("timestamp")
+        try:
+            created = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00")).astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            del data["signals"][key]
+            continue
+        if now - created > timedelta(days=7):
+            del data["signals"][key]
+    for pair, setup in list(data["setups"].items()):
+        if not isinstance(setup, dict):
+            del data["setups"][pair]
+            continue
+        timestamp = setup.get("terminal_at") if setup.get("status") in {
+            "EXPIRED", "INVALIDATED", "TARGET_REACHED", "TARGET_INVALID",
+        } else setup.get("updated_at")
+        try:
+            updated = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00")).astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            del data["setups"][pair]
+            continue
+        retention = timedelta(hours=24) if setup.get("status") in {
+            "EXPIRED", "INVALIDATED", "TARGET_REACHED", "TARGET_INVALID",
+        } else timedelta(days=7)
+        if now - updated > retention:
+            del data["setups"][pair]
+    return data
 
 
 def _save_state(state: dict) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+    temporary = STATE_PATH.with_name(STATE_PATH.name + ".tmp")
+    temporary.write_text(json.dumps(state, indent=2, sort_keys=True) + "\n")
+    temporary.replace(STATE_PATH)
+
+
+def _preserve_setup_on_scan_result(signal: dict) -> bool:
+    """Transient feed/safety failures do not invalidate an existing H1 premise."""
+    return (signal.get("status") == "ERROR"
+            or (signal.get("status") == "NO_TRADE"
+                and bool(set(signal.get("reason_codes", [])) & TRANSIENT_SCAN_REASONS)))
 
 
 def _record(event: dict, store: EventStore) -> None:
@@ -64,10 +111,15 @@ def _record(event: dict, store: EventStore) -> None:
         store.record_order(recorded_at, event["pair"], event)
 
 
-def _scan(pair: str) -> dict:
+def _scan(pair: str, setup_state: dict | None = None) -> dict:
+    env = os.environ.copy()
+    if setup_state:
+        env["CTRADER_SETUP_STATE_JSON"] = json.dumps(setup_state, sort_keys=True)
+    else:
+        env.pop("CTRADER_SETUP_STATE_JSON", None)
     proc = subprocess.run(
         [sys.executable, "-m", "execution.bot_main", "--pair", pair],
-        check=False, capture_output=True, text=True,
+        check=False, capture_output=True, text=True, env=env,
     )
     rows = []
     for line in proc.stdout.splitlines():
@@ -95,15 +147,24 @@ def main() -> int:
         if not os.getenv("CTRADER_ORDER_VOLUME_UNITS"):
             raise RuntimeError("CTRADER_ORDER_VOLUME_UNITS is required for demo execution")
     state = _load_state()
-    state.setdefault("signals", {})
     store = EventStore(DATABASE_PATH)
     print(json.dumps({"mode": ("DEMO_EXECUTE_UNTIL_TRADE" if execute and until_trade
                                 else "DEMO_EXECUTE" if execute else "DRY_RUN"),
                       "pairs": pairs, "poll_seconds": poll_seconds}, sort_keys=True))
     while True:
         for pair in pairs:
-            signal = _scan(pair)
+            prior_setup = state["setups"].get(pair)
+            signal = _scan(pair, setup_state=prior_setup)
             _record({"event": "scan", "pair": pair, "result": signal}, store)
+            next_setup = signal.get("setup_state")
+            if next_setup:
+                if next_setup.get("status") in {"EXPIRED", "INVALIDATED", "TARGET_REACHED", "TARGET_INVALID"}:
+                    next_setup["terminal_at"] = datetime.now(timezone.utc).isoformat()
+                state["setups"][pair] = next_setup
+                _save_state(state)
+            elif not _preserve_setup_on_scan_result(signal):
+                state["setups"].pop(pair, None)
+                _save_state(state)
             if signal.get("status") != "SIGNAL_ONLY":
                 print(json.dumps(signal, sort_keys=True), flush=True)
                 continue
