@@ -11,10 +11,11 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
-from config.settings import load_config, pairs as configured_pairs
+from config.settings import (load_config, pairs as configured_pairs,
+                             risk_config, strategy_config)
 from data.ctrader import CTraderData
 from strategy import Strategy
-from strategy import safety, timing
+from strategy import safety
 
 
 def _closed(candles, minutes: int, now: datetime):
@@ -26,7 +27,56 @@ def _closed(candles, minutes: int, now: datetime):
     return result
 
 
-def scan(pair: str):
+def _freshness_check(h1, m5, now: datetime, max_quote_age_seconds: int) -> dict:
+    """Reject a scan only after the expected latest closed bar misses its grace period.
+
+    The configured age is a grace period after the next scheduled H1/M5 close,
+    not the raw age of an H1 close (which would incorrectly reject most of each
+    hour). This lets the provider return the most recent completed bar while
+    rejecting a feed that remains behind after the configured delay.
+    """
+    now = now.astimezone(timezone.utc)
+    frames = (("h1", h1, 60), ("m5", m5, 5))
+    result = {"max_quote_age_seconds": max_quote_age_seconds, "frames": {}}
+    for name, candles, minutes in frames:
+        period_seconds = minutes * 60
+        expected_epoch = int(now.timestamp() // period_seconds) * period_seconds
+        expected_close = datetime.fromtimestamp(expected_epoch, tz=timezone.utc)
+        latest = max(
+            candles,
+            key=lambda row: datetime.fromisoformat(
+                str(row["time"]).replace("Z", "+00:00")).astimezone(timezone.utc),
+        ) if candles else None
+        if latest is None:
+            result["frames"][name] = {
+                "fresh": False, "reason": f"NO_{name.upper()}_CANDLES",
+                "expected_latest_close_utc": expected_close.isoformat(),
+            }
+            continue
+        opened = datetime.fromisoformat(
+            str(latest["time"]).replace("Z", "+00:00")).astimezone(timezone.utc)
+        closed_at = opened + timedelta(minutes=minutes)
+        grace_elapsed = max(0.0, (now - expected_close).total_seconds())
+        behind_seconds = max(0.0, (expected_close - closed_at).total_seconds())
+        stale = closed_at < expected_close and grace_elapsed > max_quote_age_seconds
+        result["frames"][name] = {
+            "fresh": not stale,
+            "reason": f"STALE_{name.upper()}_DATA" if stale else None,
+            "latest_open_utc": opened.isoformat(),
+            "latest_close_utc": closed_at.isoformat(),
+            "expected_latest_close_utc": expected_close.isoformat(),
+            "age_seconds": max(0.0, (now - closed_at).total_seconds()),
+            "behind_expected_seconds": behind_seconds,
+            "grace_elapsed_seconds": grace_elapsed,
+            "max_quote_age_seconds": max_quote_age_seconds,
+        }
+    result["fresh"] = all(frame["fresh"] for frame in result["frames"].values())
+    result["reason_codes"] = [frame["reason"] for frame in result["frames"].values()
+                               if frame.get("reason")]
+    return result
+
+
+def scan(pair: str, setup_state: dict | None = None):
     cfg = load_config()
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=int(os.getenv("CTRADER_LOOKBACK_DAYS", "30")))
@@ -35,9 +85,20 @@ def scan(pair: str):
     h1 = _closed(data["h1"], 60, end)
     m5 = _closed(data["m5"], 5, end)
 
+    max_quote_age_seconds = risk_config(cfg)["max_quote_age_seconds"]
+    freshness = _freshness_check(h1, m5, end, max_quote_age_seconds)
+    if not freshness["fresh"]:
+        return {"pair": pair, "status": "NO_TRADE",
+                "reason_codes": freshness["reason_codes"],
+                "h1_closed": len(h1), "m5_closed": len(m5),
+                "data_freshness": freshness,
+                "data_source": "cTrader Open API"}
     if len(h1) < 20 or len(m5) < 20:
-        return {"pair": pair, "status": "NO_TRADE", "reason_codes": ["INSUFFICIENT_CLOSED_DATA"],
-                "h1_closed": len(h1), "m5_closed": len(m5), "data_source": "cTrader Open API"}
+        return {"pair": pair, "status": "NO_TRADE",
+                "reason_codes": ["INSUFFICIENT_CLOSED_DATA"],
+                "h1_closed": len(h1), "m5_closed": len(m5),
+                "data_freshness": freshness,
+                "data_source": "cTrader Open API"}
 
     latest = m5[-1]
     signal_close = datetime.fromisoformat(str(latest["time"]).replace("Z", "+00:00")).astimezone(timezone.utc) + timedelta(minutes=5)
@@ -53,21 +114,31 @@ def scan(pair: str):
         return {"pair": pair, "status": "NO_TRADE", "reason_codes": ["NEWS_BLACKOUT"],
                 "signal_close_utc": signal_close.isoformat(), "data_source": "cTrader Open API"}
 
-    strategy_cfg = cfg.get("strategy", {})
-    swing_length = int(os.getenv("CTRADER_SWING_LENGTH", strategy_cfg.get("swing_length", 2)))
-    strategy = Strategy(
-        swing_left=swing_length,
-        swing_right=swing_length,
-        min_rr=float(os.getenv("CTRADER_MIN_RR", "0")),
-        stop_buffer=float(os.getenv("CTRADER_STOP_BUFFER", "0")),
-        svl_require_alignment=os.getenv("CTRADER_SVL_REQUIRE_ALIGNMENT", "false").lower() == "true",
-        svl_profile_bins=int(os.getenv("CTRADER_SVL_PROFILE_BINS", "24")),
-        svl_equal_tolerance_pct=float(os.getenv("CTRADER_SVL_EQUAL_TOLERANCE_PCT", "0.001")),
-    )
-    decision = strategy.evaluate(h1, m5)
+    resolved = strategy_config(cfg)
+    swing_length = resolved.pop("swing_length")
+    strategy = Strategy(swing_left=swing_length, swing_right=swing_length, **resolved)
+    decision = strategy.evaluate(h1, m5, setup_state=setup_state)
+    evidence = decision.evidence
+    structure = evidence.get("h1_structure", {})
+    poi = evidence.get("h1_poi", {})
+    poi_lifecycle = evidence.get("poi_state", {})
+    setup_snapshot = None
+    if structure.get("side") and structure.get("last_event") and poi:
+        setup_snapshot = {
+            "side": structure["side"], "h1_structure": structure,
+            "h1_poi": poi, "poi_formed_time": poi_lifecycle.get("poi_formed_time"),
+            "poi_touch_time": poi_lifecycle.get("poi_touch_time"),
+            "poi_active": poi_lifecycle.get("poi_active", False),
+            "confirmation_invalidated": poi_lifecycle.get("confirmation_invalidated", False),
+            "target_invalidated": poi_lifecycle.get("target_invalidated", False),
+            "invalidated_at": poi_lifecycle.get("invalidated_at"),
+            "status": poi_lifecycle.get("status", "IDENTIFIED"),
+            "updated_at": signal_close.isoformat(),
+        }
     base = {"pair": pair, "data_source": "cTrader Open API", "signal_close_utc": signal_close.isoformat(),
             "h1_closed": len(h1), "m5_closed": len(m5), "reason_codes": decision.reason_codes,
-            "evidence": decision.evidence}
+            "evidence": evidence, "setup_state": setup_snapshot,
+            "data_freshness": freshness}
     if not decision.is_signal:
         return {**base, "status": "NO_TRADE"}
     return {**base, "status": "SIGNAL_ONLY", "side": decision.side,
@@ -86,7 +157,14 @@ def main():
     print("Order submission: DISABLED")
     for pair in pairs:
         try:
-            print(json.dumps(scan(pair), sort_keys=True))
+            setup_state = None
+            raw_state = os.getenv("CTRADER_SETUP_STATE_JSON")
+            if raw_state:
+                try:
+                    setup_state = json.loads(raw_state)
+                except json.JSONDecodeError:
+                    setup_state = None
+            print(json.dumps(scan(pair, setup_state=setup_state), sort_keys=True))
         except Exception as exc:
             print(json.dumps({"pair": pair, "status": "ERROR", "error": str(exc)}))
 

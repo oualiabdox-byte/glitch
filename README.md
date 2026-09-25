@@ -15,7 +15,7 @@ H1 confirmed structure
 → untouched H1 swing target
 ```
 
-The engine records `BOS` and `CHOCH` separately. Displacement is evidence, not a mandatory gate. Recent directional swing-label agreement can produce `BULLISH_WEAK` or `BEARISH_WEAK`. A qualified FVG may overlap equilibrium when it reaches the correct half of the H1 range. Stale M5 breaks are never reused.
+The canonical confirmed-swing engine emits body-close `BOS`/`CHOCH` events, and the latest unambiguous event stream alone determines direction, protected swing, dealing range, and external liquidity. The sequence is H1 structure → H1 FVG location → temporally later POI touch → relevant M5 liquidity sweep → newest M5 same-direction BOS/CHOCH. Displacement is ATR-normalized evidence, not a mandatory gate; stale M5 breaks are never reused. The scanner records per-pair setup lifecycle state and expires setups after the configured maximum age or when their premise changes.
 
 ## SVL alignment engine
 
@@ -28,7 +28,7 @@ Liquidity: EQH/EQL and close-confirmed sweeps
 Alignment: H1 context + latest M5 BOS/CHOCH direction
 ```
 
-The native implementation in `strategy/svl.py` is dependency-free and works with cTrader trendbars. Third-party SMC libraries can be used for research comparison, but are not required by the trading bot. SVL evidence is included in every eligible scanner decision. To make SVL alignment a hard entry gate, set `CTRADER_SVL_REQUIRE_ALIGNMENT=true`; it is disabled by default so existing H1/M5 behavior is preserved while collecting diagnostics.
+The native implementation in `strategy/svl.py` is dependency-free and works with cTrader trendbars. It consumes the same canonical structure snapshot; value and liquidity remain diagnostic layers. SVL evidence is included in scanner decisions. Strategy defaults come from `config/config.yaml` and can be overridden with the corresponding `CTRADER_*` environment settings, including `CTRADER_SWING_LENGTH`, `CTRADER_MIN_RR`, `CTRADER_STOP_BUFFER`, `CTRADER_ALLOW_WEAK_STRUCTURE`, `CTRADER_ALLOW_EQUILIBRIUM_OVERLAPPING_FVG`, `CTRADER_SETUP_MAX_AGE_HOURS`, `CTRADER_M5_CONFIRMATION_MODE`, and `CTRADER_SVL_*`.
 
 ## Install and configure cTrader
 
@@ -52,7 +52,7 @@ PYTHONPATH=. python -m execution.ctrader_probe
 
 ## cTrader scanning
 
-The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, and emits auditable decisions:
+The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then rejects either timeframe if its latest completed bar remains behind the expected latest close beyond `risk.max_quote_age_seconds` (default `60`, overridable with `CTRADER_MAX_QUOTE_AGE_SECONDS`). The setting is a grace period after the expected bar close, not the raw age of an hourly candle. Freshness decisions are included in scan output:
 
 ```bash
 PYTHONPATH=. python -m execution.bot_main --pair EURUSD
