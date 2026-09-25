@@ -11,7 +11,7 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 
-from config.settings import load_config, pairs as configured_pairs
+from config.settings import load_config, pairs as configured_pairs, strategy_config
 from data.ctrader import CTraderData
 from strategy import Strategy
 from strategy import safety, timing
@@ -26,7 +26,7 @@ def _closed(candles, minutes: int, now: datetime):
     return result
 
 
-def scan(pair: str):
+def scan(pair: str, setup_state: dict | None = None):
     cfg = load_config()
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=int(os.getenv("CTRADER_LOOKBACK_DAYS", "30")))
@@ -53,21 +53,30 @@ def scan(pair: str):
         return {"pair": pair, "status": "NO_TRADE", "reason_codes": ["NEWS_BLACKOUT"],
                 "signal_close_utc": signal_close.isoformat(), "data_source": "cTrader Open API"}
 
-    strategy_cfg = cfg.get("strategy", {})
-    swing_length = int(os.getenv("CTRADER_SWING_LENGTH", strategy_cfg.get("swing_length", 2)))
-    strategy = Strategy(
-        swing_left=swing_length,
-        swing_right=swing_length,
-        min_rr=float(os.getenv("CTRADER_MIN_RR", "0")),
-        stop_buffer=float(os.getenv("CTRADER_STOP_BUFFER", "0")),
-        svl_require_alignment=os.getenv("CTRADER_SVL_REQUIRE_ALIGNMENT", "false").lower() == "true",
-        svl_profile_bins=int(os.getenv("CTRADER_SVL_PROFILE_BINS", "24")),
-        svl_equal_tolerance_pct=float(os.getenv("CTRADER_SVL_EQUAL_TOLERANCE_PCT", "0.001")),
-    )
-    decision = strategy.evaluate(h1, m5)
+    resolved = strategy_config(cfg)
+    swing_length = resolved.pop("swing_length")
+    strategy = Strategy(swing_left=swing_length, swing_right=swing_length, **resolved)
+    decision = strategy.evaluate(h1, m5, setup_state=setup_state)
+    evidence = decision.evidence
+    structure = evidence.get("h1_structure", {})
+    poi = evidence.get("h1_poi", {})
+    poi_lifecycle = evidence.get("poi_state", {})
+    setup_snapshot = None
+    if structure.get("side") and structure.get("last_event") and poi:
+        setup_snapshot = {
+            "side": structure["side"], "h1_structure": structure,
+            "h1_poi": poi, "poi_formed_time": poi_lifecycle.get("poi_formed_time"),
+            "poi_touch_time": poi_lifecycle.get("poi_touch_time"),
+            "poi_active": poi_lifecycle.get("poi_active", False),
+            "confirmation_invalidated": poi_lifecycle.get("confirmation_invalidated", False),
+            "target_invalidated": poi_lifecycle.get("target_invalidated", False),
+            "invalidated_at": poi_lifecycle.get("invalidated_at"),
+            "status": poi_lifecycle.get("status", "IDENTIFIED"),
+            "updated_at": signal_close.isoformat(),
+        }
     base = {"pair": pair, "data_source": "cTrader Open API", "signal_close_utc": signal_close.isoformat(),
             "h1_closed": len(h1), "m5_closed": len(m5), "reason_codes": decision.reason_codes,
-            "evidence": decision.evidence}
+            "evidence": evidence, "setup_state": setup_snapshot}
     if not decision.is_signal:
         return {**base, "status": "NO_TRADE"}
     return {**base, "status": "SIGNAL_ONLY", "side": decision.side,
@@ -86,7 +95,14 @@ def main():
     print("Order submission: DISABLED")
     for pair in pairs:
         try:
-            print(json.dumps(scan(pair), sort_keys=True))
+            setup_state = None
+            raw_state = os.getenv("CTRADER_SETUP_STATE_JSON")
+            if raw_state:
+                try:
+                    setup_state = json.loads(raw_state)
+                except json.JSONDecodeError:
+                    setup_state = None
+            print(json.dumps(scan(pair, setup_state=setup_state), sort_keys=True))
         except Exception as exc:
             print(json.dumps({"pair": pair, "status": "ERROR", "error": str(exc)}))
 

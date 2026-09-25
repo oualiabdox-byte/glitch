@@ -28,11 +28,12 @@ class Swing:
 
 
 @dataclass(frozen=True)
-class FairValueGap:
-    index: int
+class PointOfInterest:
+    kind: Literal["FVG", "ORDER_BLOCK", "BREAKER_BLOCK"]
     side: Side
     bottom: float
     top: float
+    index: int
     time: str
 
     def contains(self, price: float) -> bool:
@@ -40,6 +41,30 @@ class FairValueGap:
 
     def overlaps(self, candle: Candle) -> bool:
         return candle.high >= self.bottom and candle.low <= self.top
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"type": self.kind, "side": self.side, "bottom": self.bottom,
+                "top": self.top, "index": self.index, "time": self.time}
+
+
+@dataclass(frozen=True)
+class FairValueGap:
+    index: int
+    side: Side
+    bottom: float
+    top: float
+    time: str
+    type: Literal["FVG"] = "FVG"
+
+    def contains(self, price: float) -> bool:
+        return self.bottom <= price <= self.top
+
+    def overlaps(self, candle: Candle) -> bool:
+        return candle.high >= self.bottom and candle.low <= self.top
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"type": self.type, "side": self.side, "bottom": self.bottom,
+                "top": self.top, "index": self.index, "time": self.time}
 
 
 @dataclass(frozen=True)
@@ -52,6 +77,9 @@ class BosEvent:
     body_ratio: float
     time: str
     event_type: str = "BOS"
+    atr: float | None = None
+    body: float | None = None
+    displacement_ratio: float | None = None
 
 
 @dataclass(frozen=True)
