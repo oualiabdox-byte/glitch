@@ -102,6 +102,12 @@ def _record(event: dict, store: EventStore) -> None:
                           "limit_mb": STORAGE_LIMIT_BYTES / 1024 / 1024,
                           "path": str(DIAGNOSTICS_PATH.parent)}, sort_keys=True),
               flush=True)
+        # Conflict decisions are safety-relevant audit records. Preserve them in
+        # SQLite even when the bounded JSONL diagnostic stream has reached its
+        # cap; do not allow quota exhaustion to erase evidence of disagreement.
+        selection = event.get("selection") if event.get("event") == "signal_selection" else None
+        if isinstance(selection, dict) and selection.get("status") == "CONFLICT":
+            store.record_selection(recorded_at, event["pair"], selection)
         return
     DIAGNOSTICS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with DIAGNOSTICS_PATH.open("a", encoding="utf-8") as handle:
