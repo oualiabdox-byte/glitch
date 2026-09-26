@@ -1,0 +1,4 @@
+pair,variant,swing,mode,data_days,bars_5m,trades,wins,losses,win_rate,profit_factor,return_pct,max_drawdown_pct
+EURUSD,eurusd_swing3_choch_or_bos,3,CHOCH_OR_BOS,7,1422,4,4,0,1.0,inf,1.7022046780634126,0.0
+GBPUSD,gbpusd_swing2_choch_only,2,CHOCH_ONLY,7,1422,3,3,0,1.0,inf,0.8978207689960271,0.0
+EURUSD,eurusd_swing2_choch_or_bos,2,CHOCH_OR_BOS,7,1422,2,2,0,1.0,inf,0.497612021575744,0.0
