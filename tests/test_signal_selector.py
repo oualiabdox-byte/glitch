@@ -80,6 +80,20 @@ def test_buy_and_sell_candidates_produce_explicit_conflict():
     assert set(result["conflict"]["signals_by_direction"]) == {"LONG", "SHORT"}
 
 
+def test_pair_backtest_selection_does_not_leak_status_into_trade_row():
+    from backtest.free_open_data_variants import select_pair_signals
+
+    candidate = _signal(EUR_A, "LONG")
+    candidate.update({
+        "entry_reference": 1.1, "stop": 1.09, "target": 1.12,
+        "planned_rr": 2.0, "event_time_utc": STAMP,
+    })
+    selected, audit = select_pair_signals("EURUSD", [candidate])
+    assert len(selected) == 1
+    assert "status" not in selected[0]
+    assert audit[0]["status"] == "SELECTED"
+
+
 def test_conflict_audit_is_persisted_to_jsonl_and_sqlite(tmp_path, monkeypatch):
     from execution.storage import EventStore
 
