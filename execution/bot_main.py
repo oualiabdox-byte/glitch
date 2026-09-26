@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from config.settings import (load_config, pairs as configured_pairs,
                              risk_config, strategy_config)
 from data.ctrader import CTraderData
-from strategy import Strategy
+from strategy import Strategy, build_variant, variants_for_pair
 from strategy import safety
 
 
@@ -76,8 +76,11 @@ def _freshness_check(h1, m5, now: datetime, max_quote_age_seconds: int) -> dict:
     return result
 
 
-def scan(pair: str, setup_state: dict | None = None):
+def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = None):
     cfg = load_config()
+    variant_name = variant_name or "config_default"
+    if variant_name != "config_default" and variant_name not in variants_for_pair(pair):
+        raise ValueError(f"variant {variant_name!r} is not registered for {pair!r}")
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=int(os.getenv("CTRADER_LOOKBACK_DAYS", "30")))
     feed = CTraderData()
@@ -88,13 +91,13 @@ def scan(pair: str, setup_state: dict | None = None):
     max_quote_age_seconds = risk_config(cfg)["max_quote_age_seconds"]
     freshness = _freshness_check(h1, m5, end, max_quote_age_seconds)
     if not freshness["fresh"]:
-        return {"pair": pair, "status": "NO_TRADE",
+        return {"pair": pair, "variant": variant_name, "status": "NO_TRADE",
                 "reason_codes": freshness["reason_codes"],
                 "h1_closed": len(h1), "m5_closed": len(m5),
                 "data_freshness": freshness,
                 "data_source": "cTrader Open API"}
     if len(h1) < 20 or len(m5) < 20:
-        return {"pair": pair, "status": "NO_TRADE",
+        return {"pair": pair, "variant": variant_name, "status": "NO_TRADE",
                 "reason_codes": ["INSUFFICIENT_CLOSED_DATA"],
                 "h1_closed": len(h1), "m5_closed": len(m5),
                 "data_freshness": freshness,
@@ -108,15 +111,18 @@ def scan(pair: str, setup_state: dict | None = None):
     news_events = safety.load_news_events(os.getenv("CTRADER_NEWS_EVENTS_JSON", ""))
 
     if safety.abnormal_volatility(h1, max_ratio=max_atr_spike):
-        return {"pair": pair, "status": "NO_TRADE", "reason_codes": ["ABNORMAL_VOLATILITY"],
+        return {"pair": pair, "variant": variant_name, "status": "NO_TRADE", "reason_codes": ["ABNORMAL_VOLATILITY"],
                 "signal_close_utc": signal_close.isoformat(), "data_source": "cTrader Open API"}
     if safety.news_blocked(signal_close, pair, news_events, pause_before_minutes=news_before, pause_after_minutes=news_after):
-        return {"pair": pair, "status": "NO_TRADE", "reason_codes": ["NEWS_BLACKOUT"],
+        return {"pair": pair, "variant": variant_name, "status": "NO_TRADE", "reason_codes": ["NEWS_BLACKOUT"],
                 "signal_close_utc": signal_close.isoformat(), "data_source": "cTrader Open API"}
 
     resolved = strategy_config(cfg)
-    swing_length = resolved.pop("swing_length")
-    strategy = Strategy(swing_left=swing_length, swing_right=swing_length, **resolved)
+    if variant_name == "config_default":
+        swing_length = resolved.pop("swing_length")
+        strategy = Strategy(swing_left=swing_length, swing_right=swing_length, **resolved)
+    else:
+        strategy = build_variant(variant_name, base_options=resolved)
     decision = strategy.evaluate(h1, m5, setup_state=setup_state)
     evidence = decision.evidence
     structure = evidence.get("h1_structure", {})
@@ -135,7 +141,7 @@ def scan(pair: str, setup_state: dict | None = None):
             "status": poi_lifecycle.get("status", "IDENTIFIED"),
             "updated_at": signal_close.isoformat(),
         }
-    base = {"pair": pair, "data_source": "cTrader Open API", "signal_close_utc": signal_close.isoformat(),
+    base = {"pair": pair, "variant": variant_name, "data_source": "cTrader Open API", "signal_close_utc": signal_close.isoformat(),
             "h1_closed": len(h1), "m5_closed": len(m5), "reason_codes": decision.reason_codes,
             "evidence": evidence, "setup_state": setup_snapshot,
             "data_freshness": freshness}
@@ -156,17 +162,27 @@ def main():
     print("=== H1/M5 BLEACH STRATEGY / cTrader ===")
     print("Order submission: DISABLED")
     for pair in pairs:
+        variant_names = variants_for_pair(pair) or ("config_default",)
         try:
-            setup_state = None
             raw_state = os.getenv("CTRADER_SETUP_STATE_JSON")
-            if raw_state:
-                try:
-                    setup_state = json.loads(raw_state)
-                except json.JSONDecodeError:
-                    setup_state = None
-            print(json.dumps(scan(pair, setup_state=setup_state), sort_keys=True))
-        except Exception as exc:
-            print(json.dumps({"pair": pair, "status": "ERROR", "error": str(exc)}))
+            parsed_state = json.loads(raw_state) if raw_state else {}
+            if not isinstance(parsed_state, dict):
+                parsed_state = {}
+        except json.JSONDecodeError:
+            parsed_state = {}
+        for variant_name in variant_names:
+            try:
+                setup_state = parsed_state.get(variant_name)
+                # Migrate a prior pair-only setup state only when there is one
+                # strategy for the pair; never share state between EURUSD variants.
+                if setup_state is None and len(variant_names) == 1 and parsed_state:
+                    if not any(name in parsed_state for name in variants_for_pair(pair)):
+                        setup_state = parsed_state
+                result = scan(pair, setup_state=setup_state, variant_name=variant_name)
+                print(json.dumps(result, sort_keys=True))
+            except Exception as exc:
+                print(json.dumps({"pair": pair, "variant": variant_name,
+                                  "status": "ERROR", "error": str(exc)}))
 
 
 if __name__ == "__main__":

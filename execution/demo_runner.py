@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from config.settings import load_config, pairs as configured_pairs
 from execution.demo_guard import require_demo_execution
 from execution.storage import EventStore
+from strategy import variants_for_pair
 
 load_dotenv()
 STATE_PATH = Path(os.getenv("CTRADER_DEMO_STATE", "execution/demo_state.json"))
@@ -111,10 +112,10 @@ def _record(event: dict, store: EventStore) -> None:
         store.record_order(recorded_at, event["pair"], event)
 
 
-def _scan(pair: str, setup_state: dict | None = None) -> dict:
+def _scan(pair: str, setup_states: dict | None = None) -> list[dict]:
     env = os.environ.copy()
-    if setup_state:
-        env["CTRADER_SETUP_STATE_JSON"] = json.dumps(setup_state, sort_keys=True)
+    if setup_states:
+        env["CTRADER_SETUP_STATE_JSON"] = json.dumps(setup_states, sort_keys=True)
     else:
         env.pop("CTRADER_SETUP_STATE_JSON", None)
     proc = subprocess.run(
@@ -130,8 +131,8 @@ def _scan(pair: str, setup_state: dict | None = None) -> dict:
         if isinstance(value, dict) and value.get("pair") == pair:
             rows.append(value)
     if proc.returncode or not rows:
-        return {"pair": pair, "status": "ERROR", "error": proc.stderr[-1000:]}
-    return rows[-1]
+        return [{"pair": pair, "status": "ERROR", "error": proc.stderr[-1000:]}]
+    return rows
 
 
 def main() -> int:
@@ -153,45 +154,72 @@ def main() -> int:
                       "pairs": pairs, "poll_seconds": poll_seconds}, sort_keys=True))
     while True:
         for pair in pairs:
-            prior_setup = state["setups"].get(pair)
-            signal = _scan(pair, setup_state=prior_setup)
-            _record({"event": "scan", "pair": pair, "result": signal}, store)
-            next_setup = signal.get("setup_state")
-            if next_setup:
-                if next_setup.get("status") in {"EXPIRED", "INVALIDATED", "TARGET_REACHED", "TARGET_INVALID"}:
-                    next_setup["terminal_at"] = datetime.now(timezone.utc).isoformat()
-                state["setups"][pair] = next_setup
-                _save_state(state)
-            elif not _preserve_setup_on_scan_result(signal):
-                state["setups"].pop(pair, None)
-                _save_state(state)
-            if signal.get("status") != "SIGNAL_ONLY":
-                print(json.dumps(signal, sort_keys=True), flush=True)
-                continue
-            key = f"{pair}:{signal.get('timestamp') or signal.get('signal_close_utc')}"
-            if key in state["signals"]:
-                print(json.dumps({"pair": pair, "status": "SKIP_DUPLICATE", "key": key}), flush=True)
-                continue
-            if not execute:
-                state["signals"][key] = {"status": "DRY_RUN", "signal": signal}
-                _save_state(state)
-                print(json.dumps({"pair": pair, "status": "DEMO_SIGNAL_NOT_SUBMITTED",
-                                  "signal": signal}, sort_keys=True), flush=True)
-                continue
-            proc = subprocess.run(
-                [sys.executable, "-m", "execution.demo_order"],
-                input=json.dumps(signal), text=True, capture_output=True, check=False,
-            )
-            output = proc.stdout.strip() or proc.stderr.strip()
-            print(output or json.dumps({"pair": pair, "status": "ORDER_NO_OUTPUT"}), flush=True)
-            _record({"event": "order_attempt", "pair": pair,
-                     "signal": signal, "returncode": proc.returncode,
-                     "output": output}, store)
-            if proc.returncode == 0 and "ORDER_ACKNOWLEDGED" in output:
-                state["signals"][key] = signal
-                _save_state(state)
-                if until_trade:
-                    return 0
+            variant_names = variants_for_pair(pair) or ("config_default",)
+            setup_states = {
+                name: state["setups"].get(f"{pair}:{name}")
+                for name in variant_names
+                if state["setups"].get(f"{pair}:{name}") is not None
+            }
+            # Retain legacy pair-only state for pairs with a single strategy.
+            if len(variant_names) == 1 and not setup_states and pair in state["setups"]:
+                setup_states[variant_names[0]] = state["setups"][pair]
+            signals = _scan(pair, setup_states=setup_states)
+            order_attempted_for_pair = False
+            for signal in signals:
+                variant_name = signal.get("variant", "config_default")
+                setup_key = f"{pair}:{variant_name}"
+                _record({"event": "scan", "pair": pair, "result": signal}, store)
+                next_setup = signal.get("setup_state")
+                if next_setup:
+                    if next_setup.get("status") in {"EXPIRED", "INVALIDATED", "TARGET_REACHED", "TARGET_INVALID"}:
+                        next_setup["terminal_at"] = datetime.now(timezone.utc).isoformat()
+                    state["setups"][setup_key] = next_setup
+                    _save_state(state)
+                elif not _preserve_setup_on_scan_result(signal):
+                    state["setups"].pop(setup_key, None)
+                    _save_state(state)
+                if signal.get("status") != "SIGNAL_ONLY":
+                    print(json.dumps(signal, sort_keys=True), flush=True)
+                    continue
+                signal_time = signal.get("timestamp") or signal.get("signal_close_utc")
+                key = f"{pair}:{variant_name}:{signal_time}"
+                pair_key = f"{pair}:{signal_time}"
+                if not execute:
+                    if key in state["signals"]:
+                        print(json.dumps({"pair": pair, "variant": variant_name,
+                                          "status": "SKIP_DUPLICATE", "key": key}), flush=True)
+                        continue
+                    state["signals"][key] = {"status": "DRY_RUN", "signal": signal}
+                    _save_state(state)
+                    print(json.dumps({"pair": pair, "variant": variant_name,
+                                      "status": "DEMO_SIGNAL_NOT_SUBMITTED",
+                                      "signal": signal}, sort_keys=True), flush=True)
+                    continue
+                if pair_key in state["signals"] or key in state["signals"]:
+                    print(json.dumps({"pair": pair, "variant": variant_name,
+                                      "status": "SKIP_DUPLICATE", "key": pair_key}), flush=True)
+                    continue
+                if order_attempted_for_pair:
+                    print(json.dumps({"pair": pair, "variant": variant_name,
+                                      "status": "SKIP_PAIR_ORDER_LIMIT"}, sort_keys=True), flush=True)
+                    continue
+                order_attempted_for_pair = True
+                proc = subprocess.run(
+                    [sys.executable, "-m", "execution.demo_order"],
+                    input=json.dumps(signal), text=True, capture_output=True, check=False,
+                )
+                output = proc.stdout.strip() or proc.stderr.strip()
+                print(output or json.dumps({"pair": pair, "variant": variant_name,
+                                            "status": "ORDER_NO_OUTPUT"}), flush=True)
+                _record({"event": "order_attempt", "pair": pair,
+                         "signal": signal, "returncode": proc.returncode,
+                         "output": output}, store)
+                if proc.returncode == 0 and "ORDER_ACKNOWLEDGED" in output:
+                    state["signals"][pair_key] = {"variant": variant_name,
+                                                   "signal": signal}
+                    _save_state(state)
+                    if until_trade:
+                        return 0
         if not until_trade:
             return 0
         print(json.dumps({"status": "WAITING_FOR_SIGNAL", "sleep_seconds": poll_seconds}), flush=True)

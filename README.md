@@ -52,7 +52,7 @@ PYTHONPATH=. python -m execution.ctrader_probe
 
 ## cTrader scanning
 
-The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then rejects either timeframe if its latest completed bar remains behind the expected latest close beyond `risk.max_quote_age_seconds` (default `60`, overridable with `CTRADER_MAX_QUOTE_AGE_SECONDS`). The setting is a grace period after the expected bar close, not the raw age of an hourly candle. Freshness decisions are included in scan output:
+The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then rejects either timeframe if its latest completed bar remains behind the expected latest close beyond `risk.max_quote_age_seconds` (default `60`, overridable with `CTRADER_MAX_QUOTE_AGE_SECONDS`). The setting is a grace period after the expected bar close, not the raw age of an hourly candle. Freshness decisions are included in scan output. For matching pairs it automatically evaluates every registered preset and prints one result per preset, labeled by its `variant`; other configured pairs use the existing YAML strategy. EURUSD therefore emits two preset results and GBPUSD emits one. The repeated runner keeps setup and duplicate-signal state per pair and preset:
 
 ```bash
 PYTHONPATH=. python -m execution.bot_main --pair EURUSD
@@ -128,7 +128,7 @@ The existing `strategy.engine.Strategy` logic is exposed through reproducible pr
 - `gbpusd_swing2_choch_only` — swing length 2, `CHOCH_ONLY`
 - `eurusd_swing2_choch_or_bos` — swing length 2, `CHOCH_OR_BOS`
 
-These presets do not replace the canonical strategy logic; they select its causal swing and M5 confirmation settings. The open-data research runner is:
+These presets do not replace the canonical strategy logic; live scans automatically use the causal swing and M5 confirmation settings shown above. The repeated runner processes every result while keeping setup history separate per variant, and its demo-only execution path remains separately guarded. The open-data research runner is:
 
 ```bash
 python3 backtest/original_variants_7d.py --days 7 --refresh
