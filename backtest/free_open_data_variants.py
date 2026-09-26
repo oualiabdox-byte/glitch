@@ -294,7 +294,10 @@ def select_pair_signals(pair: str, candidates: list[dict]) -> tuple[list[dict], 
         decision = select_signals(complete_results, expected_variants=expected)
         winning_signal = decision.get("selected_signal")
         if winning_signal:
-            selected.append(winning_signal)
+            # SIGNAL_ONLY is an input contract for the shared selector, not a
+            # simulated trade field; keep selector metadata out of trade logs.
+            selected.append({key: value for key, value in winning_signal.items()
+                             if key != "status"})
         audit.append({
             "pair": pair,
             "signal_close_utc": close_time,
