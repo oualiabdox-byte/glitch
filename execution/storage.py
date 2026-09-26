@@ -35,6 +35,18 @@ class EventStore:
                 return_code INTEGER,
                 event_json TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS signal_selections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recorded_at_utc TEXT NOT NULL,
+                pair TEXT NOT NULL,
+                status TEXT NOT NULL,
+                selected_variant TEXT,
+                selected_signal_id TEXT,
+                conflict_json TEXT,
+                selection_json TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS signal_selections_pair_time
+                ON signal_selections(pair, recorded_at_utc);
             CREATE TABLE IF NOT EXISTS trade_outcomes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 recorded_at_utc TEXT NOT NULL,
@@ -73,6 +85,20 @@ class EventStore:
             "VALUES(?,?,?,?,?)",
             (recorded_at_utc, pair, event.get("status", "UNKNOWN"),
              event.get("returncode"), json.dumps(event, sort_keys=True)),
+        )
+        self.connection.commit()
+
+    def record_selection(self, recorded_at_utc: str, pair: str,
+                         selection: dict[str, Any]) -> None:
+        selected = selection.get("selected_signal") or {}
+        self.connection.execute(
+            "INSERT INTO signal_selections("
+            "recorded_at_utc,pair,status,selected_variant,selected_signal_id,"
+            "conflict_json,selection_json) VALUES(?,?,?,?,?,?,?)",
+            (recorded_at_utc, pair, selection.get("status", "UNKNOWN"),
+             selected.get("variant"), selection.get("selected_signal_id"),
+             json.dumps(selection.get("conflict"), sort_keys=True),
+             json.dumps(selection, sort_keys=True)),
         )
         self.connection.commit()
 

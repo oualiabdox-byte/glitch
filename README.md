@@ -15,7 +15,7 @@ H1 confirmed structure
 → untouched H1 swing target
 ```
 
-The canonical confirmed-swing engine emits body-close `BOS`/`CHOCH` events, and the latest unambiguous event stream alone determines direction, protected swing, dealing range, and external liquidity. The sequence is H1 structure → H1 FVG location → temporally later POI touch → relevant M5 liquidity sweep → newest M5 same-direction BOS/CHOCH. Displacement is ATR-normalized evidence, not a mandatory gate; stale M5 breaks are never reused. The scanner records per-pair setup lifecycle state and expires setups after the configured maximum age or when their premise changes.
+The canonical confirmed-swing engine emits body-close `BOS`/`CHOCH` events, and the latest unambiguous event stream alone determines direction, protected swing, dealing range, and external liquidity. The sequence is H1 structure → H1 FVG location → temporally later POI touch → relevant M5 liquidity sweep → newest M5 same-direction BOS/CHOCH. Displacement is ATR-normalized evidence, not a mandatory gate; stale M5 breaks are never reused. The scanner records per-pair-and-variant setup lifecycle state and expires setups after the configured maximum age or when their premise changes. `strategy/engine.py` is the sole canonical strategy implementation; named variants are configurations of that engine.
 
 ## SVL alignment engine
 
@@ -52,7 +52,15 @@ PYTHONPATH=. python -m execution.ctrader_probe
 
 ## cTrader scanning
 
-The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then rejects either timeframe if its latest completed bar remains behind the expected latest close beyond `risk.max_quote_age_seconds` (default `60`, overridable with `CTRADER_MAX_QUOTE_AGE_SECONDS`). The setting is a grace period after the expected bar close, not the raw age of an hourly candle. Freshness decisions are included in scan output. For matching pairs it automatically evaluates every registered preset and prints one result per preset, labeled by its `variant`; other configured pairs use the existing YAML strategy. EURUSD therefore emits two preset results and GBPUSD emits one. The repeated runner keeps setup and duplicate-signal state per pair and preset:
+The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then rejects either timeframe if its latest completed bar remains behind the expected latest close beyond `risk.max_quote_age_seconds` (default `60`, overridable with `CTRADER_MAX_QUOTE_AGE_SECONDS`). The setting is a grace period after the expected bar close, not the raw age of an hourly candle. Freshness decisions are included in scan output. For matching pairs it evaluates every registered preset and prints one result per preset, labeled by its `variant`; other configured pairs use the existing YAML strategy through the same factory. EURUSD therefore emits two preset results and GBPUSD emits one. Only after every expected result has completed does the scanner emit a pair-level `signal_selection` record:
+
+- A missing or failed variant makes selection `INCOMPLETE` and fails closed.
+- Same-direction signals are ranked by explicit priority, an existing numeric signal quality score (if supplied), RR descending, existing H1 structure strength, then stable variant name and signal identity. Current priorities are tied. No short-window backtest is treated as historical validation confidence.
+- Opposing directions produce an explicit `CONFLICT`; there is no arbitrary directional winner.
+- Signal identity includes pair, closed-bar timestamp, and variant. Setup state remains isolated per pair/variant.
+- All candidates are generated before the pair-level demo duplicate/order guard is applied.
+
+The repeated runner records each variant and selection decision, and passes only the selected strategy signal directly to guarded demo execution. The order process validates execution/risk inputs and demo authorization; it does not run a second strategy or confluence layer:
 
 ```bash
 PYTHONPATH=. python -m execution.bot_main --pair EURUSD
@@ -104,7 +112,9 @@ The tests cover closed-bar causal structure, BOS/CHOCH behavior, H1 POI filterin
 
 ## Repository layout
 
-- `strategy/engine.py` — H1 location/M5 execution strategy.
+- `strategy/engine.py` — sole canonical H1 location/M5 execution strategy.
+- `strategy/variants.py` — named parameter presets and shared strategy factory.
+- `strategy/selection.py` — deterministic pair-level signal selection and conflict handling.
 - `strategy/structure.py` — confirmed swing labels and consumed BOS/CHOCH levels.
 - `strategy/models.py` — candles and auditable decisions.
 - `strategy/svl.py` — native Structure-Value-Liquidity analysis.
@@ -128,7 +138,7 @@ The existing `strategy.engine.Strategy` logic is exposed through reproducible pr
 - `gbpusd_swing2_choch_only` — swing length 2, `CHOCH_ONLY`
 - `eurusd_swing2_choch_or_bos` — swing length 2, `CHOCH_OR_BOS`
 
-These presets do not replace the canonical strategy logic; live scans automatically use the causal swing and M5 confirmation settings shown above. The repeated runner processes every result while keeping setup history separate per variant, and its demo-only execution path remains separately guarded. The open-data research runner is:
+These presets do not replace the canonical strategy logic; live scans and historical backtests build the same engine using the causal swing and M5 confirmation settings shown above. The backtest reports independent per-variant results plus a separate pair-level run using the live selector. The demo-only runner consumes the selected output without strategy re-analysis and remains fail-closed. The open-data research runner is:
 
 ```bash
 python3 backtest/original_variants_7d.py --days 7 --refresh
