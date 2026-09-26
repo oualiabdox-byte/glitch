@@ -119,3 +119,19 @@ The tests cover closed-bar causal structure, BOS/CHOCH behavior, H1 POI filterin
 ## Safety
 
 This is research and demo software, not a profitability guarantee. Historical cTrader trendbars are OHLC data and cannot reveal intrabar ordering when both stop and target occur in one candle. Do not enable live trading. Never store access tokens, refresh tokens, client secrets, or account credentials in Git.
+
+## Named strategy variants
+
+The existing `strategy.engine.Strategy` logic is exposed through reproducible presets in `strategy/variants.py`:
+
+- `eurusd_swing3_choch_or_bos` — swing length 3, `CHOCH_OR_BOS`
+- `gbpusd_swing2_choch_only` — swing length 2, `CHOCH_ONLY`
+- `eurusd_swing2_choch_or_bos` — swing length 2, `CHOCH_OR_BOS`
+
+These presets do not replace the canonical strategy logic; they select its causal swing and M5 confirmation settings. The open-data research runner is:
+
+```bash
+python3 backtest/original_variants_7d.py --days 7 --refresh
+```
+
+It writes `backtest/original_forex_variants_7d_results.csv`. Yahoo intraday candles are indicative research data, not executable bid/ask history, and the small seven-day sample is not a profitability guarantee.
