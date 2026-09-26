@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from config.settings import (load_config, pairs as configured_pairs,
                              risk_config, strategy_config)
 from data.ctrader import CTraderData
-from strategy import Strategy, build_variant, variants_for_pair
+from strategy import build_variant, select_signals, signal_identity, variants_for_pair
 from strategy import safety
 
 
@@ -76,17 +76,29 @@ def _freshness_check(h1, m5, now: datetime, max_quote_age_seconds: int) -> dict:
     return result
 
 
-def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = None):
-    cfg = load_config()
-    variant_name = variant_name or "config_default"
-    if variant_name != "config_default" and variant_name not in variants_for_pair(pair):
-        raise ValueError(f"variant {variant_name!r} is not registered for {pair!r}")
-    end = datetime.now(timezone.utc)
+def _market_snapshot(pair: str, cfg: dict, end: datetime) -> dict:
     start = end - timedelta(days=int(os.getenv("CTRADER_LOOKBACK_DAYS", "30")))
     feed = CTraderData()
     data = feed.download(pair, start, end, periods=("h1", "m5"))
-    h1 = _closed(data["h1"], 60, end)
-    m5 = _closed(data["m5"], 5, end)
+    return {"pair": pair, "cfg": cfg, "scan_time": end,
+            "h1": _closed(data["h1"], 60, end),
+            "m5": _closed(data["m5"], 5, end)}
+
+
+def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = None,
+         market_snapshot: dict | None = None):
+    variant_name = variant_name or "config_default"
+    if variant_name != "config_default" and variant_name not in variants_for_pair(pair):
+        raise ValueError(f"variant {variant_name!r} is not registered for {pair!r}")
+    snapshot = market_snapshot
+    if snapshot is None:
+        cfg = load_config()
+        end = datetime.now(timezone.utc)
+        snapshot = _market_snapshot(pair, cfg, end)
+    cfg = snapshot["cfg"]
+    end = snapshot["scan_time"]
+    h1 = snapshot["h1"]
+    m5 = snapshot["m5"]
 
     max_quote_age_seconds = risk_config(cfg)["max_quote_age_seconds"]
     freshness = _freshness_check(h1, m5, end, max_quote_age_seconds)
@@ -118,11 +130,7 @@ def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = 
                 "signal_close_utc": signal_close.isoformat(), "data_source": "cTrader Open API"}
 
     resolved = strategy_config(cfg)
-    if variant_name == "config_default":
-        swing_length = resolved.pop("swing_length")
-        strategy = Strategy(swing_left=swing_length, swing_right=swing_length, **resolved)
-    else:
-        strategy = build_variant(variant_name, base_options=resolved)
+    strategy = build_variant(variant_name, base_options=resolved)
     decision = strategy.evaluate(h1, m5, setup_state=setup_state)
     evidence = decision.evidence
     structure = evidence.get("h1_structure", {})
@@ -147,10 +155,35 @@ def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = 
             "data_freshness": freshness}
     if not decision.is_signal:
         return {**base, "status": "NO_TRADE"}
-    return {**base, "status": "SIGNAL_ONLY", "side": decision.side,
-            "entry_price": decision.entry_price, "stop_price": decision.stop_price,
-            "target_price": decision.target_price, "tp_target": decision.target_price,
-            "rr": decision.risk_reward, "timestamp": signal_close.isoformat()}
+    signal = {**base, "status": "SIGNAL_ONLY", "side": decision.side,
+              "entry_price": decision.entry_price, "stop_price": decision.stop_price,
+              "target_price": decision.target_price, "tp_target": decision.target_price,
+              "rr": decision.risk_reward, "timestamp": signal_close.isoformat()}
+    signal["signal_id"] = signal_identity(signal)
+    return signal
+
+
+def scan_pair(pair: str, setup_states: dict | None = None) -> dict:
+    """Fetch one snapshot; evaluate every variant before selecting any signal."""
+    variant_names = variants_for_pair(pair) or ("config_default",)
+    states = setup_states if isinstance(setup_states, dict) else {}
+    try:
+        cfg = load_config()
+        snapshot = _market_snapshot(pair, cfg, datetime.now(timezone.utc))
+    except Exception as exc:
+        results = [{"pair": pair, "variant": name, "status": "ERROR", "error": str(exc)}
+                   for name in variant_names]
+        return {"pair": pair, "variant_results": results,
+                "selection": select_signals(results, expected_variants=variant_names)}
+    results = []
+    for name in variant_names:
+        try:
+            results.append(scan(pair, setup_state=states.get(name), variant_name=name,
+                                market_snapshot=snapshot))
+        except Exception as exc:
+            results.append({"pair": pair, "variant": name, "status": "ERROR", "error": str(exc)})
+    selection = select_signals(results, expected_variants=variant_names)
+    return {"pair": pair, "variant_results": results, "selection": selection}
 
 
 def main():
@@ -159,10 +192,9 @@ def main():
     args = parser.parse_args()
     cfg = load_config()
     pairs = [args.pair.upper()] if args.pair else [p.strip().upper() for p in os.getenv("CTRADER_PAIRS", ",".join(configured_pairs(cfg))).split(",") if p.strip()]
-    print("=== H1/M5 BLEACH STRATEGY / cTrader ===")
+    print("=== H1/M5 CANONICAL STRATEGY / cTrader ===")
     print("Order submission: DISABLED")
     for pair in pairs:
-        variant_names = variants_for_pair(pair) or ("config_default",)
         try:
             raw_state = os.getenv("CTRADER_SETUP_STATE_JSON")
             parsed_state = json.loads(raw_state) if raw_state else {}
@@ -170,19 +202,14 @@ def main():
                 parsed_state = {}
         except json.JSONDecodeError:
             parsed_state = {}
-        for variant_name in variant_names:
-            try:
-                setup_state = parsed_state.get(variant_name)
-                # Migrate a prior pair-only setup state only when there is one
-                # strategy for the pair; never share state between EURUSD variants.
-                if setup_state is None and len(variant_names) == 1 and parsed_state:
-                    if not any(name in parsed_state for name in variants_for_pair(pair)):
-                        setup_state = parsed_state
-                result = scan(pair, setup_state=setup_state, variant_name=variant_name)
-                print(json.dumps(result, sort_keys=True))
-            except Exception as exc:
-                print(json.dumps({"pair": pair, "variant": variant_name,
-                                  "status": "ERROR", "error": str(exc)}))
+        variant_names = variants_for_pair(pair) or ("config_default",)
+        if len(variant_names) == 1 and pair in parsed_state:
+            parsed_state.setdefault(variant_names[0], parsed_state[pair])
+        batch = scan_pair(pair, setup_states=parsed_state)
+        for result in batch["variant_results"]:
+            print(json.dumps(result, sort_keys=True))
+        print(json.dumps({"event": "signal_selection", "pair": pair,
+                          **batch["selection"]}, sort_keys=True))
 
 
 if __name__ == "__main__":

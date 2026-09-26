@@ -42,9 +42,11 @@ def test_cli_scans_all_three_presets_and_uses_config_default_for_other_pairs(mon
     monkeypatch.setattr(sys, "argv", ["bot_main"])
     monkeypatch.setenv("CTRADER_PAIRS", "EURUSD,GBPUSD,USDJPY")
     monkeypatch.setattr(bot_main, "load_config", lambda: {})
+    monkeypatch.setattr(bot_main, "_market_snapshot",
+                        lambda pair, cfg, end: {"pair": pair, "cfg": cfg})
     calls = []
 
-    def fake_scan(pair, setup_state=None, variant_name=None):
+    def fake_scan(pair, setup_state=None, variant_name=None, market_snapshot=None):
         calls.append((pair, variant_name, setup_state))
         return {"pair": pair, "variant": variant_name, "status": "NO_TRADE"}
 
@@ -59,7 +61,10 @@ def test_cli_scans_all_three_presets_and_uses_config_default_for_other_pairs(mon
     ]
     output = [json.loads(line) for line in capsys.readouterr().out.splitlines()
               if line.startswith("{")]
-    assert [row["variant"] for row in output] == [variant for _, variant, _ in calls]
+    scan_output = [row for row in output if row.get("event") != "signal_selection"]
+    selection_output = [row for row in output if row.get("event") == "signal_selection"]
+    assert [row["variant"] for row in scan_output] == [variant for _, variant, _ in calls]
+    assert [row["pair"] for row in selection_output] == ["EURUSD", "GBPUSD", "USDJPY"]
 
 
 def test_scan_instantiates_the_requested_variant(monkeypatch):
@@ -127,10 +132,11 @@ def test_repeated_runner_collects_every_variant_result(monkeypatch):
                                stderr="")
 
     monkeypatch.setattr(demo_runner.subprocess, "run", fake_run)
-    results = demo_runner._scan("EURUSD", setup_states={
+    batch = demo_runner._scan("EURUSD", setup_states={
         "eurusd_swing3_choch_or_bos": {"status": "WAITING_FOR_POI_TOUCH"},
     })
 
-    assert [row["variant"] for row in results] == list(variants_for_pair("EURUSD"))
+    assert [row["variant"] for row in batch["variant_results"]] == list(variants_for_pair("EURUSD"))
+    assert batch["selection"]["status"] == "NO_SIGNAL"
     assert json.loads(called["env"]["CTRADER_SETUP_STATE_JSON"])[
         "eurusd_swing3_choch_or_bos"]["status"] == "WAITING_FOR_POI_TOUCH"
