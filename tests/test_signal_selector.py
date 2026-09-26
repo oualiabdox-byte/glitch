@@ -80,6 +80,68 @@ def test_buy_and_sell_candidates_produce_explicit_conflict():
     assert set(result["conflict"]["signals_by_direction"]) == {"LONG", "SHORT"}
 
 
+def test_conflict_audit_is_persisted_to_jsonl_and_sqlite(tmp_path, monkeypatch):
+    from execution.storage import EventStore
+
+    selection = select_signals(
+        [_signal(EUR_A, "BUY"), _signal(EUR_B, "SELL")],
+        expected_variants=EUR_VARIANTS,
+    )
+    assert selection["status"] == "CONFLICT"
+    diagnostics = tmp_path / "logs" / "events.jsonl"
+    monkeypatch.setattr(demo_runner, "DIAGNOSTICS_PATH", diagnostics)
+    monkeypatch.setattr(demo_runner, "STORAGE_LIMIT_BYTES", 1_000_000)
+    database = tmp_path / "events.sqlite3"
+    store = EventStore(database)
+    try:
+        demo_runner._record({
+            "event": "signal_selection", "pair": "EURUSD", "selection": selection,
+        }, store)
+    finally:
+        store.close()
+    jsonl_row = json.loads(diagnostics.read_text().splitlines()[0])
+    assert jsonl_row["selection"]["status"] == "CONFLICT"
+    assert len(jsonl_row["selection"]["candidate_signal_ids"]) == 2
+    import sqlite3
+    with sqlite3.connect(database) as connection:
+        row = connection.execute(
+            "SELECT status, selected_variant, selected_signal_id, conflict_json, selection_json "
+            "FROM signal_selections"
+        ).fetchone()
+    assert row[0] == "CONFLICT"
+    assert row[1] is None and row[2] is None
+    assert json.loads(row[3])["type"] == "OPPOSING_VARIANT_DIRECTIONS"
+    assert json.loads(row[4])["candidate_signal_ids"] == selection["candidate_signal_ids"]
+
+
+def test_conflict_remains_in_sqlite_when_jsonl_quota_is_reached(tmp_path, monkeypatch):
+    from execution.storage import EventStore
+    import sqlite3
+
+    selection = select_signals(
+        [_signal(EUR_A, "BUY"), _signal(EUR_B, "SELL")],
+        expected_variants=EUR_VARIANTS,
+    )
+    diagnostics = tmp_path / "logs" / "events.jsonl"
+    monkeypatch.setattr(demo_runner, "DIAGNOSTICS_PATH", diagnostics)
+    monkeypatch.setattr(demo_runner, "STORAGE_LIMIT_BYTES", 1)
+    database = tmp_path / "events.sqlite3"
+    store = EventStore(database)
+    try:
+        demo_runner._record({
+            "event": "signal_selection", "pair": "EURUSD", "selection": selection,
+        }, store)
+    finally:
+        store.close()
+    assert not diagnostics.exists()
+    with sqlite3.connect(database) as connection:
+        row = connection.execute(
+            "SELECT status, conflict_json FROM signal_selections"
+        ).fetchone()
+    assert row[0] == "CONFLICT"
+    assert json.loads(row[1])["type"] == "OPPOSING_VARIANT_DIRECTIONS"
+
+
 def test_variant_scoped_identity_distinguishes_same_pair_and_timestamp():
     first, second = _signal(EUR_A), _signal(EUR_B)
     assert signal_identity(first) != signal_identity(second)
