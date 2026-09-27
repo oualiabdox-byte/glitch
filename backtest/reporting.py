@@ -28,6 +28,17 @@ def _text(row: dict[str, str], *names: str) -> str:
     return ""
 
 
+def _max_drawdown(values: list[float]) -> float:
+    equity = 0.0
+    peak = 0.0
+    max_dd = 0.0
+    for value in values:
+        equity += value
+        peak = max(peak, equity)
+        max_dd = max(max_dd, peak - equity)
+    return round(max_dd, 4)
+
+
 def summarize_rows(rows: list[dict[str, str]]) -> dict[str, Any]:
     rs = []
     for row in rows:
@@ -35,9 +46,10 @@ def summarize_rows(rows: list[dict[str, str]]) -> dict[str, Any]:
         if r is not None and math.isfinite(r):
             rs.append((row, r))
 
-    wins = [r for _, r in rs if r > 0]
-    losses = [r for _, r in rs if r < 0]
-    total_r = sum(r for _, r in rs)
+    r_values = [r for _, r in rs]
+    wins = [r for r in r_values if r > 0]
+    losses = [r for r in r_values if r < 0]
+    total_r = sum(r_values)
     gross_profit = sum(wins)
     gross_loss = abs(sum(losses))
 
@@ -56,17 +68,19 @@ def summarize_rows(rows: list[dict[str, str]]) -> dict[str, Any]:
                 "win_rate_pct": round(100 * sum(v > 0 for v in values) / len(values), 2),
                 "total_r": round(sum(values), 4),
                 "avg_r": round(sum(values) / len(values), 4),
+                "max_drawdown_r": _max_drawdown(values),
             }
             for name, values in sorted(items.items())
         ]
 
     return {
-        "trades": len(rs),
+        "trades": len(r_values),
         "wins": len(wins),
         "losses": len(losses),
-        "win_rate_pct": round(100 * len(wins) / len(rs), 2) if rs else 0.0,
+        "win_rate_pct": round(100 * len(wins) / len(r_values), 2) if r_values else 0.0,
         "total_r": round(total_r, 4),
-        "avg_r": round(total_r / len(rs), 4) if rs else 0.0,
+        "avg_r": round(total_r / len(r_values), 4) if r_values else 0.0,
+        "max_drawdown_r": _max_drawdown(r_values),
         "profit_factor": round(gross_profit / gross_loss, 4) if gross_loss else None,
         "pairs": group(by_pair),
         "variants": group(by_variant),
@@ -93,30 +107,33 @@ def render_markdown(summary: dict[str, Any], *, title: str, source: str) -> str:
         f'| Win rate | {summary["win_rate_pct"]:.2f}% |',
         f'| Total R | {summary["total_r"]:.4f} |',
         f'| Average R | {summary["avg_r"]:.4f} |',
+        f'| Max drawdown | {summary["max_drawdown_r"]:.4f} R |',
         f"| Profit factor | {pf} |",
         "",
         "## By pair",
         "",
-        "| Pair | Trades | Wins | Win rate | Total R | Avg R |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Pair | Trades | Wins | Win rate | Total R | Avg R | Max DD R |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for item in summary["pairs"]:
         lines.append(
             f'| {item["name"]} | {item["trades"]} | {item["wins"]} | '
-            f'{item["win_rate_pct"]:.2f}% | {item["total_r"]:.4f} | {item["avg_r"]:.4f} |'
+            f'{item["win_rate_pct"]:.2f}% | {item["total_r"]:.4f} | '
+            f'{item["avg_r"]:.4f} | {item["max_drawdown_r"]:.4f} |'
         )
 
     lines += [
         "",
         "## By strategy variant",
         "",
-        "| Variant | Trades | Wins | Win rate | Total R | Avg R |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Variant | Trades | Wins | Win rate | Total R | Avg R | Max DD R |",
+        "|---|---:|---:|---:|---:|---:|---:|",
     ]
     for item in summary["variants"]:
         lines.append(
             f'| {item["name"]} | {item["trades"]} | {item["wins"]} | '
-            f'{item["win_rate_pct"]:.2f}% | {item["total_r"]:.4f} | {item["avg_r"]:.4f} |'
+            f'{item["win_rate_pct"]:.2f}% | {item["total_r"]:.4f} | '
+            f'{item["avg_r"]:.4f} | {item["max_drawdown_r"]:.4f} |'
         )
 
     lines += [
