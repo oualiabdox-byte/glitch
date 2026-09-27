@@ -1,0 +1,80 @@
+{
+  "data_suffix": "10d",
+  "pairs": [
+    "AUDUSD",
+    "EURUSD",
+    "GBPUSD",
+    "NZDUSD",
+    "USDCAD",
+    "USDCHF",
+    "USDJPY"
+  ],
+  "common_m5_bars": 1974,
+  "first_timestamp": "2026-09-16T22:15:00+00:00",
+  "last_timestamp": "2026-09-25T20:55:00+00:00",
+  "completed_volume_cycles": 143,
+  "selected_opportunities": 17,
+  "strategy_unchanged": true,
+  "cost_pips_round_turn": 1.5,
+  "intrabar_policy": "sl_first",
+  "max_open_positions": 3,
+  "risk_per_trade_pct": 0.5,
+  "cycle_config": {
+    "target_cycle_bars": 96,
+    "volume_lookback_bars": 96,
+    "warmup_bars": 96,
+    "history_cycles": 6,
+    "ewma_alpha": 0.35,
+    "vol_floor": 0.0005,
+    "max_weight": 0.4,
+    "temperature": 0.5
+  },
+  "equal_weight": {
+    "total_trades": 8,
+    "wins": 6,
+    "losses": 2,
+    "win_rate_pct": 75.0,
+    "profit_factor": 2.6364273020660627,
+    "total_R_raw": 3.6190115993090908,
+    "total_R_weighted": 0.5170016570441558,
+    "average_R_raw": 0.45237644991363635,
+    "average_R_weighted": 0.06462520713051947,
+    "return_pct": 0.2585828366274967,
+    "max_DD_pct": 0.08651911468813278,
+    "skipped_valid_opportunities": 8,
+    "average_exposure_pct": 5.065856129685916,
+    "max_exposure_pct": 42.857142857142854,
+    "capital_utilization_pct": 5.065856129685916,
+    "turnover_one_way": 0.0,
+    "skipped_counts": {
+      "position_open": 8
+    },
+    "best_cycle_return_pct": 0.1227929373996739,
+    "worst_cycle_return_pct": -0.08651911468813278
+  },
+  "adaptive": {
+    "total_trades": 8,
+    "wins": 6,
+    "losses": 2,
+    "win_rate_pct": 75.0,
+    "profit_factor": 3.9741104754208934,
+    "total_R_raw": 6.577340951587454,
+    "total_R_weighted": 0.7675148904354561,
+    "average_R_raw": 0.8221676189484317,
+    "average_R_weighted": 0.09593936130443201,
+    "return_pct": 0.3842904864700625,
+    "max_DD_pct": 0.024225352112672294,
+    "skipped_valid_opportunities": 8,
+    "average_exposure_pct": 3.1703919223719734,
+    "max_exposure_pct": 44.0,
+    "capital_utilization_pct": 3.1703919223719734,
+    "turnover_one_way": 10.684136426344093,
+    "skipped_counts": {
+      "position_open": 6,
+      "zero_allocator_weight": 2
+    },
+    "best_cycle_return_pct": 0.12580645161293091,
+    "worst_cycle_return_pct": -0.024225352112672294
+  },
+  "selector_audit_rows": 17
+}

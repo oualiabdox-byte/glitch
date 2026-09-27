@@ -373,7 +373,7 @@ def run_portfolio(
 
 
 def _report(summary: dict[str, Any], path: Path) -> None:
-    lines = ["# 24-Day cTrader M5 Strategy / Allocation Comparison", "",
+    lines = [f"# {summary.get('data_suffix', 'unknown')} cTrader M5 Strategy / Allocation Comparison", "",
              "> The canonical strategy, selector, entry/SL/TP values, 1.5-pip cost, and conservative `sl_first` intrabar policy are unchanged. This is a short research sample, not a profitability claim.", "",
              "## Data and controls", "",
              f"- Pairs: {', '.join(summary['pairs'])}",
@@ -405,11 +405,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=Path("backtest/ctrader_volume_data"))
     parser.add_argument("--output-dir", type=Path, default=Path("backtest/ctrader_allocator_24d_comparison"))
+    parser.add_argument("--data-suffix", default="24d", help="Dataset filename suffix, e.g. 10d or 24d")
     args = parser.parse_args()
     frames: dict[str, pd.DataFrame] = {}
     volume_rows: dict[str, list[dict[str, Any]]] = {}
     for pair in PAIRS:
-        path = args.data_dir / f"{pair}_m5_24d.json"
+        path = args.data_dir / f"{pair}_m5_{args.data_suffix}.json"
         frame, h1 = _load_pair(path)
         frames[pair] = frame
         volume_rows[pair] = _rows(frame, include_volume=True)
@@ -429,7 +430,7 @@ def main() -> int:
         futures = {}
         with ProcessPoolExecutor(max_workers=min(8, sum(len(variants_for_pair(pair) or ("config_default",)) for pair in PAIRS))) as pool:
             for pair in PAIRS:
-                frame, h1 = _load_pair(args.data_dir / f"{pair}_m5_24d.json")
+                frame, h1 = _load_pair(args.data_dir / f"{pair}_m5_{args.data_suffix}.json")
                 variants = variants_for_pair(pair) or ("config_default",)
                 for variant in variants:
                     print(f"Queueing {pair}/{variant}", flush=True)
@@ -466,7 +467,7 @@ def main() -> int:
         metrics["best_cycle_return_pct"] = max(cycle_returns) if cycle_returns else None
         metrics["worst_cycle_return_pct"] = min(cycle_returns) if cycle_returns else None
     summary = {
-        "pairs": list(PAIRS), "common_m5_bars": len(common), "first_timestamp": common[0].isoformat(), "last_timestamp": common[-1].isoformat(),
+        "data_suffix": args.data_suffix, "pairs": list(PAIRS), "common_m5_bars": len(common), "first_timestamp": common[0].isoformat(), "last_timestamp": common[-1].isoformat(),
         "completed_volume_cycles": completed_cycles, "selected_opportunities": len(selected_signals),
         "strategy_unchanged": True, "cost_pips_round_turn": ROUND_TURN_COST_PIPS, "intrabar_policy": "sl_first", "max_open_positions": MAX_OPEN_POSITIONS,
         "risk_per_trade_pct": RISK_PER_TRADE * 100, "cycle_config": CYCLE_CONFIG.__dict__,
