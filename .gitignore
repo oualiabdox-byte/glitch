@@ -58,3 +58,5 @@ backtest/ctrader_allocator_14d_demo_validation/signal_cache.json
 *.pid
 *.tmp
 results/
+
+ctraderkeys
