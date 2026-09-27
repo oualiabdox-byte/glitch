@@ -50,3 +50,4 @@
 - `performance_by_cycle.csv` contains performance segmented by cycle event.
 - `rolling_performance.csv` contains rolling 20-trade weighted R and return.
 - `allocation_weights.csv` contains time-series pair sleeve weights and exposure.
+- `skipped_opportunity_audit.csv` contains selected-but-not-executed opportunities with counterfactual outcomes; these are not actual trades.
