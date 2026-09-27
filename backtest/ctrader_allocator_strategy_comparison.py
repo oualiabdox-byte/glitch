@@ -231,6 +231,7 @@ def run_portfolio(
     cycles_by_pair: dict[str, list[VolumeCycle]],
     weights_initial: dict[str, float],
     adaptive: bool,
+    signal_multipliers: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     timeline = sorted(set.union(*(set(frames[pair].index) for pair in pairs)))
     by_entry: dict[pd.Timestamp, list[dict[str, Any]]] = defaultdict(list)
@@ -315,7 +316,8 @@ def run_portfolio(
                 skipped["invalid_fill"] += 1
                 continue
             valid_opportunities += 1
-            allocation_weight = weights[pair]
+            multiplier = float((signal_multipliers or {}).get(signal["signal_id"], 1.0))
+            allocation_weight = weights[pair] * multiplier
             if adaptive and allocation_weight <= 1e-12:
                 skipped["zero_allocator_weight"] += 1
                 continue
@@ -343,7 +345,7 @@ def run_portfolio(
             last_cycle_equity = equity
             cycle_cursor += 1
 
-        exposure = sum(weights[pair] for pair in active)
+        exposure = sum(trade.weight for trade in active.values())
         exposure_rows.append({"portfolio": name, "time": timestamp.isoformat(), "active_positions": len(active),
                               "exposure": exposure, "capital_utilization": exposure,
                               **{f"weight_{pair}": weights[pair] for pair in pairs}})

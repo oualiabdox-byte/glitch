@@ -1,0 +1,66 @@
+{
+  "note": "BOS_AFTER_CHOCH signals are fixed from the 14-day ablation. Liquidity Regime v2 changes only a causal bounded soft multiplier (0.85\u20131.20); it does not reject signals or change entry/SL/TP.",
+  "selected_opportunities": 17,
+  "multiplier_min": 0.9478865740740746,
+  "multiplier_max": 1.157041774948021,
+  "bos_equal": {
+    "total_trades": 10,
+    "wins": 8,
+    "losses": 2,
+    "win_rate_pct": 80.0,
+    "profit_factor": 4.712998633376263,
+    "total_R_raw": 4.553692519422519,
+    "total_R_weighted": 0.6505275027746455,
+    "average_R_raw": 0.4553692519422519,
+    "average_R_weighted": 0.06505275027746456,
+    "return_pct": 0.3255774090257013,
+    "max_DD_pct": 0.08760042941632351
+  },
+  "bos_adaptive": {
+    "total_trades": 8,
+    "wins": 6,
+    "losses": 2,
+    "win_rate_pct": 75.0,
+    "profit_factor": 4.050470080291574,
+    "total_R_raw": 3.7411548338532064,
+    "total_R_weighted": 1.0825571612129292,
+    "average_R_raw": 0.4676443542316508,
+    "average_R_weighted": 0.13531964515161615,
+    "return_pct": 0.5416175321265815,
+    "max_DD_pct": 0.12900690865884634
+  },
+  "bos_regime_equal": {
+    "total_trades": 10,
+    "wins": 8,
+    "losses": 2,
+    "win_rate_pct": 80.0,
+    "profit_factor": 4.712998633376263,
+    "total_R_raw": 4.553692519422519,
+    "total_R_weighted": 0.6728677991575663,
+    "average_R_raw": 0.4553692519422519,
+    "average_R_weighted": 0.06728677991575663,
+    "return_pct": 0.3367486855371693,
+    "max_DD_pct": 0.09906882627707114
+  },
+  "bos_regime_adaptive": {
+    "total_trades": 8,
+    "wins": 6,
+    "losses": 2,
+    "win_rate_pct": 75.0,
+    "profit_factor": 4.050470080291574,
+    "total_R_raw": 3.7411548338532064,
+    "total_R_weighted": 1.1704785494923313,
+    "average_R_raw": 0.4676443542316508,
+    "average_R_weighted": 0.14630981868654142,
+    "return_pct": 0.5855629652435468,
+    "max_DD_pct": 0.1457570415325682
+  },
+  "bos_adaptive_skipped": {
+    "position_open": 3,
+    "zero_allocator_weight": 6
+  },
+  "bos_regime_adaptive_skipped": {
+    "position_open": 3,
+    "zero_allocator_weight": 6
+  }
+}
