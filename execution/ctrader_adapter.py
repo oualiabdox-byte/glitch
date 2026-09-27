@@ -310,6 +310,8 @@ class CTraderAdapter:
         as part of the order request instead of being added in a later
         unprotected step.
         """
+        if self.config.environment != "demo":
+            raise RuntimeError("Live order submission is disabled; this adapter only submits demo orders")
         self._require_order_permission()
         if volume_units <= 0:
             raise ValueError("volume_units must be > 0")
@@ -318,12 +320,6 @@ class CTraderAdapter:
                 f"volume_units={volume_units} exceeds "
                 f"CTRADER_MAX_ORDER_VOLUME_UNITS={self.config.max_order_volume_units}"
             )
-        if self.config.environment == "live":
-            if not self.config.confirm_live:
-                raise RuntimeError("Live orders require CTRADER_CONFIRM_LIVE=I_UNDERSTAND")
-            if self.config.account_id is None:
-                raise RuntimeError("Live orders require an explicit CTRADER_ACCOUNT_ID")
-
         if relative_stop_loss is not None and relative_stop_loss <= 0:
             raise ValueError("relative_stop_loss must be > 0")
         if relative_take_profit is not None and relative_take_profit <= 0:
