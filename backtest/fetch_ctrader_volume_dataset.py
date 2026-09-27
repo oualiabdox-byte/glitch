@@ -4,7 +4,9 @@
 Credentials must be injected by the caller through environment variables:
 CTRADER_CLIENT_ID, CTRADER_CLIENT_SECRET, CTRADER_ACCESS_TOKEN.
 CTRADER_REFRESH_TOKEN is accepted by the surrounding environment but is not
-written or refreshed by this script. Order execution is always disabled.
+written or refreshed by this script. Alternatively, copy
+config/ctrader_credentials.env.example to config/ctrader_credentials.env and
+fill it locally; that file is ignored by Git. Order execution is always disabled.
 
 Example (keys are not saved):
   CTRADER_CLIENT_ID='...' CTRADER_CLIENT_SECRET='...' \
@@ -21,6 +23,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from data.ctrader import CTraderData
 
 
@@ -34,6 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--period", choices=("m5", "m15", "h1"), default="m5")
     parser.add_argument("--output-dir", type=Path, default=Path("backtest/ctrader_volume_data"))
     parser.add_argument("--cache-dir", type=Path, default=Path("data/ctrader_cache"))
+    parser.add_argument("--credentials-file", type=Path, default=Path("config/ctrader_credentials.env"))
     return parser.parse_args()
 
 
@@ -53,6 +58,8 @@ def main() -> int:
     args = parse_args()
     if args.days <= 0:
         raise ValueError("--days must be positive")
+    if args.credentials_file.exists():
+        load_dotenv(args.credentials_file, override=False)
     require_safe_environment()
 
     end = datetime.now(timezone.utc).replace(second=0, microsecond=0)

@@ -2,10 +2,13 @@
 .env
 .env.*
 !.env.example
+config/ctrader_credentials.env
+!config/ctrader_credentials.env.example
 *.pem
 *.key
 *secret*
 *credential*
+!config/ctrader_credentials.env.example
 
 # Python
 __pycache__/
