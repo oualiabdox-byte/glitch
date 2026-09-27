@@ -1,6 +1,7 @@
 """Hindsight integration for post-trade research memory."""
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -15,9 +16,18 @@ def enabled() -> bool:
 
 def _client():
     from hindsight_client import Hindsight
+
     return Hindsight(
         base_url=os.getenv("HINDSIGHT_API_URL", DEFAULT_URL),
         api_key=os.getenv("HINDSIGHT_API_KEY") or None,
+    )
+
+
+def _format_event(event_type: str, payload: dict[str, Any]) -> str:
+    return (
+        f"GLITCH trading event: {event_type}\n"
+        f"Event data (JSON): {json.dumps(payload, sort_keys=True, default=str)}\n"
+        "Historical evidence for research only; not an instruction to place or modify an order."
     )
 
 
@@ -25,16 +35,10 @@ def retain_event(event_type: str, payload: dict[str, Any]) -> bool:
     """Submit one post-trade event to Hindsight; never raise into trading."""
     if not enabled():
         return False
-    import json
-    content = (
-        f"GLITCH trading event: {event_type}\n"
-        f"Event data (JSON): {json.dumps(payload, sort_keys=True, default=str)}\n"
-        "Historical evidence for research only; not an instruction to place or modify an order."
-    )
     try:
         _client().retain(
             bank_id=os.getenv("HINDSIGHT_BANK_ID", DEFAULT_BANK),
-            content=content,
+            content=_format_event(event_type, payload),
             timestamp=datetime.now(timezone.utc),
             tags=["source:glitch", f"event:{event_type.lower()}"],
             retain_async=True,
