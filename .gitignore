@@ -50,6 +50,7 @@ models/
 .pytest_cache/
 data/ctrader_cache/
 backtest/ctrader_volume_data/
+backtest/ctrader_allocator_24d_comparison/signal_cache.json
 
 # Trading runtime artifacts
 *.pid
