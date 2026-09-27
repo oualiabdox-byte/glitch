@@ -1,0 +1,47 @@
+{
+  "note": "All canonical valid signals remain eligible. v2 changes only a bounded research allocation multiplier 0.85\u20131.20; it is not connected to demo execution. Counterfactual net_R uses future bars for evaluation only.",
+  "unweighted": {
+    "trades": 24,
+    "wins": 16,
+    "win_rate_pct": 66.66666666666667,
+    "total_R": 10.318005935391673,
+    "avg_R": 0.42991691397465304,
+    "weighted": false
+  },
+  "soft_weighted": {
+    "trades": 24,
+    "wins": 16,
+    "win_rate_pct": 66.66666666666667,
+    "total_R": 10.597197562601645,
+    "avg_R": 0.4415498984417352,
+    "weighted": true
+  },
+  "multiplier_min": 0.9501145833333319,
+  "multiplier_max": 1.157041774948021,
+  "states": {
+    "COMPRESSION_RELEASE": {
+      "trades": 1,
+      "wins": 0,
+      "win_rate_pct": 0.0,
+      "total_R": -1.1154701009001093,
+      "avg_R": -1.1154701009001093,
+      "weighted": true
+    },
+    "OTHER": {
+      "trades": 13,
+      "wins": 9,
+      "win_rate_pct": 69.23076923076923,
+      "total_R": 5.041505747697233,
+      "avg_R": 0.3878081344382487,
+      "weighted": true
+    },
+    "RANGE_CONTRACTION": {
+      "trades": 10,
+      "wins": 7,
+      "win_rate_pct": 70.0,
+      "total_R": 6.671161915804522,
+      "avg_R": 0.6671161915804522,
+      "weighted": true
+    }
+  }
+}

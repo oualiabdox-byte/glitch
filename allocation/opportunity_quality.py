@@ -63,3 +63,30 @@ def score_opportunity(signal: dict[str, Any], frame: pd.DataFrame) -> dict[str, 
     liquidity=liquidity_quality(signal)
     final=_clip(0.60*liquidity["score"]+0.40*regime["score"])
     return {"regime":regime,"liquidity":liquidity,"quality_score":final}
+
+def compression_regime_v2(frame: pd.DataFrame, timestamp: str, signal: dict[str, Any], lookback: int = 96) -> dict[str, Any]:
+    """Strategy-specific compression score using only bars before the signal.
+
+    It rewards liquidity-building compression and a current displacement, rather
+    than assuming generic trend expansion is preferable. It never rejects a
+    signal; callers should use the bounded multiplier only.
+    """
+    bars = _prior(frame, timestamp, lookback * 2)
+    if len(bars) < lookback + 20:
+        return {"state":"INSUFFICIENT_HISTORY","score":0.5,"compression":0.5,"volume_compression":0.5,"post_compression_displacement":0.5}
+    current=bars.tail(lookback); older=bars.iloc[:-lookback]
+    cur_range=float((current.high-current.low).median()); old_range=float((older.high-older.low).median())
+    cur_vol=float(current.volume.median()); old_vol=float(older.volume.median())
+    compression=1.0-_norm(cur_range/max(old_range,1e-12),0.75,1.35)
+    volume_compression=1.0-_norm(cur_vol/max(old_vol,1e-12),0.70,1.40)
+    displacement=_norm(float((signal.get("evidence") or {}).get("displacement",{}).get("displacement_ratio") or 0.0),0.75,1.75)
+    score=_clip(0.40*compression+0.25*volume_compression+0.20*displacement+0.15*_clip(float(signal.get("planned_rr") or 0.0)/2.0))
+    state="RANGE_CONTRACTION" if compression>=0.5 and volume_compression>=0.5 else ("COMPRESSION_RELEASE" if displacement>=0.5 and compression>=0.4 else "OTHER")
+    return {"state":state,"score":score,"compression":compression,"volume_compression":volume_compression,"post_compression_displacement":displacement}
+
+def score_opportunity_v2(signal: dict[str, Any], frame: pd.DataFrame) -> dict[str, Any]:
+    regime=compression_regime_v2(frame, signal["signal_close_utc"], signal)
+    liquidity=liquidity_quality(signal)
+    quality=_clip(0.55*regime["score"]+0.45*liquidity["score"])
+    multiplier=0.85+0.35*quality
+    return {"regime":regime,"liquidity":liquidity,"quality_score":quality,"allocation_multiplier":multiplier}
