@@ -124,6 +124,10 @@ The cash conversion must be calculated for the account currency and symbol; the 
 
 No additional strategy filters are enabled by default. This keeps the signal sample stable and puts overfitting control in the validation process rather than in an expanding list of gates.
 
+## Overfitting control
+
+`backtest/validation.py` provides chronological rolling train/test windows with an optional embargo. Use it to evaluate a small, predeclared parameter set on later data; do not select filters from the test window. The repository does not enable additional strategy gates by default just to improve one short sample.
+
 ## Validation
 
 ```bash
