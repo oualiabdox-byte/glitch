@@ -182,12 +182,19 @@ def main() -> int:
         "CTRADER_PAIRS", ",".join(configured_pairs(cfg))
     ).split(",") if p.strip()]
     execute = os.getenv("CTRADER_DEMO_EXECUTE", "false").lower() == "true"
+    sizing_mode = os.getenv("CTRADER_SIZING_MODE", "fixed").strip().lower()
+    if sizing_mode not in {"fixed", "risk"}:
+        raise RuntimeError("CTRADER_SIZING_MODE must be fixed or risk")
     until_trade = os.getenv("CTRADER_RUN_UNTIL_TRADE", "false").lower() == "true"
     poll_seconds = max(10, int(os.getenv("CTRADER_POLL_SECONDS", "300")))
     if execute:
         require_demo_execution()
-        if not os.getenv("CTRADER_ORDER_VOLUME_UNITS"):
-            raise RuntimeError("CTRADER_ORDER_VOLUME_UNITS is required for demo execution")
+        if sizing_mode == "fixed" and not os.getenv("CTRADER_ORDER_VOLUME_UNITS"):
+            raise RuntimeError("CTRADER_ORDER_VOLUME_UNITS is required for fixed demo sizing")
+        if sizing_mode == "risk":
+            missing = [name for name in ("CTRADER_ACCOUNT_EQUITY", "CTRADER_CASH_PER_UNIT_PRICE_MOVE") if not os.getenv(name)]
+            if missing:
+                raise RuntimeError("risk sizing requires: " + ", ".join(missing))
     state = _load_state()
     store = EventStore(DATABASE_PATH)
     print(json.dumps({"mode": ("DEMO_EXECUTE_UNTIL_TRADE" if execute and until_trade
