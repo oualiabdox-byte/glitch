@@ -102,6 +102,28 @@ PYTHONPATH=. python -m execution.demo_runner
 
 Set `CTRADER_DEMO_EXECUTE=false` for signal-only operation. Live routing is not implemented. Verify broker minimum and step volume for every cTrader symbol before enabling demo submission.
 
+## Position sizing and execution safety
+
+The strategy does not size positions. The demo order boundary now validates cTrader symbol minimum, maximum, and step volume, and rounds down only so the broker request cannot exceed the requested risk.
+
+The default remains fixed sizing for backward compatibility:
+
+    CTRADER_SIZING_MODE=fixed
+    CTRADER_ORDER_VOLUME_UNITS=1000
+    CTRADER_MAX_ORDER_VOLUME_UNITS=1000
+
+Risk sizing is opt-in and requires an explicit account-equity snapshot plus a cash conversion supplied in account currency:
+
+    CTRADER_SIZING_MODE=risk
+    CTRADER_ACCOUNT_EQUITY=10000
+    CTRADER_RISK_PER_TRADE_PCT=0.005
+    CTRADER_CASH_PER_UNIT_PRICE_MOVE=1.0
+    CTRADER_MAX_ORDER_VOLUME_UNITS=1000
+
+The cash conversion must be calculated for the account currency and symbol; the bot does not silently assume every pair is USD-quoted. If those values are missing, execution stops. Live order submission is disabled in the adapter; use demo only until a separately reviewed live execution boundary exists.
+
+No additional strategy filters are enabled by default. This keeps the signal sample stable and puts overfitting control in the validation process rather than in an expanding list of gates.
+
 ## Validation
 
 ```bash
