@@ -1,0 +1,58 @@
+{
+  "config": {
+    "target_cycle_bars": 96,
+    "volume_lookback_bars": 96,
+    "warmup_bars": 96,
+    "history_cycles": 6,
+    "ewma_alpha": 0.35,
+    "vol_floor": 0.0005,
+    "max_weight": 0.4,
+    "temperature": 0.5
+  },
+  "pairs": [
+    "AUDUSD",
+    "EURUSD",
+    "GBPUSD",
+    "NZDUSD",
+    "USDCAD",
+    "USDCHF",
+    "USDJPY"
+  ],
+  "common_timestamps": 1974,
+  "first_timestamp": "2026-09-16T22:15:00+00:00",
+  "last_timestamp": "2026-09-25T20:55:00+00:00",
+  "completed_cycles": 143,
+  "cycles_by_pair": {
+    "AUDUSD": 20,
+    "EURUSD": 20,
+    "GBPUSD": 21,
+    "NZDUSD": 21,
+    "USDCAD": 20,
+    "USDCHF": 21,
+    "USDJPY": 20
+  },
+  "turnover_one_way_sum": 10.400692906169656,
+  "adaptive": {
+    "bars": 1973,
+    "total_return_pct": 0.3272607284683149,
+    "max_drawdown_pct": -0.6573664240042132,
+    "win_rate_pct": 50.40567951318459,
+    "sharpe_unannualized": 0.011982274025249788
+  },
+  "equal_weight": {
+    "bars": 1973,
+    "total_return_pct": -0.21203733482705323,
+    "max_drawdown_pct": -0.5090420998857592,
+    "win_rate_pct": 51.03902686264572,
+    "sharpe_unannualized": -0.013986487907220605
+  },
+  "final_weights": {
+    "AUDUSD": 0.11305893885808906,
+    "EURUSD": 0.10474104862208485,
+    "GBPUSD": 0.1557962872868715,
+    "NZDUSD": 0.1622184900323021,
+    "USDCAD": 0.1277096012462816,
+    "USDCHF": 0.33647563395437086,
+    "USDJPY": 0.0
+  }
+}
