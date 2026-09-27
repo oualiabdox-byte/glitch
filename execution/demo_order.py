@@ -13,8 +13,10 @@ import uuid
 from ctrader_open_api import Protobuf
 from twisted.internet import reactor
 
-from data.ctrader import CTraderData
+from config.settings import load_config, risk_config
+from data.ctrader import CTraderData, normalize_symbol_spec
 from execution.demo_guard import require_demo_execution
+from execution.risk import resolve_order_volume
 
 
 def main() -> int:
@@ -36,17 +38,17 @@ def main() -> int:
     target_distance = abs(target - entry)
     if stop_distance <= 0 or target_distance <= 0:
         raise ValueError("signal must have positive SL and TP distances")
-    volume = float(os.environ["CTRADER_ORDER_VOLUME_UNITS"])
-    cap = float(os.environ["CTRADER_MAX_ORDER_VOLUME_UNITS"])
-    if volume <= 0 or volume > cap:
-        raise ValueError("CTRADER_ORDER_VOLUME_UNITS must be positive and <= cap")
-
+    config = load_config()
+    risk_defaults = risk_config(config)
     feed = CTraderData()
     result = {"pair": pair, "status": "CONNECTING"}
     client_order_id = f"CRT-{pair}-{uuid.uuid4().hex[:16]}"
 
     def submit(_symbols):
         symbol_id = feed.symbol_id(pair)
+        symbol_spec = normalize_symbol_spec(feed.symbol_info(pair))
+        sizing = resolve_order_volume(signal, symbol_spec, risk_defaults=risk_defaults)
+        volume = sizing.volume_units
         deferred = feed.submit_market_order(
             symbol_id,
             side,
@@ -60,6 +62,9 @@ def main() -> int:
         def acknowledged(message):
             result.update({"pair": pair, "status": "ORDER_ACKNOWLEDGED",
                            "client_order_id": client_order_id,
+                           "volume_units": volume,
+                           "sizing_mode": sizing.mode,
+                           "estimated_loss_cash": sizing.estimated_loss_cash,
                            "response": str(Protobuf.extract(message))})
             print(json.dumps(result, sort_keys=True))
             if reactor.running:
