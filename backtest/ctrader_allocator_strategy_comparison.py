@@ -232,7 +232,7 @@ def run_portfolio(
     weights_initial: dict[str, float],
     adaptive: bool,
 ) -> dict[str, Any]:
-    common = sorted(set.intersection(*(set(frames[pair].index) for pair in pairs)))
+    timeline = sorted(set.union(*(set(frames[pair].index) for pair in pairs)))
     by_entry: dict[pd.Timestamp, list[dict[str, Any]]] = defaultdict(list)
     for signal in signals:
         entry_time = pd.Timestamp(signal["signal_close_utc"])
@@ -264,9 +264,11 @@ def run_portfolio(
     rolling_rows: list[dict[str, Any]] = []
     last_equity_by_trade = equity
 
-    for timestamp in common:
+    for timestamp in timeline:
         # Close existing positions on the current M5 OHLC bar.
         for pair in list(active):
+            if timestamp not in frames[pair].index:
+                continue
             result = _exit_for_bar(active[pair], frames[pair].loc[timestamp])
             if result is None:
                 continue
@@ -347,9 +349,9 @@ def run_portfolio(
                               **{f"weight_{pair}": weights[pair] for pair in pairs}})
         equity_curve.append(equity)
 
-    # Mark open positions at the final common close using the same close-only convention as existing backtests.
-    if common:
-        last_time = common[-1]
+    # Mark open positions at the final available close using the same close-only convention as existing backtests.
+    if timeline:
+        last_time = timeline[-1]
         for pair, trade in active.items():
             close = float(frames[pair].loc[last_time].close)
             gross_r = trade.side * (close - trade.fill) / trade.risk_distance
@@ -378,6 +380,7 @@ def _report(summary: dict[str, Any], path: Path) -> None:
              "## Data and controls", "",
              f"- Pairs: {', '.join(summary['pairs'])}",
              f"- Common M5 bars: {summary['common_m5_bars']}",
+             f"- Simulation timeline bars (union across pairs): {summary['simulation_timeline_bars']}",
              f"- Period: {summary['first_timestamp']} to {summary['last_timestamp']}",
              "- Source: cTrader M5 OHLC plus native trendbar volume.",
              "- Entry: next available M5 open after the signal close.",
@@ -466,8 +469,9 @@ def main() -> int:
         metrics["skipped_counts"] = result["skipped"]
         metrics["best_cycle_return_pct"] = max(cycle_returns) if cycle_returns else None
         metrics["worst_cycle_return_pct"] = min(cycle_returns) if cycle_returns else None
+    simulation_timeline = sorted(set.union(*(set(frames[pair].index) for pair in PAIRS)))
     summary = {
-        "data_suffix": args.data_suffix, "pairs": list(PAIRS), "common_m5_bars": len(common), "first_timestamp": common[0].isoformat(), "last_timestamp": common[-1].isoformat(),
+        "data_suffix": args.data_suffix, "pairs": list(PAIRS), "common_m5_bars": len(common), "simulation_timeline_bars": len(simulation_timeline), "first_timestamp": common[0].isoformat(), "last_timestamp": common[-1].isoformat(),
         "completed_volume_cycles": completed_cycles, "selected_opportunities": len(selected_signals),
         "strategy_unchanged": True, "cost_pips_round_turn": ROUND_TURN_COST_PIPS, "intrabar_policy": "sl_first", "max_open_positions": MAX_OPEN_POSITIONS,
         "risk_per_trade_pct": RISK_PER_TRADE * 100, "cycle_config": CYCLE_CONFIG.__dict__,

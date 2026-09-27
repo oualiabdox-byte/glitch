@@ -6,6 +6,7 @@
 
 - Pairs: AUDUSD, EURUSD, GBPUSD, NZDUSD, USDCAD, USDCHF, USDJPY
 - Common M5 bars: 4940
+- Simulation timeline bars (union across pairs): 5056
 - Period: 2026-09-02T12:05:00+00:00 to 2026-09-25T20:55:00+00:00
 - Source: cTrader M5 OHLC plus native trendbar volume.
 - Entry: next available M5 open after the signal close.
@@ -17,18 +18,18 @@
 
 | Metric | Existing / Equal Weight | Volume-Cycle Adaptive |
 |---|---:|---:|
-| Total trades | 33 | 21 |
-| Win rate % | 57.575758 | 57.142857 |
-| PF | 1.489855 | 1.735699 |
-| Total R (raw) | 6.863845 | 6.426207 |
-| Total R (weighted) | 0.980549 | 3.464793 |
-| Return % | 0.489492 | 1.737605 |
+| Total trades | 33 | 22 |
+| Win rate % | 57.575758 | 59.090909 |
+| PF | 1.407381 | 1.771619 |
+| Total R (raw) | 5.708211 | 6.739961 |
+| Total R (weighted) | 0.815459 | 3.680191 |
+| Return % | 0.406644 | 1.847172 |
 | Max DD % | 0.432225 | 0.412486 |
-| Average R (raw) | 0.207995 | 0.306010 |
-| Average R (weighted) | 0.029714 | 0.164990 |
-| Average exposure % | 10.286293 | 7.618399 |
-| Capital utilization % | 10.286293 | 7.618399 |
-| Skipped valid opportunities | 26 | 38 |
+| Average R (raw) | 0.172976 | 0.306362 |
+| Average R (weighted) | 0.024711 | 0.167281 |
+| Average exposure % | 10.236777 | 7.808348 |
+| Capital utilization % | 10.236777 | 7.808348 |
+| Skipped valid opportunities | 28 | 39 |
 | Best cycle % | 0.468750 | 1.312500 |
 | Worst cycle % | -0.156812 | -0.248399 |
 
@@ -37,10 +38,10 @@
 - Completed volume cycles: 371
 - Equal-weight turnover: 0.000000
 - Adaptive turnover (one-way): 30.442663
-- equal_weight: average exposure 10.2863%, max exposure 42.8571%, capital utilization 10.2863%.
-- equal_weight: skipped valid opportunities 26.
-- adaptive: average exposure 7.6184%, max exposure 60.0000%, capital utilization 7.6184%.
-- adaptive: skipped valid opportunities 38.
+- equal_weight: average exposure 10.2368%, max exposure 42.8571%, capital utilization 10.2368%.
+- equal_weight: skipped valid opportunities 28.
+- adaptive: average exposure 7.8083%, max exposure 60.0000%, capital utilization 7.8083%.
+- adaptive: skipped valid opportunities 39.
 
 ## Output files
 

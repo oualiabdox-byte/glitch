@@ -6,6 +6,7 @@
 
 - Pairs: AUDUSD, EURUSD, GBPUSD, NZDUSD, USDCAD, USDCHF, USDJPY
 - Common M5 bars: 1974
+- Simulation timeline bars (union across pairs): 2026
 - Period: 2026-09-16T22:15:00+00:00 to 2026-09-25T20:55:00+00:00
 - Source: cTrader M5 OHLC plus native trendbar volume.
 - Entry: next available M5 open after the signal close.
@@ -19,17 +20,17 @@
 |---|---:|---:|
 | Total trades | 8 | 8 |
 | Win rate % | 75.000000 | 75.000000 |
-| PF | 2.636427 | 3.974110 |
-| Total R (raw) | 3.619012 | 6.577341 |
-| Total R (weighted) | 0.517002 | 0.767515 |
-| Return % | 0.258583 | 0.384290 |
+| PF | 2.113878 | 3.451562 |
+| Total R (raw) | 2.463378 | 5.421707 |
+| Total R (weighted) | 0.351911 | 0.721290 |
+| Return % | 0.175926 | 0.361097 |
 | Max DD % | 0.086519 | 0.024225 |
-| Average R (raw) | 0.452376 | 0.822168 |
-| Average R (weighted) | 0.064625 | 0.095939 |
-| Average exposure % | 5.065856 | 3.170392 |
-| Capital utilization % | 5.065856 | 3.170392 |
-| Skipped valid opportunities | 8 | 8 |
-| Best cycle % | 0.122793 | 0.125806 |
+| Average R (raw) | 0.307922 | 0.677713 |
+| Average R (weighted) | 0.043989 | 0.090161 |
+| Average exposure % | 5.062756 | 3.138378 |
+| Capital utilization % | 5.062756 | 3.138378 |
+| Skipped valid opportunities | 9 | 9 |
+| Best cycle % | 0.104680 | 0.125806 |
 | Worst cycle % | -0.086519 | -0.024225 |
 
 ## Allocation diagnostics
@@ -37,10 +38,10 @@
 - Completed volume cycles: 143
 - Equal-weight turnover: 0.000000
 - Adaptive turnover (one-way): 10.684136
-- equal_weight: average exposure 5.0659%, max exposure 42.8571%, capital utilization 5.0659%.
-- equal_weight: skipped valid opportunities 8.
-- adaptive: average exposure 3.1704%, max exposure 44.0000%, capital utilization 3.1704%.
-- adaptive: skipped valid opportunities 8.
+- equal_weight: average exposure 5.0628%, max exposure 42.8571%, capital utilization 5.0628%.
+- equal_weight: skipped valid opportunities 9.
+- adaptive: average exposure 3.1384%, max exposure 44.0000%, capital utilization 3.1384%.
+- adaptive: skipped valid opportunities 9.
 
 ## Output files
 
