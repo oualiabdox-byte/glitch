@@ -35,11 +35,17 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import (
     ProtoOANewOrderReq,
     ProtoOAAmendPositionSLTPReq,
     ProtoOAClosePositionReq,
+    ProtoOAExecutionEvent,
+    ProtoOAOrderErrorEvent,
+    ProtoOAReconcileRes,
+    ProtoOAErrorRes,
 )
 from ctrader_open_api.messages.OpenApiModelMessages_pb2 import (
     ProtoOAOrderType,
     ProtoOATradeSide,
+    ProtoOAExecutionType,
 )
+from google.protobuf.json_format import MessageToDict
 from twisted.internet import reactor
 
 
@@ -103,6 +109,14 @@ class CTraderAdapter:
         self.on_account_ready = None
         self._deferreds: list[Any] = []
         self._heartbeat_call = None
+        self._reconciliation_call = None
+        self.reconciliation_interval_seconds = float(
+            os.getenv("CTRADER_RECONCILIATION_INTERVAL_SECONDS", "60")
+        )
+        self.on_broker_event = None
+        self.on_reconciliation = None
+        self.on_transport_failure = None
+        self.execution_halt_checker = None
 
     @property
     def host(self) -> str:
@@ -147,6 +161,7 @@ class CTraderAdapter:
 
     def stop(self) -> None:
         self._cancel_heartbeat()
+        self._cancel_reconciliation()
         if reactor.running:
             reactor.stop()
 
@@ -201,6 +216,27 @@ class CTraderAdapter:
             self._heartbeat_call.cancel()
         self._heartbeat_call = None
 
+    def _schedule_reconciliation(self) -> None:
+        self._cancel_reconciliation()
+        if self.reconciliation_interval_seconds <= 0 or self.account_id is None:
+            return
+        self._reconciliation_call = reactor.callLater(
+            self.reconciliation_interval_seconds,
+            self._run_periodic_reconciliation,
+        )
+
+    def _run_periodic_reconciliation(self) -> None:
+        self._reconciliation_call = None
+        if self.client is None or self.account_id is None:
+            return
+        self.request_reconciliation()
+        self._schedule_reconciliation()
+
+    def _cancel_reconciliation(self) -> None:
+        if self._reconciliation_call is not None and self._reconciliation_call.active():
+            self._reconciliation_call.cancel()
+        self._reconciliation_call = None
+
     def _on_disconnected(self, _client: Any, reason: Any) -> None:
         self._cancel_heartbeat()
         self.client = None
@@ -208,6 +244,8 @@ class CTraderAdapter:
 
     def _on_error(self, failure: Any) -> Any:
         print(f"[cTrader] API error: {failure}")
+        if self.on_transport_failure is not None:
+            self.on_transport_failure(failure)
         return failure
 
     def _on_message(self, _client: Any, message: Any) -> None:
@@ -245,6 +283,7 @@ class CTraderAdapter:
             self.account_id = int(response.ctidTraderAccountId)
             print(f"[cTrader] account authorized: {self.account_id}")
             self.request_account_state()
+            self._schedule_reconciliation()
             if self.on_account_ready is not None:
                 self.on_account_ready()
             return
@@ -252,7 +291,96 @@ class CTraderAdapter:
         if payload_type == ProtoHeartbeatEvent().payloadType:
             return
 
+        if payload_type == ProtoOAExecutionEvent().payloadType:
+            self._dispatch_broker_event(message, "execution")
+            return
+
+        if payload_type == ProtoOAOrderErrorEvent().payloadType:
+            self._dispatch_broker_event(message, "order_error")
+            return
+
+        if payload_type == ProtoOAErrorRes().payloadType:
+            self._dispatch_broker_event(message, "protocol_error")
+            return
+
+        if payload_type == ProtoOAReconcileRes().payloadType:
+            response = Protobuf.extract(message)
+            if self.on_reconciliation is not None:
+                self.on_reconciliation(self._reconciliation_snapshot(response, message))
+            return
+
         print(f"[cTrader] message: {Protobuf.extract(message)}")
+
+    def _dispatch_broker_event(self, message: Any, kind: str) -> None:
+        if self.on_broker_event is None and self.on_transport_failure is None:
+            print(f"[cTrader] {kind}: {Protobuf.extract(message)}")
+            return
+        payload = Protobuf.extract(message)
+        event = self._normalize_broker_event(message, payload, kind)
+        if self.on_broker_event is not None:
+            self.on_broker_event(event)
+
+    def _normalize_broker_event(self, message: Any, payload: Any, kind: str) -> dict[str, Any]:
+        raw = MessageToDict(payload, preserving_proto_field_name=True)
+        event: dict[str, Any] = {
+            "event_id": self._event_identity(message, payload, kind),
+            "kind": kind,
+            "account_id": int(getattr(payload, "ctidTraderAccountId", self.account_id or 0)),
+            "client_msg_id": getattr(message, "clientMsgId", None),
+            "raw_event": raw,
+            "raw_payload_hex": message.SerializeToString().hex(),
+        }
+        if kind == "execution":
+            execution_type = ProtoOAExecutionType.Name(payload.executionType)
+            event["execution_type"] = execution_type
+            if payload.HasField("order"):
+                order = payload.order
+                event.update({
+                    "broker_order_id": int(order.orderId),
+                    "client_order_id": getattr(order, "clientOrderId", None),
+                    "symbol_id": int(getattr(order.tradeData, "symbolId", 0)),
+                    "executed_volume": float(getattr(order, "executedVolume", 0) or 0) / 100.0,
+                    "execution_price": float(getattr(order, "executionPrice", 0) or 0),
+                })
+            if payload.HasField("deal"):
+                deal = payload.deal
+                event.update({
+                    "deal_id": int(deal.dealId),
+                    "position_id": int(getattr(deal, "positionId", 0) or 0) or None,
+                    "last_volume": float(getattr(deal, "volume", 0) or 0) / 100.0,
+                    "execution_price": float(getattr(deal, "executionPrice", 0) or 0),
+                })
+            if payload.HasField("position"):
+                event["position_id"] = int(payload.position.positionId)
+        elif kind == "order_error":
+            event.update({
+                "error_code": payload.errorCode,
+                "error_description": getattr(payload, "description", ""),
+                "broker_order_id": int(getattr(payload, "orderId", 0) or 0) or None,
+                "position_id": int(getattr(payload, "positionId", 0) or 0) or None,
+            })
+        else:
+            event.update({
+                "error_code": getattr(payload, "errorCode", ""),
+                "error_description": getattr(payload, "description", ""),
+            })
+        return event
+
+    @staticmethod
+    def _event_identity(message: Any, payload: Any, kind: str) -> str:
+        raw = payload.SerializeToString().hex()
+        return f"{kind}:{getattr(message, 'clientMsgId', None) or ''}:{raw}"
+
+    @staticmethod
+    def _reconciliation_snapshot(response: Any, message: Any) -> dict[str, Any]:
+        return {
+            "account_id": int(response.ctidTraderAccountId),
+            "broker_orders": [MessageToDict(row, preserving_proto_field_name=True)
+                              for row in response.order],
+            "broker_positions": [MessageToDict(row, preserving_proto_field_name=True)
+                                  for row in response.position],
+            "raw_payload_hex": message.SerializeToString().hex(),
+        }
 
     def _require_account(self) -> int:
         if self.account_id is None:
@@ -274,6 +402,11 @@ class CTraderAdapter:
         reconcile = ProtoOAReconcileReq()
         reconcile.ctidTraderAccountId = account_id
         self._send(reconcile)
+
+    def request_reconciliation(self) -> Any:
+        request = ProtoOAReconcileReq()
+        request.ctidTraderAccountId = self._require_account()
+        return self._send(request)
 
     def subscribe_spots(self, symbol_id: int) -> None:
         request = ProtoOASubscribeSpotsReq()
@@ -299,6 +432,7 @@ class CTraderAdapter:
         relative_stop_loss: Optional[float] = None,
         relative_take_profit: Optional[float] = None,
         client_order_id: Optional[str] = None,
+        internal_order_id: Optional[str] = None,
         label: Optional[str] = None,
         comment: Optional[str] = None,
     ) -> Any:
@@ -312,6 +446,8 @@ class CTraderAdapter:
         """
         if self.config.environment != "demo":
             raise RuntimeError("Live order submission is disabled; this adapter only submits demo orders")
+        if self.execution_halt_checker is not None and self.execution_halt_checker():
+            raise RuntimeError("EXECUTION_HALT: new order submission is blocked")
         self._require_order_permission()
         if volume_units <= 0:
             raise ValueError("volume_units must be > 0")
@@ -350,7 +486,7 @@ class CTraderAdapter:
             req.label = str(label)[:100]
         if comment:
             req.comment = str(comment)[:512]
-        return self._send(req)
+        return self._send(req, client_msg_id=internal_order_id)
 
     def amend_position_protection(
         self,

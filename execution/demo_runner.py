@@ -262,6 +262,14 @@ def main() -> int:
                                   "signal_id": signal_id}), flush=True)
                 continue
 
+            account_raw = os.getenv("CTRADER_ACCOUNT_ID", "").strip()
+            if account_raw and store.is_execution_halted(int(account_raw)):
+                print(json.dumps({"pair": pair, "variant": variant_name,
+                                  "status": "EXECUTION_HALT",
+                                  "reason": "account-level halt blocks new submissions"},
+                                 sort_keys=True), flush=True)
+                continue
+
             # The pair-level limit is an execution guard, applied only after all
             # variants have been evaluated and a deterministic signal selected.
             proc = subprocess.run(
