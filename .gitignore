@@ -45,6 +45,8 @@ models/
 # Local caches
 .cache/
 .pytest_cache/
+data/ctrader_cache/
+backtest/ctrader_volume_data/
 
 # Trading runtime artifacts
 *.pid
