@@ -43,6 +43,8 @@ class OpenTrade:
     risk_distance: float
     weight: float
     entry_time: str
+    current_stop: float | None = None
+    best_favorable: float = 0.0
     exit_time: str | None = None
     exit_price: float | None = None
     exit_reason: str | None = None
@@ -162,7 +164,7 @@ def select_pair_opportunities(pair: str, candidates: list[dict[str, Any]]) -> tu
 
 
 def _exit_for_bar(trade: OpenTrade, bar: pd.Series) -> tuple[float, str] | None:
-    stop = float(trade.signal["stop"])
+    stop = float(trade.current_stop if trade.current_stop is not None else trade.signal["stop"])
     target = float(trade.signal["target"])
     opened, high, low = float(bar.open), float(bar.high), float(bar.low)
     if trade.side == 1:
@@ -232,6 +234,7 @@ def run_portfolio(
     weights_initial: dict[str, float],
     adaptive: bool,
     signal_multipliers: dict[str, float] | None = None,
+    dynamic_stop_mode: str | None = None,
 ) -> dict[str, Any]:
     timeline = sorted(set.union(*(set(frames[pair].index) for pair in pairs)))
     by_entry: dict[pd.Timestamp, list[dict[str, Any]]] = defaultdict(list)
@@ -270,8 +273,25 @@ def run_portfolio(
         for pair in list(active):
             if timestamp not in frames[pair].index:
                 continue
-            result = _exit_for_bar(active[pair], frames[pair].loc[timestamp])
+            trade = active[pair]
+            if dynamic_stop_mode:
+                if dynamic_stop_mode not in {"BE_1R", "TRAIL_1R", "TRAIL_1_5R"}:
+                    raise ValueError(f"unknown dynamic_stop_mode: {dynamic_stop_mode}")
+                if dynamic_stop_mode in {"BE_1R", "TRAIL_1R"} and trade.best_favorable >= trade.risk_distance:
+                    if trade.side == 1:
+                        trade.current_stop = max(float(trade.current_stop), trade.fill if dynamic_stop_mode == "BE_1R" else trade.fill + 0.25 * trade.risk_distance)
+                    else:
+                        trade.current_stop = min(float(trade.current_stop), trade.fill if dynamic_stop_mode == "BE_1R" else trade.fill - 0.25 * trade.risk_distance)
+                if dynamic_stop_mode in {"TRAIL_1R", "TRAIL_1_5R"} and trade.best_favorable >= (1.0 if dynamic_stop_mode == "TRAIL_1R" else 1.5) * trade.risk_distance:
+                    if trade.side == 1:
+                        trade.current_stop = max(float(trade.current_stop), trade.fill + 0.75 * trade.risk_distance)
+                    else:
+                        trade.current_stop = min(float(trade.current_stop), trade.fill - 0.75 * trade.risk_distance)
+            result = _exit_for_bar(trade, frames[pair].loc[timestamp])
             if result is None:
+                bar = frames[pair].loc[timestamp]
+                favorable = (float(bar.high) - trade.fill) if trade.side == 1 else (trade.fill - float(bar.low))
+                trade.best_favorable = max(trade.best_favorable, favorable)
                 continue
             trade = active.pop(pair)
             trade.exit_time = timestamp.isoformat()
@@ -287,7 +307,7 @@ def run_portfolio(
                 "portfolio": name, "pair": pair, "variant": trade.signal["variant"], "signal_id": trade.signal["signal_id"],
                 "signal_close_utc": trade.signal["signal_close_utc"], "entry_time_utc": trade.entry_time,
                 "exit_time_utc": trade.exit_time, "side": trade.signal["side"], "fill": trade.fill,
-                "stop": trade.signal["stop"], "target": trade.signal["target"], "exit_price": trade.exit_price,
+                "stop": trade.signal["stop"], "dynamic_stop_at_exit": trade.current_stop, "target": trade.signal["target"], "exit_price": trade.exit_price,
                 "exit_reason": trade.exit_reason, "risk_distance": trade.risk_distance, "gross_R": gross_r,
                 "net_R": net_r, "allocation_weight": trade.weight, "weighted_R": weighted_r,
                 "account_return_pct": account_return * 100, "equity_after": equity,
@@ -323,7 +343,7 @@ def run_portfolio(
                 continue
             active[pair] = OpenTrade(signal=signal, pair=pair, side=side, fill=fill,
                                      risk_distance=abs(fill - stop), weight=allocation_weight,
-                                     entry_time=timestamp.isoformat())
+                                     entry_time=timestamp.isoformat(), current_stop=stop)
 
         # A cycle can affect allocations only after the bar that completed it.
         while cycle_cursor < len(cycle_events) and pd.Timestamp(cycle_events[cycle_cursor][0]) <= timestamp:

@@ -1,0 +1,82 @@
+{
+  "note": "BOS_AFTER_CHOCH plus causal Liquidity Regime v2 soft multiplier. Dynamic stops update only from prior completed M5 bars, avoiding same-bar lookahead. BE_1R moves stop to entry after prior-bar favorable movement reaches 1R; TRAIL_1R moves to +0.25R after 1R and +0.75R after 1.5R.",
+  "selected_opportunities": 17,
+  "results": {
+    "baseline": {
+      "metrics": {
+        "total_trades": 8,
+        "wins": 6,
+        "losses": 2,
+        "win_rate_pct": 75.0,
+        "profit_factor": 4.050470080291574,
+        "total_R_raw": 3.7411548338532064,
+        "total_R_weighted": 1.1704785494923313,
+        "average_R_raw": 0.4676443542316508,
+        "average_R_weighted": 0.14630981868654142,
+        "return_pct": 0.5855629652435468,
+        "max_DD_pct": 0.1457570415325682
+      },
+      "skipped": {
+        "position_open": 3,
+        "zero_allocator_weight": 6
+      }
+    },
+    "be_1r": {
+      "metrics": {
+        "total_trades": 9,
+        "wins": 5,
+        "losses": 4,
+        "win_rate_pct": 55.55555555555556,
+        "profit_factor": 0.8932318239930072,
+        "total_R_raw": -0.1853802538657014,
+        "total_R_weighted": 0.12530139622252406,
+        "average_R_raw": -0.020597805985077933,
+        "average_R_weighted": 0.013922377358058229,
+        "return_pct": 0.06247763669151585,
+        "max_DD_pct": 0.14049561074683803
+      },
+      "skipped": {
+        "position_open": 2,
+        "zero_allocator_weight": 6
+      }
+    },
+    "trail_1r": {
+      "metrics": {
+        "total_trades": 9,
+        "wins": 7,
+        "losses": 2,
+        "win_rate_pct": 77.77777777777779,
+        "profit_factor": 2.067022796219885,
+        "total_R_raw": 1.2937864128009084,
+        "total_R_weighted": 0.5093389957806942,
+        "average_R_raw": 0.1437540458667676,
+        "average_R_weighted": 0.056593221753410465,
+        "return_pct": 0.25477612236519676,
+        "max_DD_pct": 0.11318465299310354
+      },
+      "skipped": {
+        "position_open": 2,
+        "zero_allocator_weight": 6
+      }
+    },
+    "trail_1_5r": {
+      "metrics": {
+        "total_trades": 9,
+        "wins": 7,
+        "losses": 2,
+        "win_rate_pct": 77.77777777777779,
+        "profit_factor": 4.541208919205547,
+        "total_R_raw": 4.293786412800677,
+        "total_R_weighted": 1.3585718574823724,
+        "average_R_raw": 0.4770873792000752,
+        "average_R_weighted": 0.15095242860915248,
+        "return_pct": 0.6802234690297837,
+        "max_DD_pct": 0.11318465299310354
+      },
+      "skipped": {
+        "position_open": 2,
+        "zero_allocator_weight": 6
+      }
+    }
+  }
+}
