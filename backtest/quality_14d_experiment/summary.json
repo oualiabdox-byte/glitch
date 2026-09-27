@@ -1,0 +1,54 @@
+{
+  "note": "Causal signal-quality diagnostic only; scores use data at signal close. Counterfactual outcomes use future bars and are never inputs to scores. This is not yet wired into demo execution.",
+  "all_selected": {
+    "n": 24,
+    "wins": 16,
+    "win_rate_pct": 66.66666666666667,
+    "total_R": 10.318005935391673,
+    "avg_R": 0.42991691397465304
+  },
+  "top_half_regime": {
+    "n": 12,
+    "wins": 6,
+    "win_rate_pct": 50.0,
+    "total_R": -1.4931083912094871,
+    "avg_R": -0.12442569926745727
+  },
+  "top_half_liquidity": {
+    "n": 12,
+    "wins": 6,
+    "win_rate_pct": 50.0,
+    "total_R": 2.8286713027954873,
+    "avg_R": 0.2357226085662906
+  },
+  "top_half_combined_quality": {
+    "n": 12,
+    "wins": 7,
+    "win_rate_pct": 58.333333333333336,
+    "total_R": -0.2332016313026486,
+    "avg_R": -0.019433469275220716
+  },
+  "regime_breakdown": {
+    "RANGE_CONTRACTION": {
+      "n": 15,
+      "wins": 11,
+      "win_rate_pct": 73.33333333333333,
+      "total_R": 6.775451898673416,
+      "avg_R": 0.4516967932448944
+    },
+    "RANGE_EXPANSION": {
+      "n": 5,
+      "wins": 2,
+      "win_rate_pct": 40.0,
+      "total_R": -1.2078055047758163,
+      "avg_R": -0.24156110095516325
+    },
+    "TRANSITION": {
+      "n": 4,
+      "wins": 3,
+      "win_rate_pct": 75.0,
+      "total_R": 4.750359541494074,
+      "avg_R": 1.1875898853735185
+    }
+  }
+}
