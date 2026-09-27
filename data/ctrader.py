@@ -312,7 +312,12 @@ class CTraderData(CTraderAdapter):
                 result[period].extend(candles)
                 earliest = min(_ms(c["time"]) for c in candles)
 
-                if earliest <= state["start_ms"] or not has_more:
+                # Some cTrader responses omit/under-report hasMore when the
+                # page is exactly full. Continue paging while a full page
+                # still ends after the requested start; the following request
+                # will return an empty page if the server has no more data.
+                page_is_full = len(candles) >= _DEFAULT_PAGE_SIZE
+                if earliest <= state["start_ms"] or (not has_more and not page_is_full):
                     state["pending"].pop(0)
                     _request_next()
                     return
