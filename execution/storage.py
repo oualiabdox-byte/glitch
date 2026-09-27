@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any
+
+from intelligence.hindsight_memory import retain_event
 
 
 class EventStore:
@@ -69,10 +72,20 @@ class EventStore:
         )
         self.connection.commit()
 
+    @staticmethod
+    def _memory_event(event_type: str, payload: dict[str, Any]) -> None:
+        """Best-effort async handoff; Hindsight never blocks trading."""
+        thread = threading.Thread(
+            target=retain_event,
+            args=(event_type, payload),
+            daemon=True,
+            name="glitch-hindsight",
+        )
+        thread.start()
+
     def record_scan(self, recorded_at_utc: str, pair: str, result: dict[str, Any]) -> None:
         self.connection.execute(
-            "INSERT INTO scans(recorded_at_utc,pair,status,reason_codes_json,result_json) "
-            "VALUES(?,?,?,?,?)",
+            "INSERT INTO scans(recorded_at_utc,pair,status,reason_codes_json,result_json) VALUES(?,?,?,?,?)",
             (recorded_at_utc, pair, result.get("status", "UNKNOWN"),
              json.dumps(result.get("reason_codes", []), sort_keys=True),
              json.dumps(result, sort_keys=True)),
@@ -81,12 +94,12 @@ class EventStore:
 
     def record_order(self, recorded_at_utc: str, pair: str, event: dict[str, Any]) -> None:
         self.connection.execute(
-            "INSERT INTO order_events(recorded_at_utc,pair,status,return_code,event_json) "
-            "VALUES(?,?,?,?,?)",
+            "INSERT INTO order_events(recorded_at_utc,pair,status,return_code,event_json) VALUES(?,?,?,?,?)",
             (recorded_at_utc, pair, event.get("status", "UNKNOWN"),
              event.get("returncode"), json.dumps(event, sort_keys=True)),
         )
         self.connection.commit()
+        self._memory_event("ORDER_EVENT", {"recorded_at_utc": recorded_at_utc, "pair": pair, **event})
 
     def record_selection(self, recorded_at_utc: str, pair: str,
                          selection: dict[str, Any]) -> None:
@@ -101,8 +114,13 @@ class EventStore:
              json.dumps(selection, sort_keys=True)),
         )
         self.connection.commit()
+        self._memory_event(
+            "SIGNAL_SELECTION",
+            {"recorded_at_utc": recorded_at_utc, "pair": pair, **selection},
+        )
 
-    def record_outcome(self, recorded_at_utc: str, pair: str, outcome: dict[str, Any]) -> None:
+    def record_outcome(self, recorded_at_utc: str, pair: str,
+                       outcome: dict[str, Any]) -> None:
         self.connection.execute(
             """INSERT INTO trade_outcomes(
                 recorded_at_utc,pair,client_order_id,entry_time_utc,exit_time_utc,
@@ -118,6 +136,10 @@ class EventStore:
              json.dumps(outcome, sort_keys=True)),
         )
         self.connection.commit()
+        self._memory_event(
+            "TRADE_OUTCOME",
+            {"recorded_at_utc": recorded_at_utc, "pair": pair, **outcome},
+        )
 
     def close(self) -> None:
         self.connection.close()
