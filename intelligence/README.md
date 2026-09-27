@@ -62,3 +62,24 @@ Workflow:
 
 Reports are historical evidence. They must not authorize orders, change risk,
 or mutate the strategy automatically.
+
+
+## OpenRouter free routing
+
+The repository does not pin a specific LLM model. Hindsight is configured at
+runtime to use OpenRouter's free-model router:
+
+    HINDSIGHT_API_LLM_PROVIDER=openrouter
+    HINDSIGHT_API_LLM_MODEL=openrouter/free
+
+openrouter/free is an OpenRouter router, not a specific model. OpenRouter
+selects an available free model for each request. The API key is supplied only
+through the runtime environment; it is never committed to the repository.
+
+Docker Compose configuration:
+
+    export OPENROUTER_API_KEY="sk-or-..."
+    docker compose -f infra/hindsight/docker-compose.yml up -d
+
+The Hindsight client in GLITCH remains provider-agnostic. Provider/model
+selection belongs to the Hindsight service deployment, not the trading code.
