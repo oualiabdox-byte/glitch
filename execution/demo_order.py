@@ -78,7 +78,19 @@ def main() -> int:
     feed = CTraderData()
     store = EventStore(os.getenv("CTRADER_DATABASE_PATH", "results/trading.db"))
     oms = OMS(int(os.getenv("CTRADER_ACCOUNT_ID")) if os.getenv("CTRADER_ACCOUNT_ID") else None)
-    reconciler = Reconciler()
+    def normalize_reconciliation_symbol(value: Any) -> Any:
+        if isinstance(value, str) and not value.isdigit():
+            return value.upper().replace("/", "").replace("_", "").replace("-", "")
+        try:
+            symbol_id = int(value)
+        except (TypeError, ValueError):
+            return value
+        for name, spec in feed.symbols.items():
+            if int(getattr(spec, "symbolId", -1)) == symbol_id:
+                return name.upper().replace("/", "").replace("_", "").replace("-", "")
+        return symbol_id
+
+    reconciler = Reconciler(symbol_normalizer=normalize_reconciliation_symbol)
     internal_order_id = f"INT-{uuid.uuid4().hex}"
     client_order_id = f"CRT-{pair}-{uuid.uuid4().hex[:16]}"
     result = {"pair": pair, "status": "CONNECTING", "internal_order_id": internal_order_id}
