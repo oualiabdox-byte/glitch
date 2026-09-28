@@ -17,6 +17,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from config.settings import load_config, strategy_config
 from strategy.selection import select_signals
 from strategy.variants import VARIANTS, build_variant
 
@@ -64,13 +65,13 @@ def rows(data):
              "close": float(row.close)} for stamp, row in data.iterrows()]
 
 
-def signals(raw, variant):
+def signals(raw, variant, base_options):
     h1 = raw.resample("1h", label="left", closed="left").agg(
         {"open": "first", "high": "max", "low": "min", "close": "last"}
     ).dropna()
     m5_rows = rows(raw)
     h1_rows = rows(h1)
-    strategy = build_variant(variant)
+    strategy = build_variant(variant, base_options=base_options)
     output = []
     last_event = None
     for index in range(100, len(m5_rows)):
@@ -99,6 +100,7 @@ def signals(raw, variant):
             "side": "LONG" if decision.side == "LONG" else "SHORT",
             "entry": float(decision.entry_price), "sl": float(decision.stop_price),
             "tp": float(decision.target_price), "rr": float(decision.risk_reward or 0),
+            "min_rr": float(base_options.get("min_rr", 0.0)),
         })
     return output
 
@@ -132,17 +134,34 @@ def select_pair_candidates(pair, by_variant):
 
 
 def simulate(raw, signal, pip):
-    index = raw.index.searchsorted(signal["time"], side="right")
+    # The executable fill is the next M5 open after signal close, not the
+    # confirmation candle close used as the strategy's reference price.
+    signal_close = pd.Timestamp(signal["signal_close_utc"])
+    index = raw.index.searchsorted(signal_close, side="left")
     if index >= len(raw):
         return None
     side = 1 if signal["side"] == "LONG" else -1
-    entry, stop, target = float(signal["entry"]), float(signal["sl"]), float(signal["tp"])
+    fill = float(raw.iloc[index].open)
+    stop, target = float(signal["sl"]), float(signal["tp"])
+    risk_distance = abs(fill - stop)
+    reward_distance = side * (target - fill)
+    if risk_distance <= 0 or reward_distance <= 0:
+        return None
+    actual_rr = reward_distance / risk_distance
+    if actual_rr < float(signal.get("min_rr", 0.0)):
+        return None
     reason = "end"
     exit_price = float(raw.iloc[-1].close)
     exit_index = len(raw) - 1
     for cursor in range(index, len(raw)):
         bar = raw.iloc[cursor]
         if side == 1:
+            if bar.open <= stop:
+                exit_price, reason, exit_index = float(bar.open), "stop_gap", cursor
+                break
+            if bar.open >= target:
+                exit_price, reason, exit_index = target, "target_gap", cursor
+                break
             if bar.low <= stop:
                 exit_price, reason, exit_index = stop, "sl", cursor
                 break
@@ -150,17 +169,23 @@ def simulate(raw, signal, pip):
                 exit_price, reason, exit_index = target, "tp", cursor
                 break
         else:
+            if bar.open >= stop:
+                exit_price, reason, exit_index = float(bar.open), "stop_gap", cursor
+                break
+            if bar.open <= target:
+                exit_price, reason, exit_index = target, "target_gap", cursor
+                break
             if bar.high >= stop:
                 exit_price, reason, exit_index = stop, "sl", cursor
                 break
             if bar.low <= target:
                 exit_price, reason, exit_index = target, "tp", cursor
                 break
-    raw_return = side * (exit_price - entry) / entry - (1.5 * pip) / entry
-    risk = abs(entry - stop) / entry
+    raw_return = side * (exit_price - fill) / fill - (1.5 * pip) / fill
+    risk = risk_distance / fill
     return {
         "account_return": 0.005 * (raw_return / risk if risk else 0),
-        "reason": reason, "exit_index": exit_index,
+        "reason": reason, "exit_index": exit_index, "fill": fill, "actual_rr": actual_rr,
     }
 
 
@@ -168,7 +193,7 @@ def simulate_one_position_at_a_time(raw, candidates, pip):
     trades = []
     last_exit_index = -1
     for signal in sorted(candidates, key=lambda row: row["signal_close_utc"]):
-        entry_index = raw.index.searchsorted(signal["time"], side="right")
+        entry_index = raw.index.searchsorted(pd.Timestamp(signal["signal_close_utc"]), side="left")
         if entry_index <= last_exit_index:
             continue
         trade = simulate(raw, signal, pip)
@@ -205,11 +230,12 @@ def main():
     args = parser.parse_args()
     cache = ROOT / "backtest" / "forex_test_data"
     results = []
+    base_options = strategy_config(load_config())
     raw_by_pair = {pair: fetch(pair, args.days, cache, args.refresh) for pair, _ in CASES}
     candidates_by_pair_variant = {}
     for case in CASES:
         raw = raw_by_pair[case["pair"]]
-        candidates = signals(raw, case["variant"])
+        candidates = signals(raw, case["variant"], base_options)
         candidates_by_pair_variant[(case["pair"], case["variant"])] = candidates
         pip = PAIRS[case["pair"]][1]
         trades = [trade for candidate in candidates
