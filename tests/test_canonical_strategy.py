@@ -260,9 +260,9 @@ def test_poi_touch_on_same_m5_bar_as_confirmation_is_not_retroactively_active():
 def test_config_yaml_defaults_and_environment_overrides_are_consistent():
     yaml = {
         "strategy": {
-            "swing_length": 2, "min_rr": 0.0, "stop_buffer": 0.0,
-            "allow_weak_structure": True,
-            "allow_equilibrium_overlapping_fvg": True,
+            "swing_length": 3, "min_rr": 2.5, "stop_buffer": 0.0,
+            "allow_weak_structure": False,
+            "allow_equilibrium_overlapping_fvg": False,
             "setup_max_age_hours": 72,
             "m5_confirmation_mode": "CHOCH_OR_BOS",
             "svl": {"require_alignment": False, "profile_bins": 24,
@@ -271,11 +271,11 @@ def test_config_yaml_defaults_and_environment_overrides_are_consistent():
     }
     defaults = strategy_config(yaml, {})
     assert defaults == {
-        "swing_length": 2, "min_rr": 0.0, "stop_buffer": 0.0,
-        "allow_weak_structure": True,
-        "allow_equilibrium_overlapping_fvg": True,
+        "swing_length": 3, "min_rr": 2.5, "stop_buffer": 0.0,
+        "allow_weak_structure": False,
+        "allow_equilibrium_overlapping_fvg": False,
         "setup_max_age_hours": 72,
-        "m5_confirmation_mode": "CHOCH_OR_BOS",
+        "m5_confirmation_mode": "BOS_AFTER_CHOCH",
         "svl_require_alignment": False, "svl_profile_bins": 24,
         "svl_equal_tolerance_pct": 0.001,
     }
@@ -296,11 +296,15 @@ def test_config_yaml_defaults_and_environment_overrides_are_consistent():
 
     from config.settings import load_config
     actual = strategy_config(load_config(), {})
-    assert actual["swing_length"] == 2
-    assert actual["min_rr"] == 0.0
+    assert actual["swing_length"] == 3
+    assert actual["min_rr"] == 2.5
     assert actual["stop_buffer"] == 0.0
-    assert actual["allow_weak_structure"] is True
-    assert actual["allow_equilibrium_overlapping_fvg"] is True
+    assert actual["allow_weak_structure"] is False
+    assert actual["allow_equilibrium_overlapping_fvg"] is False
+    assert actual["m5_confirmation_mode"] == "BOS_AFTER_CHOCH"
+    assert actual["require_displacement"] is True
+    assert actual["min_displacement_ratio"] == 1.0
+    assert actual["require_poi_confluence"] is True
     assert actual["svl_require_alignment"] is False
     assert actual["svl_profile_bins"] == 24
     assert actual["svl_equal_tolerance_pct"] == 0.001
