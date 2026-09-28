@@ -280,9 +280,8 @@ def main() -> int:
             return
         quote_attempts = 0
         digits = int(symbol_spec.get("digits") or 0)
-        divisor = 10 ** digits if digits and quote["bid"] > 100 else 1
-        bid = quote["bid"] / divisor
-        ask = quote["ask"] / divisor
+        bid = round(float(quote["bid"]) / 100000.0, digits) if quote["bid"] is not None else 0.0
+        ask = round(float(quote["ask"]) / 100000.0, digits) if quote["ask"] is not None else 0.0
         execution_defaults = execution_config(config)
         check = evaluate_execution(
             signal,
