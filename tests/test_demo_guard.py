@@ -34,3 +34,14 @@ def test_demo_gate_requires_positive_volume_cap(monkeypatch):
     monkeypatch.setenv("CTRADER_MAX_ORDER_VOLUME_UNITS", "0")
     with pytest.raises(RuntimeError, match="volume cap"):
         require_demo_execution()
+
+
+def test_live_configuration_is_rejected_by_adapter(monkeypatch):
+    monkeypatch.setenv("CTRADER_ENV", "live")
+    monkeypatch.setenv("CTRADER_CLIENT_ID", "x")
+    monkeypatch.setenv("CTRADER_CLIENT_SECRET", "x")
+    monkeypatch.setenv("CTRADER_ACCESS_TOKEN", "x")
+    from execution.ctrader_adapter import CTraderConfig
+
+    with pytest.raises(RuntimeError, match="Live routing is disabled"):
+        CTraderConfig.from_env()
