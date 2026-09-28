@@ -299,13 +299,20 @@ class CTraderAdapter:
         if payload_type == ProtoOASpotEvent().payloadType:
             response = Protobuf.extract(message)
             symbol_id = int(getattr(response, "symbolId", 0))
-            bid_values = list(getattr(response, "bid", []))
-            ask_values = list(getattr(response, "ask", []))
-            if symbol_id and bid_values and ask_values:
-                quote = {"symbol_id": symbol_id, "bid": float(bid_values[-1]), "ask": float(ask_values[-1]), "timestamp": float(getattr(response, "timestamp", 0) or 0)}
-                self.latest_quotes[symbol_id] = quote
-                if self.on_spot_quote is not None:
-                    self.on_spot_quote(quote)
+            if symbol_id:
+                previous = self.latest_quotes.get(symbol_id, {})
+                bid = float(response.bid) if response.HasField("bid") else previous.get("bid")
+                ask = float(response.ask) if response.HasField("ask") else previous.get("ask")
+                if bid is not None or ask is not None:
+                    quote = {
+                        "symbol_id": symbol_id,
+                        "bid": bid,
+                        "ask": ask,
+                        "timestamp": float(getattr(response, "timestamp", 0) or 0),
+                    }
+                    self.latest_quotes[symbol_id] = quote
+                    if self.on_spot_quote is not None:
+                        self.on_spot_quote(quote)
             return
 
         if payload_type == ProtoOAExecutionEvent().payloadType:
