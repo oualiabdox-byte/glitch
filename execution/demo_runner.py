@@ -176,6 +176,14 @@ def _selected_signal_for_execution(selection: dict) -> dict | None:
     return signal
 
 
+def _signal_rank(signal: dict) -> tuple[float, float, float, str]:
+    """Rank valid signals without changing canonical entry/SL/TP logic."""
+    quality = float(signal.get("quality_score", 0.0) or 0.0)
+    multiplier = float(signal.get("allocation_multiplier", 1.0) or 1.0)
+    rr = float(signal.get("rr", 0.0) or 0.0)
+    return (quality, multiplier, rr, str(signal.get("signal_id", "")))
+
+
 def main() -> int:
     cfg = load_config()
     pairs = [p.strip().upper() for p in os.getenv(
@@ -187,6 +195,7 @@ def main() -> int:
         raise RuntimeError("CTRADER_SIZING_MODE must be fixed or risk")
     until_trade = os.getenv("CTRADER_RUN_UNTIL_TRADE", "false").lower() == "true"
     poll_seconds = max(10, int(os.getenv("CTRADER_POLL_SECONDS", "300")))
+    max_cycle_orders = max(1, int(os.getenv("CTRADER_MAX_OPEN_POSITIONS", "3")))
     if execute:
         require_demo_execution()
         if sizing_mode == "fixed" and not os.getenv("CTRADER_ORDER_VOLUME_UNITS"):
@@ -199,8 +208,11 @@ def main() -> int:
     store = EventStore(DATABASE_PATH)
     print(json.dumps({"mode": ("DEMO_EXECUTE_UNTIL_TRADE" if execute and until_trade
                                 else "DEMO_EXECUTE" if execute else "DRY_RUN"),
-                      "pairs": pairs, "poll_seconds": poll_seconds}, sort_keys=True))
+                      "pairs": pairs, "poll_seconds": poll_seconds,
+                      "portfolio_scan": "batch_rank_then_execute",
+                      "max_cycle_orders": max_cycle_orders}, sort_keys=True))
     while True:
+        candidates: list[tuple[dict, dict]] = []
         for pair in pairs:
             setup_states = _variant_setup_states(pair, state)
             batch = _scan(pair, setup_states=setup_states)
@@ -231,20 +243,35 @@ def main() -> int:
                 print(json.dumps({"pair": pair, "event": "signal_selection",
                                   **selection}, sort_keys=True), flush=True)
                 continue
-
             signal = _selected_signal_for_execution(selection)
             if signal is None:
                 print(json.dumps({"pair": pair, "event": "signal_selection",
                                   "status": "INCOMPLETE",
-                                  "reason": "Selector did not provide a complete executable signal."},
+                                 "reason": "Selector did not provide a complete executable signal."},
                                  sort_keys=True), flush=True)
                 continue
+            signal["signal_id"] = str(signal.get("signal_id") or signal_identity(signal))
+            candidates.append((signal, selection))
+
+        # All pairs are evaluated before any order is sent. This prevents the
+        # first pair in CTRADER_PAIRS from consuming the portfolio slot when a
+        # later pair has a stronger quality/regime setup.
+        candidates.sort(key=lambda item: _signal_rank(item[0]), reverse=True)
+        cycle_pairs: set[str] = set()
+        cycle_orders = 0
+        for signal, selection in candidates:
+            pair = str(signal["pair"]).upper()
             variant_name = signal.get("variant", "config_default")
-            signal_id = str(signal.get("signal_id") or signal_identity(signal))
-            signal["signal_id"] = signal_id
+            signal_id = signal["signal_id"]
             signal_time = signal.get("timestamp") or signal.get("signal_close_utc")
             pair_key = f"{pair}:{signal_time}"
             legacy_key = f"{pair}:{variant_name}:{signal_time}"
+            if pair in cycle_pairs or cycle_orders >= max_cycle_orders:
+                print(json.dumps({"pair": pair, "variant": variant_name,
+                                  "status": "SKIP_PORTFOLIO_CAPACITY",
+                                  "reason": "batch_ranked_portfolio_limit",
+                                  "rank": _signal_rank(signal)}, sort_keys=True), flush=True)
+                continue
             if not execute:
                 if signal_id in state["signals"] or legacy_key in state["signals"]:
                     print(json.dumps({"pair": pair, "variant": variant_name,
@@ -255,6 +282,8 @@ def main() -> int:
                 print(json.dumps({"pair": pair, "variant": variant_name,
                                   "status": "DEMO_SIGNAL_NOT_SUBMITTED",
                                   "selection": selection, "signal": signal}, sort_keys=True), flush=True)
+                cycle_pairs.add(pair)
+                cycle_orders += 1
                 continue
             if pair_key in state["signals"] or signal_id in state["signals"] or legacy_key in state["signals"]:
                 print(json.dumps({"pair": pair, "variant": variant_name,
@@ -287,6 +316,8 @@ def main() -> int:
                 state["signals"][pair_key] = {"variant": variant_name,
                                                "signal_id": signal_id, "signal": signal}
                 _save_state(state)
+                cycle_pairs.add(pair)
+                cycle_orders += 1
                 if until_trade:
                     return 0
         if not until_trade:

@@ -60,3 +60,4 @@ backtest/ctrader_allocator_14d_demo_validation/signal_cache.json
 results/
 
 ctraderkeys
+config/demo_profile.env

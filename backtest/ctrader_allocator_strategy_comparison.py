@@ -235,6 +235,7 @@ def run_portfolio(
     adaptive: bool,
     signal_multipliers: dict[str, float] | None = None,
     dynamic_stop_mode: str | None = None,
+    allocator_config: AllocatorConfig | None = None,
 ) -> dict[str, Any]:
     timeline = sorted(set.union(*(set(frames[pair].index) for pair in pairs)))
     by_entry: dict[pd.Timestamp, list[dict[str, Any]]] = defaultdict(list)
@@ -246,7 +247,7 @@ def run_portfolio(
             by_entry[frames[signal["pair"]].index[next_bar]].append(signal)
         else:
             signal = {**signal, "skip_reason": "no_future_bar"}
-    allocator = AdaptiveAllocator(pairs, CYCLE_CONFIG)
+    allocator = AdaptiveAllocator(pairs, allocator_config or CYCLE_CONFIG)
     weights = dict(weights_initial)
     active: dict[str, OpenTrade] = {}
     trades: list[dict[str, Any]] = []

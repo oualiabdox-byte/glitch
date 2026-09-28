@@ -49,7 +49,7 @@ def liquidity_quality(signal: dict[str, Any]) -> dict[str, Any]:
     ev=signal.get("evidence") or {}; side=str(signal.get("side",""))
     structure=ev.get("h1_structure") or {}; sweep=(ev.get("m5_liquidity") or {}).get("selected_sweep") or {}
     disp=ev.get("displacement") or {}; conf=ev.get("m5_confirmation") or {}
-    rr=float(signal.get("planned_rr") or 0.0)
+    rr=float(signal.get("planned_rr") or signal.get("rr") or signal.get("risk_reward") or 0.0)
     alignment=1.0 if structure.get("side")==side else 0.0
     sweep_score=1.0 if sweep else 0.0
     displacement=_norm(float(disp.get("displacement_ratio") or 0.0),0.75,1.75)
@@ -80,7 +80,8 @@ def compression_regime_v2(frame: pd.DataFrame, timestamp: str, signal: dict[str,
     compression=1.0-_norm(cur_range/max(old_range,1e-12),0.75,1.35)
     volume_compression=1.0-_norm(cur_vol/max(old_vol,1e-12),0.70,1.40)
     displacement=_norm(float((signal.get("evidence") or {}).get("displacement",{}).get("displacement_ratio") or 0.0),0.75,1.75)
-    score=_clip(0.40*compression+0.25*volume_compression+0.20*displacement+0.15*_clip(float(signal.get("planned_rr") or 0.0)/2.0))
+    rr=float(signal.get("planned_rr") or signal.get("rr") or signal.get("risk_reward") or 0.0)
+    score=_clip(0.40*compression+0.25*volume_compression+0.20*displacement+0.15*_clip(rr/2.0))
     state="RANGE_CONTRACTION" if compression>=0.5 and volume_compression>=0.5 else ("COMPRESSION_RELEASE" if displacement>=0.5 and compression>=0.4 else "OTHER")
     return {"state":state,"score":score,"compression":compression,"volume_compression":volume_compression,"post_compression_displacement":displacement}
 

@@ -57,6 +57,7 @@ class AllocatorConfig:
     vol_floor: float = 0.0005
     max_weight: float = 0.40
     temperature: float = 0.50
+    min_weight: float = 0.0
 
     def __post_init__(self) -> None:
         if self.target_cycle_bars <= 0 or self.volume_lookback_bars <= 0 or self.warmup_bars <= 0:
@@ -67,6 +68,8 @@ class AllocatorConfig:
             raise ValueError("vol_floor and temperature must be positive")
         if not 0 < self.max_weight <= 1:
             raise ValueError("max_weight must be in (0, 1]")
+        if not 0 <= self.min_weight < 1:
+            raise ValueError("min_weight must be in [0, 1)")
 
 
 def validate_volume_bars(bars: list[dict[str, Any]], pair: str = "pair") -> dict[str, Any]:
@@ -200,7 +203,8 @@ class AdaptiveAllocator:
                 ewma = self.config.ewma_alpha * value + (1 - self.config.ewma_alpha) * ewma
             mean_abs = sum(abs(value) for value in history) / len(history)
             momentum = max(0.0, ewma) / max(self.config.vol_floor, mean_abs)
-            raw[pair] = exp(min(20.0, momentum / self.config.temperature)) if momentum > 0 else 0.0
+            score = exp(min(20.0, momentum / self.config.temperature)) if momentum > 0 else 0.0
+            raw[pair] = max(self.config.min_weight, score)
         # A cap below 1/N is mathematically infeasible when all capital must
         # remain allocated. Use the smallest feasible cap for small universes.
         feasible_cap = max(self.config.max_weight, 1.0 / len(self.pairs))

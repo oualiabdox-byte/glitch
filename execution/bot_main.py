@@ -10,7 +10,9 @@ import argparse
 import json
 import os
 from datetime import datetime, timedelta, timezone
+import pandas as pd
 
+from allocation.opportunity_quality import score_opportunity_v2
 from config.settings import (load_config, pairs as configured_pairs,
                              risk_config, strategy_config)
 from data.ctrader import CTraderData
@@ -79,10 +81,50 @@ def _freshness_check(h1, m5, now: datetime, max_quote_age_seconds: int) -> dict:
 def _market_snapshot(pair: str, cfg: dict, end: datetime) -> dict:
     start = end - timedelta(days=int(os.getenv("CTRADER_LOOKBACK_DAYS", "30")))
     feed = CTraderData()
-    data = feed.download(pair, start, end, periods=("h1", "m5"))
+    data = feed.download(pair, start, end, periods=("d1", "h4", "h1", "m5"))
     return {"pair": pair, "cfg": cfg, "scan_time": end,
+            "d1": _closed(data.get("d1", []), 1440, end),
+            "h4": _closed(data.get("h4", []), 240, end),
             "h1": _closed(data["h1"], 60, end),
             "m5": _closed(data["m5"], 5, end)}
+
+
+def _attach_demo_quality(signal: dict, m5: list[dict]) -> dict:
+    """Attach the validated bounded sizing multiplier without rejecting signals."""
+    try:
+        min_allocator_weight = float(os.getenv("CTRADER_ALLOCATOR_MIN_WEIGHT", "0.02"))
+    except ValueError as exc:
+        raise RuntimeError("CTRADER_ALLOCATOR_MIN_WEIGHT must be numeric") from exc
+    if not 0.0 <= min_allocator_weight < 1.0:
+        raise RuntimeError("CTRADER_ALLOCATOR_MIN_WEIGHT must be in [0, 1)")
+    rows = [row for row in m5 if "volume" in row]
+    if len(rows) < 20:
+        return {**signal, "liquidity_regime": {"state": "INSUFFICIENT_HISTORY"},
+                "allocation_multiplier": 1.0,
+                "allocator_min_weight": min_allocator_weight,
+                "allocator_skip_policy": "never_skip_for_zero_weight"}
+    frame = pd.DataFrame(rows)
+    frame["time"] = pd.to_datetime(frame["time"], utc=True)
+    frame = frame.set_index("time").sort_index()
+    quality = score_opportunity_v2(signal, frame)
+    raw_multiplier = float(quality["allocation_multiplier"])
+    # Match the validated backtest floor: a valid signal is not removed solely
+    # because a pair has temporarily poor cycle history. The broker cap remains
+    # authoritative, so the floor cannot create an oversized order.
+    multiplier = max(min_allocator_weight, raw_multiplier)
+    base_units = float(os.getenv("CTRADER_BASE_ORDER_VOLUME_UNITS",
+                                os.getenv("CTRADER_ORDER_VOLUME_UNITS", "800")))
+    max_units = float(os.getenv("CTRADER_MAX_ORDER_VOLUME_UNITS", "0"))
+    requested_units = base_units * multiplier
+    order_units = min(requested_units, max_units) if max_units > 0 else requested_units
+    return {**signal, "liquidity_regime": quality["regime"],
+            "liquidity_quality": quality["liquidity"],
+            "quality_score": quality["quality_score"],
+            "allocation_multiplier": multiplier,
+            "allocation_multiplier_raw": raw_multiplier,
+            "allocator_min_weight": min_allocator_weight,
+            "allocator_skip_policy": "never_skip_for_zero_weight",
+            "order_volume_units": round(order_units, 2)}
 
 
 def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = None,
@@ -99,6 +141,8 @@ def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = 
     end = snapshot["scan_time"]
     h1 = snapshot["h1"]
     m5 = snapshot["m5"]
+    h4 = snapshot.get("h4", [])
+    d1 = snapshot.get("d1", [])
 
     max_quote_age_seconds = risk_config(cfg)["max_quote_age_seconds"]
     freshness = _freshness_check(h1, m5, end, max_quote_age_seconds)
@@ -131,7 +175,10 @@ def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = 
 
     resolved = strategy_config(cfg)
     strategy = build_variant(variant_name, base_options=resolved)
-    decision = strategy.evaluate(h1, m5, setup_state=setup_state)
+    evaluate_kwargs = {"setup_state": setup_state}
+    if h4 or d1:
+        evaluate_kwargs.update({"h4_rows": h4, "d1_rows": d1})
+    decision = strategy.evaluate(h1, m5, **evaluate_kwargs)
     evidence = decision.evidence
     structure = evidence.get("h1_structure", {})
     poi = evidence.get("h1_poi", {})
@@ -159,6 +206,7 @@ def scan(pair: str, setup_state: dict | None = None, variant_name: str | None = 
               "entry_price": decision.entry_price, "stop_price": decision.stop_price,
               "target_price": decision.target_price, "tp_target": decision.target_price,
               "rr": decision.risk_reward, "timestamp": signal_close.isoformat()}
+    signal = _attach_demo_quality(signal, m5)
     signal["signal_id"] = signal_identity(signal)
     return signal
 

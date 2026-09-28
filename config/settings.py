@@ -68,7 +68,7 @@ def strategy_config(config: dict[str, Any], environ: Mapping[str, str] | None = 
     env = os.environ if environ is None else environ
     strategy = dict(config.get("strategy", {}))
     svl = dict(strategy.get("svl", {}))
-    return {
+    resolved = {
         "swing_length": _env_value(env, "CTRADER_SWING_LENGTH", strategy.get("swing_length", 2), int),
         "min_rr": _env_value(env, "CTRADER_MIN_RR", strategy.get("min_rr", 0.0), float),
         "stop_buffer": _env_value(env, "CTRADER_STOP_BUFFER", strategy.get("stop_buffer", 0.0), float),
@@ -87,3 +87,11 @@ def strategy_config(config: dict[str, Any], environ: Mapping[str, str] | None = 
         "svl_equal_tolerance_pct": _env_value(
             env, "CTRADER_SVL_EQUAL_TOLERANCE_PCT", svl.get("equal_tolerance_pct", 0.001), float),
     }
+    optional = (("require_killzone", "CTRADER_REQUIRE_KILLZONE", _env_bool, False),
+                ("require_displacement", "CTRADER_REQUIRE_DISPLACEMENT", _env_bool, False),
+                ("min_displacement_ratio", "CTRADER_MIN_DISPLACEMENT_RATIO", float, 1.0),
+                ("require_poi_confluence", "CTRADER_REQUIRE_POI_CONFLUENCE", _env_bool, False))
+    for key, env_key, converter, default in optional:
+        if env_key in env or key in strategy:
+            resolved[key] = _env_value(env, env_key, strategy.get(key, default), converter)
+    return resolved

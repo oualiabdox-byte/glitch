@@ -7,8 +7,10 @@ from typing import Any
 from .models import BosEvent, Candle, Decision, FairValueGap, M5ExecutionConfirmation, PointOfInterest, Side, Swing
 from .structure import (analyze_structure, find_relevant_liquidity_sweeps,
                         get_m5_execution_confirmation)
+from .htf_context import build_higher_timeframe_context
+from .poi_confluence import build_poi_confluence
 from .svl import alignment_for_execution
-from .timing import as_utc, session_context
+from .timing import as_utc, in_kill_zone, session_context
 
 
 class Strategy:
@@ -25,7 +27,11 @@ class Strategy:
                  allow_weak_structure: bool = True,
                  allow_equilibrium_overlapping_fvg: bool = True,
                  setup_max_age_hours: int = 72,
-                 m5_confirmation_mode: str = "CHOCH_OR_BOS"):
+                 m5_confirmation_mode: str = "CHOCH_OR_BOS",
+                 require_killzone: bool = False,
+                 require_displacement: bool = False,
+                 min_displacement_ratio: float = 1.0,
+                 require_poi_confluence: bool = False):
         if swing_left != swing_right:
             raise ValueError("swing_left and swing_right must match for causal structure")
         if swing_left < 1:
@@ -47,9 +53,15 @@ class Strategy:
             raise ValueError("m5_confirmation_mode must be CHOCH_ONLY, CHOCH_OR_BOS, or BOS_AFTER_CHOCH")
         self.setup_max_age_hours = int(setup_max_age_hours)
         self.m5_confirmation_mode = m5_confirmation_mode
+        self.require_killzone = bool(require_killzone)
+        self.require_displacement = bool(require_displacement)
+        self.min_displacement_ratio = max(0.0, float(min_displacement_ratio))
+        self.require_poi_confluence = bool(require_poi_confluence)
 
     def evaluate(self, h1_rows: list[dict[str, Any]], m5_rows: list[dict[str, Any]],
-                 setup_state: dict[str, Any] | None = None) -> Decision:
+                 setup_state: dict[str, Any] | None = None,
+                 h4_rows: list[dict[str, Any]] | None = None,
+                 d1_rows: list[dict[str, Any]] | None = None) -> Decision:
         h1 = [Candle.from_dict(row) for row in h1_rows]
         m5 = [Candle.from_dict(row) for row in m5_rows]
         # H1 candles closing after the latest M5 close are outside this scan's
@@ -73,6 +85,7 @@ class Strategy:
             "m5_liquidity": {"sweeps": [], "selected_sweep": None},
             "m5_confirmation": {},
             "displacement": {}, "stop": {}, "target": {}, "timing": {},
+            "higher_timeframe": {},
         }
         if m5:
             try:
@@ -105,6 +118,10 @@ class Strategy:
         side = h_structure["side"]
         if side is None:
             return Decision("NO_TRADE", ["H1_STRUCTURE_UNCLEAR"], evidence=evidence)
+        evidence["higher_timeframe"] = build_higher_timeframe_context(
+            h4_rows, d1_rows, side=side, current_price=float(m5[-1].close),
+            swing_length=self.swing_left,
+        )
         if (str(h_structure["state"]).endswith("_WEAK") and not self.allow_weak_structure):
             return Decision("NO_TRADE", ["H1_STRUCTURE_UNCLEAR"], side=side, evidence=evidence)
 
@@ -131,6 +148,11 @@ class Strategy:
         if poi is None:
             return Decision("NO_TRADE", ["H1_POI_NOT_FOUND_IN_LOCATION"], side=side, evidence=evidence)
         evidence["h1_poi"] = poi.as_dict()
+        evidence["h1_poi_confluence"] = build_poi_confluence(
+            h1, poi, side, low, high, h_structure["last_event"]["index"]
+        )
+        if self.require_poi_confluence and evidence["h1_poi_confluence"]["confluence_count"] < 2:
+            return Decision("NO_TRADE", ["H1_POI_CONFLUENCE_INSUFFICIENT"], side=side, evidence=evidence)
         formed = _time_key(poi.time)
         observed = _time_key(m5[-1].time)
         if isinstance(formed, datetime) and isinstance(observed, datetime):
@@ -237,6 +259,9 @@ class Strategy:
             confirmation_type_ok = event["type"] in {"BOS", "CHOCH"}
         if not confirmation_type_ok:
             return Decision("NO_TRADE", ["M5_CONFIRMATION_TYPE_UNSUPPORTED"], side=side, evidence=evidence)
+        if self.require_killzone and not in_kill_zone(confirmation.latest_event_time):
+            evidence["timing"].update({"required_gate": True, "killzone_valid": False})
+            return Decision("NO_TRADE", ["OUTSIDE_KILLZONE"], side=side, evidence=evidence)
         event_index = int(event["index"])
         candle = m5[event_index]
         atr = _atr(m5, event_index, 14)
@@ -244,11 +269,13 @@ class Strategy:
         displacement_ratio = body / atr if atr and atr > 0 else 0.0
         displacement = {
             "atr": atr, "body": body, "displacement_ratio": displacement_ratio,
-            "displacement_valid": bool(atr and displacement_ratio >= 1.0),
-            "threshold": 1.0, "normalization": "body / simple_mean_true_range_14",
-            "required_gate": False,
+            "displacement_valid": bool(atr and displacement_ratio >= self.min_displacement_ratio),
+            "threshold": self.min_displacement_ratio, "normalization": "body / simple_mean_true_range_14",
+            "required_gate": self.require_displacement,
         }
         evidence["displacement"] = displacement
+        if self.require_displacement and not displacement["displacement_valid"]:
+            return Decision("NO_TRADE", ["DISPLACEMENT_GATE_FAILED"], side=side, evidence=evidence)
         bodies = [abs(x.close - x.open) for x in m5[max(0, event_index - 10):event_index]
                   if x.close != x.open]
         median_body = median(bodies) if bodies else body
