@@ -272,7 +272,7 @@ def main() -> int:
         symbol_spec = normalize_symbol_spec(symbol_info)
         feed.subscribe_spots(symbol_id)
         quote = feed.latest_quote(symbol_id)
-        if quote is None:
+        if quote is None or quote.get("bid") is None or quote.get("ask") is None:
             quote_attempts += 1
             if quote_attempts > 20:
                 raise RuntimeError("EXECUTION_REJECTED: no executable bid/ask quote received")
