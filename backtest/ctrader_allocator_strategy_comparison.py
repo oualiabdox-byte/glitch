@@ -76,7 +76,7 @@ def _load_pair(path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     return frame, h1
 
 
-def _signal_from_decision(pair: str, variant: str, signal_close: pd.Timestamp, decision: Any) -> dict[str, Any] | None:
+def _signal_from_decision(pair: str, variant: str, signal_close: pd.Timestamp, decision: Any, min_rr: float) -> dict[str, Any] | None:
     if not decision.is_signal:
         return None
     evidence = decision.evidence
@@ -94,6 +94,7 @@ def _signal_from_decision(pair: str, variant: str, signal_close: pd.Timestamp, d
         "stop": float(decision.stop_price),
         "target": float(decision.target_price),
         "planned_rr": float(decision.risk_reward or 0.0),
+        "min_rr": min_rr,
         "evidence": evidence,
     }
     signal["signal_id"] = signal_identity(signal)
@@ -130,7 +131,7 @@ def collect_variant_signals(pair: str, variant: str, m5: pd.DataFrame, h1: pd.Da
             }
         else:
             setup_state = None
-        signal = _signal_from_decision(pair, variant, signal_close, decision)
+        signal = _signal_from_decision(pair, variant, signal_close, decision, float(cfg.get("min_rr", 0.0)))
         if signal and signal["event_time_utc"] not in seen_events:
             seen_events.add(signal["event_time_utc"])
             output.append(signal)
@@ -309,7 +310,9 @@ def run_portfolio(
                 "signal_close_utc": trade.signal["signal_close_utc"], "entry_time_utc": trade.entry_time,
                 "exit_time_utc": trade.exit_time, "side": trade.signal["side"], "fill": trade.fill,
                 "stop": trade.signal["stop"], "dynamic_stop_at_exit": trade.current_stop, "target": trade.signal["target"], "exit_price": trade.exit_price,
-                "exit_reason": trade.exit_reason, "risk_distance": trade.risk_distance, "gross_R": gross_r,
+                "exit_reason": trade.exit_reason, "risk_distance": trade.risk_distance,
+                "planned_RR": trade.signal.get("planned_rr"), "fill_RR": trade.signal.get("fill_rr"),
+                "gross_R": gross_r,
                 "net_R": net_r, "allocation_weight": trade.weight, "weighted_R": weighted_r,
                 "account_return_pct": account_return * 100, "equity_after": equity,
             }
@@ -336,6 +339,13 @@ def run_portfolio(
             if (side == 1 and not stop < fill < target) or (side == -1 and not target < fill < stop):
                 skipped["invalid_fill"] += 1
                 continue
+            risk_distance = abs(fill - stop)
+            reward_distance = side * (target - fill)
+            actual_rr = reward_distance / risk_distance if risk_distance else 0.0
+            if actual_rr < float(signal.get("min_rr", 0.0)):
+                skipped["fill_below_min_rr"] += 1
+                continue
+            signal = {**signal, "fill_rr": actual_rr}
             valid_opportunities += 1
             multiplier = float((signal_multipliers or {}).get(signal["signal_id"], 1.0))
             allocation_weight = weights[pair] * multiplier
@@ -343,7 +353,7 @@ def run_portfolio(
                 skipped["zero_allocator_weight"] += 1
                 continue
             active[pair] = OpenTrade(signal=signal, pair=pair, side=side, fill=fill,
-                                     risk_distance=abs(fill - stop), weight=allocation_weight,
+                                     risk_distance=risk_distance, weight=allocation_weight,
                                      entry_time=timestamp.isoformat(), current_stop=stop)
 
         # A cycle can affect allocations only after the bar that completed it.
