@@ -13,15 +13,15 @@ CONFIG_DEFAULT = "config_default"
 VARIANTS = {
     "eurusd_swing3_choch_or_bos": {
         "pair": "EURUSD", "swing_length": 3,
-        "m5_confirmation_mode": "CHOCH_OR_BOS", "priority": 100,
+        "m5_confirmation_mode": "BOS_AFTER_CHOCH", "priority": 100,
     },
     "gbpusd_swing2_choch_only": {
         "pair": "GBPUSD", "swing_length": 2,
-        "m5_confirmation_mode": "CHOCH_ONLY", "priority": 100,
+        "m5_confirmation_mode": "BOS_AFTER_CHOCH", "priority": 100,
     },
     "eurusd_swing2_choch_or_bos": {
         "pair": "EURUSD", "swing_length": 2,
-        "m5_confirmation_mode": "CHOCH_OR_BOS", "priority": 100,
+        "m5_confirmation_mode": "BOS_AFTER_CHOCH", "priority": 100,
     },
 }
 
@@ -39,10 +39,15 @@ def variants_for_pair(pair: str) -> tuple[str, ...]:
 def build_variant(name: str, base_options: Mapping[str, object] | None = None) -> Strategy:
     """Build the canonical Strategy with a named preset or configured default.
 
-    Named variants override only their swing length and M5 confirmation mode;
-    unrelated strategy settings continue to flow from the runtime config.
+    Named variants override only their swing length and use the strict SMC
+    confirmation mode; all risk and confluence gates flow from runtime config.
     """
-    options = dict(base_options or {})
+    if base_options is None:
+        # Keep every caller on the same strict SMC contract as live scanning.
+        from config.settings import load_config, strategy_config
+        options = strategy_config(load_config())
+    else:
+        options = dict(base_options)
     if name == CONFIG_DEFAULT:
         swing = int(options.pop("swing_length", 3))
         mode = str(options.pop("m5_confirmation_mode", "CHOCH_OR_BOS"))
