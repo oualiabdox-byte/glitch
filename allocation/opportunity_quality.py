@@ -55,8 +55,10 @@ def liquidity_quality(signal: dict[str, Any]) -> dict[str, Any]:
     displacement=_norm(float(disp.get("displacement_ratio") or 0.0),0.75,1.75)
     confirmation=1.0 if (conf.get("valid") and conf.get("latest_event_type") in {"BOS","CHOCH"}) else 0.5
     target_score=_norm(rr,0.75,3.0)
-    score=_clip(0.20*alignment+0.20*sweep_score+0.25*displacement+0.20*confirmation+0.15*target_score)
-    return {"score":score,"alignment":alignment,"sweep":sweep_score,"displacement":displacement,"confirmation":confirmation,"target_rr":target_score}
+    poi=ev.get("h1_poi_confluence") or {}
+    poi_score=float(poi.get("poi_quality_score", 0.5) or 0.5)
+    score=_clip(0.18*alignment+0.18*sweep_score+0.22*displacement+0.18*confirmation+0.14*target_score+0.10*poi_score)
+    return {"score":score,"alignment":alignment,"sweep":sweep_score,"displacement":displacement,"confirmation":confirmation,"target_rr":target_score,"poi_quality":poi_score}
 
 def score_opportunity(signal: dict[str, Any], frame: pd.DataFrame) -> dict[str, Any]:
     regime=regime_features(frame, signal["signal_close_utc"], signal["side"])
