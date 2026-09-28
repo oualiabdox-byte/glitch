@@ -25,6 +25,9 @@ class Reconciler:
     handled by an explicit controlled-recovery action.
     """
 
+    def __init__(self, symbol_normalizer=None):
+        self.symbol_normalizer = symbol_normalizer
+
     def compare(self, account_id: int, internal_orders: Iterable[dict[str, Any]],
                 broker_orders: Iterable[dict[str, Any]],
                 broker_positions: Iterable[dict[str, Any]]) -> ReconciliationResult:
@@ -47,12 +50,12 @@ class Reconciler:
                                            "broker": b.get(field)})
 
         internal_positions = {
-            (row.get("symbol"), row.get("side")): float(row.get("executed_volume", 0) or 0)
+            self._position_key(row): float(row.get("executed_volume", 0) or 0)
             for row in internal_orders
             if row.get("position_id") is not None
         }
         broker_position_totals = {
-            (row.get("symbol"), row.get("side")): float(row.get("volume", 0) or 0)
+            self._position_key(row): float(row.get("volume", 0) or 0)
             for row in broker_positions
         }
         for key, volume in internal_positions.items():
@@ -72,10 +75,17 @@ class Reconciler:
             checked_positions=len(broker_position_totals),
         )
 
-    @staticmethod
-    def _key(row: dict[str, Any]) -> str:
+    def _symbol(self, value: Any) -> Any:
+        if self.symbol_normalizer is None:
+            return value
+        return self.symbol_normalizer(value)
+
+    def _key(self, row: dict[str, Any]) -> str:
         if row.get("broker_order_id") is not None:
             return f"broker:{row['broker_order_id']}"
         if row.get("client_order_id"):
             return f"client:{row['client_order_id']}"
         return f"internal:{row.get('internal_order_id')}"
+
+    def _position_key(self, row: dict[str, Any]) -> tuple[Any, Any]:
+        return self._symbol(row.get("symbol")), row.get("side")
