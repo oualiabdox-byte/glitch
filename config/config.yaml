@@ -29,8 +29,11 @@ sessions:
 
 execution:
   allow_overnight: false
-  live_trading: false
+  live_trading: false  # informational only; live routing is hard-disabled in code
   max_spread_pips: 3.0
+  max_price_drift_pips: 2.0
+  max_signal_age_seconds: 300
+  min_execution_rr: 0.0
   spread_pips: 1.5
   commission_per_lot_round_turn: 0.0
 
