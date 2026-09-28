@@ -32,6 +32,7 @@ from ctrader_open_api.messages.OpenApiMessages_pb2 import (
     ProtoOATraderReq,
     ProtoOAReconcileReq,
     ProtoOASubscribeSpotsReq,
+    ProtoOASpotEvent,
     ProtoOANewOrderReq,
     ProtoOAAmendPositionSLTPReq,
     ProtoOAClosePositionReq,
@@ -74,8 +75,8 @@ class CTraderConfig:
             return value
 
         environment = os.getenv("CTRADER_ENV", "demo").strip().lower()
-        if environment not in {"demo", "live"}:
-            raise RuntimeError("CTRADER_ENV must be demo or live")
+        if environment != "demo":
+            raise RuntimeError("Live routing is disabled in this repository; CTRADER_ENV must be demo")
 
         account_raw = os.getenv("CTRADER_ACCOUNT_ID", "").strip()
         heartbeat_raw = os.getenv("CTRADER_HEARTBEAT_SECONDS", "10").strip()
@@ -104,6 +105,8 @@ class CTraderAdapter:
 
     def __init__(self, config: Optional[CTraderConfig] = None):
         self.config = config or CTraderConfig.from_env()
+        if self.config.environment != "demo":
+            raise RuntimeError("Live routing is disabled in this repository; adapter is Demo-only")
         self.client = None
         self.account_id = self.config.account_id
         self.on_account_ready = None
@@ -117,6 +120,8 @@ class CTraderAdapter:
         self.on_reconciliation = None
         self.on_transport_failure = None
         self.execution_halt_checker = None
+        self.latest_quotes: dict[int, dict[str, float]] = {}
+        self.on_spot_quote = None
 
     @property
     def host(self) -> str:
@@ -291,6 +296,25 @@ class CTraderAdapter:
         if payload_type == ProtoHeartbeatEvent().payloadType:
             return
 
+        if payload_type == ProtoOASpotEvent().payloadType:
+            response = Protobuf.extract(message)
+            symbol_id = int(getattr(response, "symbolId", 0))
+            if symbol_id:
+                previous = self.latest_quotes.get(symbol_id, {})
+                bid = float(response.bid) if response.HasField("bid") else previous.get("bid")
+                ask = float(response.ask) if response.HasField("ask") else previous.get("ask")
+                if bid is not None or ask is not None:
+                    quote = {
+                        "symbol_id": symbol_id,
+                        "bid": bid,
+                        "ask": ask,
+                        "timestamp": float(getattr(response, "timestamp", 0) or 0),
+                    }
+                    self.latest_quotes[symbol_id] = quote
+                    if self.on_spot_quote is not None:
+                        self.on_spot_quote(quote)
+            return
+
         if payload_type == ProtoOAExecutionEvent().payloadType:
             self._dispatch_broker_event(message, "execution")
             return
@@ -414,7 +438,7 @@ class CTraderAdapter:
         request.symbolId.append(int(symbol_id))
         request.subscribeToSpotTimestamp = True
         self._send(request)
-
+\n    def latest_quote(self, symbol_id: int) -> dict[str, float] | None:\n        return self.latest_quotes.get(int(symbol_id))\n
     def _require_order_permission(self) -> None:
         if not self.config.allow_orders:
             raise RuntimeError(

@@ -59,6 +59,18 @@ class EventStore:
                 exit_price REAL,
                 stop_price REAL,
                 target_price REAL,
+                broker_order_id INTEGER,
+                position_id INTEGER,
+                deal_id INTEGER,
+                requested_stop REAL,
+                actual_stop REAL,
+                requested_target REAL,
+                actual_target REAL,
+                commission REAL,
+                swap REAL,
+                close_reason TEXT,
+                reconciliation_status TEXT,
+                signal_id TEXT,
                 pnl REAL,
                 pnl_r REAL,
                 outcome TEXT,
@@ -76,6 +88,13 @@ class EventStore:
                 executed_volume REAL NOT NULL DEFAULT 0,
                 remaining_volume REAL,
                 execution_price REAL,
+                signal_entry REAL,
+                expected_fill REAL,
+                requested_stop REAL,
+                requested_target REAL,
+                execution_rr REAL,
+                spread_pips REAL,
+                price_drift_pips REAL,
                 state TEXT NOT NULL,
                 reason TEXT,
                 error_code TEXT,
@@ -115,7 +134,41 @@ class EventStore:
             );
             """
         )
+        self._ensure_columns("trade_outcomes", {
+            "broker_order_id": "INTEGER",
+            "position_id": "INTEGER",
+            "deal_id": "INTEGER",
+            "requested_stop": "REAL",
+            "actual_stop": "REAL",
+            "requested_target": "REAL",
+            "actual_target": "REAL",
+            "commission": "REAL",
+            "swap": "REAL",
+            "close_reason": "TEXT",
+            "reconciliation_status": "TEXT",
+            "signal_id": "TEXT",
+        })
+        self._ensure_columns("oms_orders", {
+            "signal_entry": "REAL",
+            "expected_fill": "REAL",
+            "requested_stop": "REAL",
+            "requested_target": "REAL",
+            "execution_rr": "REAL",
+            "spread_pips": "REAL",
+            "price_drift_pips": "REAL",
+        })
         self.connection.commit()
+
+    def _ensure_columns(self, table: str, columns: dict[str, str]) -> None:
+        existing = {
+            row["name"]
+            for row in self.connection.execute(f"PRAGMA table_info({table})").fetchall()
+        }
+        for name, sql_type in columns.items():
+            if name not in existing:
+                self.connection.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"
+                )
 
     @staticmethod
     def _json(value: Any) -> str:
@@ -152,13 +205,21 @@ class EventStore:
             """INSERT INTO trade_outcomes(
                 recorded_at_utc,pair,client_order_id,entry_time_utc,exit_time_utc,
                 side,volume_units,entry_price,exit_price,stop_price,target_price,
-                pnl,pnl_r,outcome,outcome_json
-            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                broker_order_id,position_id,deal_id,requested_stop,actual_stop,
+                requested_target,actual_target,commission,swap,close_reason,
+                reconciliation_status,signal_id,pnl,pnl_r,outcome,outcome_json
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (recorded_at_utc, pair, outcome.get("client_order_id"),
              outcome.get("entry_time_utc"), outcome.get("exit_time_utc"),
              outcome.get("side"), outcome.get("volume_units"),
              outcome.get("entry_price"), outcome.get("exit_price"),
              outcome.get("stop_price"), outcome.get("target_price"),
+             outcome.get("broker_order_id"), outcome.get("position_id"),
+             outcome.get("deal_id"), outcome.get("requested_stop"),
+             outcome.get("actual_stop"), outcome.get("requested_target"),
+             outcome.get("actual_target"), outcome.get("commission"),
+             outcome.get("swap"), outcome.get("close_reason"),
+             outcome.get("reconciliation_status"), outcome.get("signal_id"),
              outcome.get("pnl"), outcome.get("pnl_r"), outcome.get("outcome"),
              self._json(outcome)),
         )
@@ -168,11 +229,16 @@ class EventStore:
         self.connection.execute(
             """INSERT INTO oms_orders(
                 internal_order_id,account_id,client_order_id,symbol,side,requested_volume,
-                remaining_volume,state,created_at_utc,updated_at_utc
-            ) VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                remaining_volume,signal_entry,expected_fill,requested_stop,requested_target,
+                execution_rr,spread_pips,price_drift_pips,state,created_at_utc,updated_at_utc
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (intent["internal_order_id"], intent.get("account_id"), intent["client_order_id"],
              intent["symbol"], intent["side"], intent["requested_volume"],
-             intent["requested_volume"], state, recorded_at_utc, recorded_at_utc),
+             intent["requested_volume"], intent.get("signal_entry"),
+             intent.get("expected_fill"), intent.get("requested_stop"),
+             intent.get("requested_target"), intent.get("execution_rr"),
+             intent.get("spread_pips"), intent.get("price_drift_pips"),
+             state, recorded_at_utc, recorded_at_utc),
         )
         self.connection.commit()
 

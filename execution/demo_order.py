@@ -11,9 +11,10 @@ from typing import Any
 from ctrader_open_api import Protobuf
 from twisted.internet import reactor
 
-from config.settings import load_config, risk_config
+from config.settings import load_config, risk_config, execution_config
 from data.ctrader import CTraderData, normalize_symbol_spec
 from execution.demo_guard import require_demo_execution
+from execution.execution_guard import evaluate_execution
 from execution.oms import OMS, OrderIntent, OrderState
 from execution.reconciliation import Reconciler
 from execution.risk import resolve_order_volume
@@ -77,11 +78,24 @@ def main() -> int:
     feed = CTraderData()
     store = EventStore(os.getenv("CTRADER_DATABASE_PATH", "results/trading.db"))
     oms = OMS(int(os.getenv("CTRADER_ACCOUNT_ID")) if os.getenv("CTRADER_ACCOUNT_ID") else None)
-    reconciler = Reconciler()
+    def normalize_reconciliation_symbol(value: Any) -> Any:
+        if isinstance(value, str) and not value.isdigit():
+            return value.upper().replace("/", "").replace("_", "").replace("-", "")
+        try:
+            symbol_id = int(value)
+        except (TypeError, ValueError):
+            return value
+        for name, spec in feed.symbols.items():
+            if int(getattr(spec, "symbolId", -1)) == symbol_id:
+                return name.upper().replace("/", "").replace("_", "").replace("-", "")
+        return symbol_id
+
+    reconciler = Reconciler(symbol_normalizer=normalize_reconciliation_symbol)
     internal_order_id = f"INT-{uuid.uuid4().hex}"
     client_order_id = f"CRT-{pair}-{uuid.uuid4().hex[:16]}"
     result = {"pair": pair, "status": "CONNECTING", "internal_order_id": internal_order_id}
     submitted = False
+    quote_attempts = 0
 
     def stop_reactor() -> None:
         if reactor.running:
@@ -163,6 +177,27 @@ def main() -> int:
                           position_id=record.position_id, executed_volume=record.executed_volume,
                           remaining_volume=record.remaining_volume,
                           execution_price=record.execution_price, reason=record.reason)
+        if transition.resulting_state == OrderState.FILLED and event.get("position_id"):
+            position_id = int(event["position_id"])
+            try:
+                protection = feed.amend_position_protection(
+                    position_id,
+                    stop_loss=stop,
+                    take_profit=target,
+                )
+                protection.addCallbacks(
+                    lambda value: print(json.dumps({
+                        "pair": pair,
+                        "status": "PROTECTED",
+                        "position_id": position_id,
+                        "stop_price": stop,
+                        "target_price": target,
+                    }, sort_keys=True), flush=True),
+                    lambda failure: _protection_failed(failure),
+                )
+            except Exception as exc:
+                _protection_failed(exc)
+
         result = {
             "pair": pair,
             "status": transition.resulting_state.value,
@@ -171,8 +206,7 @@ def main() -> int:
             "duplicate": transition.duplicate,
         }
         print(json.dumps(result, sort_keys=True), flush=True)
-        if transition.resulting_state in {OrderState.FILLED, OrderState.CANCELLED,
-                                          OrderState.REJECTED, OrderState.EXPIRED}:
+        if transition.resulting_state in {OrderState.CANCELLED, OrderState.REJECTED, OrderState.EXPIRED}:
             stop_reactor()
 
     def reconciliation(snapshot: dict[str, Any]) -> None:
@@ -204,6 +238,16 @@ def main() -> int:
             store.set_execution_halt(account_id, _now(), reason)
             print(json.dumps({"status": "EXECUTION_HALT", "reconciliation": details}, sort_keys=True), flush=True)
 
+    def _protection_failed(failure: Any) -> Any:
+        reason = f"POST_FILL_PROTECTION_FAILED: {failure}"
+        oms.halt(reason)
+        account_id = oms.account_id or int(os.getenv("CTRADER_ACCOUNT_ID", "0"))
+        store.set_execution_halt(account_id, _now(), reason)
+        persist_state(OrderState.FILLED, reason=reason)
+        print(json.dumps({"pair": pair, "status": "EXECUTION_HALT", "reason": reason}, sort_keys=True), flush=True)
+        stop_reactor()
+        return failure
+
     def transport_failed(failure: Any) -> Any:
         if submitted and not oms.orders[internal_order_id].state in {
             OrderState.FILLED, OrderState.CANCELLED, OrderState.REJECTED,
@@ -218,23 +262,68 @@ def main() -> int:
         return failure
 
     def submit(_symbols: Any) -> None:
-        nonlocal submitted
+        nonlocal submitted, quote_attempts
         account_id = feed.account_id
         oms.account_id = account_id
         if store.is_execution_halted(account_id):
             raise RuntimeError("EXECUTION_HALT: account is halted")
         symbol_id = feed.symbol_id(pair)
-        symbol_spec = normalize_symbol_spec(feed.symbol_info(pair))
+        symbol_info = feed.symbol_info(pair)
+        symbol_spec = normalize_symbol_spec(symbol_info)
+        feed.subscribe_spots(symbol_id)
+        quote = feed.latest_quote(symbol_id)
+        if quote is None:
+            quote_attempts += 1
+            if quote_attempts > 20:
+                raise RuntimeError("EXECUTION_REJECTED: no executable bid/ask quote received")
+            reactor.callLater(0.5, lambda: submit(_symbols))
+            return
+        quote_attempts = 0
+        digits = int(symbol_spec.get("digits") or 0)
+        bid = round(float(quote["bid"]) / 100000.0, digits) if quote["bid"] is not None else 0.0
+        ask = round(float(quote["ask"]) / 100000.0, digits) if quote["ask"] is not None else 0.0
+        execution_defaults = execution_config(config)
+        check = evaluate_execution(
+            signal,
+            bid=bid,
+            ask=ask,
+            max_signal_age_seconds=float(execution_defaults.get("max_signal_age_seconds", 300)),
+            max_spread_pips=float(execution_defaults.get("max_spread_pips", 3.0)),
+            max_price_drift_pips=float(execution_defaults.get("max_price_drift_pips", 2.0)),
+            min_execution_rr=float(execution_defaults.get("min_execution_rr", 0.0)),
+        )
+        if not check.approved:
+            result.update({
+                "pair": pair,
+                "status": "REJECTED",
+                "reason_codes": list(check.reason_codes),
+                "expected_fill": check.expected_fill,
+                "spread_pips": check.spread_pips,
+                "price_drift_pips": check.price_drift_pips,
+                "execution_rr": check.execution_rr,
+            })
+            print(json.dumps(result, sort_keys=True), flush=True)
+            stop_reactor()
+            return
         sizing = resolve_order_volume(signal, symbol_spec, risk_defaults=risk_defaults)
         volume = sizing.volume_units
         intent = OrderIntent(internal_order_id, account_id, pair, side, volume, client_order_id)
         oms.create_intent(intent)
-        store.record_order_intent(_now(), intent.__dict__)
+        store.record_order_intent(_now(), {
+            **intent.__dict__,
+            "signal_entry": entry,
+            "expected_fill": check.expected_fill,
+            "requested_stop": stop,
+            "requested_target": target,
+            "execution_rr": check.execution_rr,
+            "spread_pips": check.spread_pips,
+            "price_drift_pips": check.price_drift_pips,
+        })
         try:
             deferred = feed.submit_market_order(
                 symbol_id, side, volume,
-                relative_stop_loss=stop_distance,
-                relative_take_profit=target_distance,
+                relative_stop_loss=check.stop_distance,
+                relative_take_profit=check.target_distance,
                 client_order_id=client_order_id,
                 internal_order_id=internal_order_id,
                 label="CRT-DEMO",
@@ -244,8 +333,17 @@ def main() -> int:
             persist_state(OrderState.SUBMITTED)
             submitted = True
             deferred.addErrback(transport_failed)
-            result.update({"pair": pair, "status": "SUBMITTED", "client_order_id": client_order_id,
-                           "volume_units": volume, "sizing_mode": sizing.mode})
+            result.update({
+                "pair": pair,
+                "status": "SUBMITTED",
+                "client_order_id": client_order_id,
+                "volume_units": volume,
+                "sizing_mode": sizing.mode,
+                "expected_fill": check.expected_fill,
+                "execution_rr": check.execution_rr,
+                "spread_pips": check.spread_pips,
+                "price_drift_pips": check.price_drift_pips,
+            })
             print(json.dumps(result, sort_keys=True), flush=True)
         except Exception as exc:
             oms.mark_failed(internal_order_id, str(exc))
@@ -255,6 +353,7 @@ def main() -> int:
     feed.on_broker_event = broker_event
     feed.on_reconciliation = reconciliation
     feed.execution_halt_checker = lambda: feed.account_id is not None and store.is_execution_halted(feed.account_id)
+    feed.on_transport_failure = transport_failed
     feed.on_account_ready = lambda: feed.request_symbols(submit)
     feed.connect()
     reactor.run()
