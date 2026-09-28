@@ -105,6 +105,8 @@ class CTraderAdapter:
 
     def __init__(self, config: Optional[CTraderConfig] = None):
         self.config = config or CTraderConfig.from_env()
+        if self.config.environment != "demo":
+            raise RuntimeError("Live routing is disabled in this repository; adapter is Demo-only")
         self.client = None
         self.account_id = self.config.account_id
         self.on_account_ready = None
