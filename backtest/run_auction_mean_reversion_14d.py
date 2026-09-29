@@ -13,6 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "backtest" / "ctrader_volume_data"
 OUT_DIR = ROOT / "backtest" / "auction_mean_reversion_14d"
 PAIRS = ("AUDUSD", "EURUSD", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY")
+BASELINE_VERSION = "B-v1"
+BASELINE_SOURCE_COMMIT = "444b9f6c11a5ba0cc4979b954b97682423cec0b0"
 
 
 def metrics(trades: list[dict[str, Any]]) -> dict[str, Any]:
@@ -87,7 +89,11 @@ def main() -> None:
         }
 
     summary = {
-        "experiment": "Strategy B — Auction / Mean-Reversion",
+        "experiment": "Strategy B-v1 — Auction / Mean-Reversion",
+        "version": BASELINE_VERSION,
+        "baseline_status": "FROZEN_BASELINE",
+        "frozen_source_commit": BASELINE_SOURCE_COMMIT,
+        "pair_universe_policy": "All seven pairs retained; no post-hoc pair exclusions.",
         "source_note": "Existing repository cTrader M5 OHLC + trendbar-volume datasets named 14d; no new or simulated market data.",
         "strategy_note": "Independent of canonical H1 POI/FVG/OB continuation logic; rolling 24h range extreme -> previous-hour liquidity sweep/rejection -> close beyond prior three-bar pivot -> next M5 open; target frozen 24h range midpoint.",
         "controls": {
@@ -115,11 +121,11 @@ def main() -> None:
     (OUT_DIR / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
     lines = [
-        "# Strategy B: Auction / Mean-Reversion — 14-day repository dataset",
+        "# Strategy B-v1: Auction / Mean-Reversion — 14-day repository dataset",
         "",
-        "> New research-only strategy. Existing canonical strategy, live/demo configuration, and prior reports were not changed.",
+        f"> **Frozen raw baseline.** Source commit `{BASELINE_SOURCE_COMMIT}`. Strategy A and the B-v1 rules remain unchanged; future variants must use separate versioned implementations and output directories.",
         "",
-        summary["strategy_note"],
+        "summary[\"strategy_note\"]",
         "",
         "## Locked rules and execution controls",
         "",
@@ -162,7 +168,7 @@ def main() -> None:
         "",
         "The aggregate sums each trade in R and is not a portfolio-equity curve: simultaneous exposure and cross-pair correlation are not modeled. This short sample was not used to tune the locked rules.",
         "",
-        "Trade-level audit: `trades.csv`; machine-readable settings/results: `summary.json`.",
+        "Trade-level audit: `trades.csv`; machine-readable results: `summary.json`; frozen specification and input hashes: `v1_baseline.json`.",
         "",
     ]
     (OUT_DIR / "report.md").write_text("\n".join(lines), encoding="utf-8")

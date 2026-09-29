@@ -1,8 +1,8 @@
-# Strategy B: Auction / Mean-Reversion — 14-day repository dataset
+# Strategy B-v1: Auction / Mean-Reversion — 14-day repository dataset
 
-> New research-only strategy. Existing canonical strategy, live/demo configuration, and prior reports were not changed.
+> **Frozen raw baseline.** Source commit `444b9f6c11a5ba0cc4979b954b97682423cec0b0`. Strategy A and the B-v1 rules remain unchanged; future variants must use separate versioned implementations and output directories.
 
-Independent of canonical H1 POI/FVG/OB continuation logic; rolling 24h range extreme -> previous-hour liquidity sweep/rejection -> close beyond prior three-bar pivot -> next M5 open; target frozen 24h range midpoint.
+summary["strategy_note"]
 
 ## Locked rules and execution controls
 
@@ -59,4 +59,4 @@ Independent of canonical H1 POI/FVG/OB continuation logic; rolling 24h range ext
 
 The aggregate sums each trade in R and is not a portfolio-equity curve: simultaneous exposure and cross-pair correlation are not modeled. This short sample was not used to tune the locked rules.
 
-Trade-level audit: `trades.csv`; machine-readable settings/results: `summary.json`.
+Trade-level audit: `trades.csv`; machine-readable results: `summary.json`; frozen specification and input hashes: `v1_baseline.json`.

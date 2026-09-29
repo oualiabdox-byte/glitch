@@ -1,5 +1,9 @@
 {
-  "experiment": "Strategy B \u2014 Auction / Mean-Reversion",
+  "experiment": "Strategy B-v1 \u2014 Auction / Mean-Reversion",
+  "version": "B-v1",
+  "baseline_status": "FROZEN_BASELINE",
+  "frozen_source_commit": "444b9f6c11a5ba0cc4979b954b97682423cec0b0",
+  "pair_universe_policy": "All seven pairs retained; no post-hoc pair exclusions.",
   "source_note": "Existing repository cTrader M5 OHLC + trendbar-volume datasets named 14d; no new or simulated market data.",
   "strategy_note": "Independent of canonical H1 POI/FVG/OB continuation logic; rolling 24h range extreme -> previous-hour liquidity sweep/rejection -> close beyond prior three-bar pivot -> next M5 open; target frozen 24h range midpoint.",
   "controls": {
