@@ -125,7 +125,7 @@ def main() -> None:
         "",
         f"> **Frozen raw baseline.** Source commit `{BASELINE_SOURCE_COMMIT}`. Strategy A and the B-v1 rules remain unchanged; future variants must use separate versioned implementations and output directories.",
         "",
-        "summary[\"strategy_note\"]",
+        summary["strategy_note"],
         "",
         "## Locked rules and execution controls",
         "",

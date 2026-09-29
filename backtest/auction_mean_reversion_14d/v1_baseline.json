@@ -53,11 +53,11 @@
     "mean_planned_RR": 3.357640185744242
   },
   "generated_outputs_sha256": {
-    "backtest/auction_mean_reversion_14d/report.md": "db76b864af1bbe9abf687d6bde6ab17af0b2feae87635be864fd70d3252f00fc",
+    "backtest/auction_mean_reversion_14d/report.md": "dcc0a3ee37471dd69e2c1ece8689bbab8f7cc410158f38f7b61238d4b3f56b4d",
     "backtest/auction_mean_reversion_14d/summary.json": "31327fa4a7842903d5d83f4c48310ebb14c79901c2df479190cfe5175de41d17",
     "backtest/auction_mean_reversion_14d/trades.csv": "cfd8e345ab4b235c591cc90691bac712087c36106df4f35299968b5783266db1"
   },
-  "baseline_replay_runner_sha256": "f759b85e9b59c4267b2737ad05f6952503e0970db8e66766f80a4225a960bd70",
+  "baseline_replay_runner_sha256": "1850dd2a1fd92d80b9284b105970bc5247fd6b1b6e35eab12a63856f13e496a6",
   "interpretation": "Raw short-sample baseline only. Gross +8.06R less estimated transaction cost 16.05R yields net -7.98R. The aggregate R path is not a portfolio-equity curve and does not model simultaneous cross-pair exposure. Not profitability evidence.",
   "next_step_guardrail": "A regime-filter experiment, if authorized, belongs in a separate B-v2 implementation and output directory. Define the balanced/non-trending rule before running; retain the full pair universe and compare on the same data/cost assumptions."
 }

@@ -2,7 +2,7 @@
 
 > **Frozen raw baseline.** Source commit `444b9f6c11a5ba0cc4979b954b97682423cec0b0`. Strategy A and the B-v1 rules remain unchanged; future variants must use separate versioned implementations and output directories.
 
-summary["strategy_note"]
+Independent of canonical H1 POI/FVG/OB continuation logic; rolling 24h range extreme -> previous-hour liquidity sweep/rejection -> close beyond prior three-bar pivot -> next M5 open; target frozen 24h range midpoint.
 
 ## Locked rules and execution controls
 
