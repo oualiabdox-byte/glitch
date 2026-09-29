@@ -1,0 +1,43 @@
+{
+  "experiment_id": "Strategy B-v2 — Auction/Mean-Reversion with a balanced-regime gate",
+  "status": "PREREGISTERED_BEFORE_BACKTEST",
+  "registered_at": "2026-09-29",
+  "baseline": "B-v1 frozen in commit 444b9f6c11a5ba0cc4979b954b97682423cec0b0; never edit or overwrite B-v1 source or outputs.",
+  "hypothesis": "The B-v1 upper/lower auction extremes can represent price discovery rather than reversion during strongly directional 24-hour paths. Restricting entries to low-efficiency (balanced) paths may reduce regime-mismatch losses.",
+  "single_change": {
+    "name": "balanced-regime filter",
+    "metric": "24-hour close-path efficiency ratio (ER) computed on M5 closes",
+    "lookback_intervals": 288,
+    "formula": "ER = abs(close[t] - close[t-288]) / sum(abs(close[k] - close[k-1]) for k=t-287..t)",
+    "classification": "BALANCED when ER <= 0.30; TRENDING when ER > 0.30",
+    "decision_time": "At the completed liquidity-sweep candle close, before pivot confirmation and entry; only BALANCED setups may continue.",
+    "zero_path_rule": "If the denominator is zero, ER is zero and the regime is BALANCED.",
+    "lookahead": "None; uses only completed closes through the sweep candle."
+  },
+  "unchanged_from_b_v1": [
+    "24h rolling auction range and 15% premium/discount extremes",
+    "prior-hour liquidity sweep and rejection definition",
+    "three-bar pivot confirmation within six bars",
+    "entry at next M5 open",
+    "stop = sweep extreme plus/minus max(0.1 x ATR(14), 0.5 pip)",
+    "target = midpoint of range frozen at sweep",
+    "minimum planned reward/risk 1.0",
+    "maximum 24-hour holding time",
+    "gap-aware, stop-first same-bar OHLC execution",
+    "estimated 1.5-pip round-turn cost",
+    "one open position per pair and no portfolio allocation overlay"
+  ],
+  "data_and_universe": {
+    "source": "Existing repository cTrader M5 OHLC files with 14d names",
+    "pairs": ["AUDUSD", "EURUSD", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY"],
+    "pair_selection": "All seven pairs retained regardless of B-v1 results; no post-hoc exclusions."
+  },
+  "analysis_plan": [
+    "Report B-v2 trades, wins/losses, win rate, PF, gross R, estimated cost R, net R, average net R/trade, max drawdown R, and per-pair results.",
+    "Compare directly with frozen B-v1 on the same dataset and cost assumptions.",
+    "Do not tune the 0.30 threshold, change stops/targets, or select pairs after seeing B-v2 results.",
+    "Treat this as exploratory same-window research, not out-of-sample validation or evidence of profitability."
+  ],
+  "output_directory": "backtest/auction_mean_reversion_v2_14d/",
+  "implementation": "strategy/auction_mean_reversion_v2.py; backtest/run_auction_mean_reversion_v2_14d.py"
+}
