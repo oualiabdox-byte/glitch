@@ -1,0 +1,63 @@
+{
+  "baseline_id": "Strategy B-v1 — Auction / Mean-Reversion",
+  "status": "FROZEN_BASELINE",
+  "frozen_source_commit": "444b9f6c11a5ba0cc4979b954b97682423cec0b0",
+  "strategy_module": "strategy/auction_mean_reversion.py",
+  "strategy_module_sha256": "e92f71ae49dcd7d4b53590dbda62ad9b914ee20cc92ad493e330ee14fa96451c",
+  "runner": "backtest/run_auction_mean_reversion_14d.py",
+  "runner_sha256_at_freeze": "d51e4a797b59fa2b19ec3e052d77377d68282f2de45bc0292593a98e4e65a7e4",
+  "freeze_policy": {
+    "strategy_a": "Untouched. No Strategy A, allocation, execution, or risk rules are changed by this baseline.",
+    "b_v1": "Do not modify or overwrite the implementation or results identified by the frozen source commit and hashes.",
+    "pair_universe": "Keep all seven pairs; no post-hoc pair exclusions based on these results.",
+    "future_versions": "Implement each new hypothesis in separate versioned source and output paths. Predeclare its exact rule before running; do not tune B-v1 retrospectively."
+  },
+  "data": {
+    "source": "Existing repository cTrader M5 OHLC/trendbar-volume files with 14d names",
+    "pairs": ["AUDUSD", "EURUSD", "GBPUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY"],
+    "files_sha256": {
+      "backtest/ctrader_volume_data/AUDUSD_m5_14d.json": "52be4671d877f78b99fdf497661568e1f3c1be613fe9415c6f3ab73ecf864b5f",
+      "backtest/ctrader_volume_data/EURUSD_m5_14d.json": "3a0f29cb24054ea4f36475834076dac95d5d228a1dd9ca3f3ae182e541b2d848",
+      "backtest/ctrader_volume_data/GBPUSD_m5_14d.json": "d8c419d21d3063ae3c6fcf0670ed8adcd466e1fb81c003024ae17449edb0de2f",
+      "backtest/ctrader_volume_data/NZDUSD_m5_14d.json": "5382550fb7ac7409eabb51040c089ac662be903fa34c33e6e5cdf731102da1f4",
+      "backtest/ctrader_volume_data/USDCAD_m5_14d.json": "9e79512d899b253edc21d33332b072ec11506641638b7907e60ac6889a4ce659",
+      "backtest/ctrader_volume_data/USDCHF_m5_14d.json": "146dd8e821480577e74f7748e6e46217a57f21f8d59dd00a983ce9b5f099d557",
+      "backtest/ctrader_volume_data/USDJPY_m5_14d.json": "2432326a87e0fe8af4f43f2ad9478be4b3eeb894d79c5724ec55d7e9d9ed226e"
+    }
+  },
+  "rules": {
+    "range_lookback_bars": 288,
+    "liquidity_lookback_bars": 12,
+    "value_fraction": 0.15,
+    "choch_lookback_bars": 3,
+    "pending_expiry_bars": 6,
+    "stop_atr_buffer": 0.1,
+    "min_stop_buffer_pips": 0.5,
+    "min_reward_risk": 1.0,
+    "max_holding_bars": 288,
+    "round_turn_cost_pips": 1.5,
+    "entry": "Next M5 open after reversal confirmation",
+    "target": "24h range midpoint frozen at sweep",
+    "intrabar_policy": "Gap-aware; stop-first if both stop and target are touched within the same OHLC bar",
+    "position_policy": "At most one open trade per pair"
+  },
+  "baseline_metrics": {
+    "trades": 72,
+    "win_rate_pct": 30.555555555555557,
+    "profit_factor": 0.8684613868813545,
+    "gross_R": 8.063488536133743,
+    "cost_R": 16.047298300293267,
+    "net_R": -7.983809764159523,
+    "average_net_R": -0.11088624672443782,
+    "max_drawdown_R": 32.94073222311259,
+    "mean_planned_RR": 3.357640185744242
+  },
+  "generated_outputs_sha256": {
+    "backtest/auction_mean_reversion_14d/report.md": "dcc0a3ee37471dd69e2c1ece8689bbab8f7cc410158f38f7b61238d4b3f56b4d",
+    "backtest/auction_mean_reversion_14d/summary.json": "31327fa4a7842903d5d83f4c48310ebb14c79901c2df479190cfe5175de41d17",
+    "backtest/auction_mean_reversion_14d/trades.csv": "cfd8e345ab4b235c591cc90691bac712087c36106df4f35299968b5783266db1"
+  },
+  "baseline_replay_runner_sha256": "1850dd2a1fd92d80b9284b105970bc5247fd6b1b6e35eab12a63856f13e496a6",
+  "interpretation": "Raw short-sample baseline only. Gross +8.06R less estimated transaction cost 16.05R yields net -7.98R. The aggregate R path is not a portfolio-equity curve and does not model simultaneous cross-pair exposure. Not profitability evidence.",
+  "next_step_guardrail": "A regime-filter experiment, if authorized, belongs in a separate B-v2 implementation and output directory. Define the balanced/non-trending rule before running; retain the full pair universe and compare on the same data/cost assumptions."
+}

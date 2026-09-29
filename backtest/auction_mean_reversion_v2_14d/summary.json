@@ -1,0 +1,247 @@
+{
+  "experiment": "Strategy B-v2 \u2014 Auction / Mean-Reversion with balanced-regime filter",
+  "status": "PREREGISTERED_EXPLORATORY_RESULT",
+  "preregistration": "backtest/auction_mean_reversion_v2_preregistration.json",
+  "single_change": {
+    "name": "balanced-regime filter",
+    "metric": "24-hour close-path efficiency ratio (ER) computed on M5 closes",
+    "lookback_intervals": 288,
+    "formula": "ER = abs(close[t] - close[t-288]) / sum(abs(close[k] - close[k-1]) for k=t-287..t)",
+    "classification": "BALANCED when ER <= 0.30; TRENDING when ER > 0.30",
+    "decision_time": "At the completed liquidity-sweep candle close, before pivot confirmation and entry; only BALANCED setups may continue.",
+    "zero_path_rule": "If the denominator is zero, ER is zero and the regime is BALANCED.",
+    "lookahead": "None; uses only completed closes through the sweep candle."
+  },
+  "baseline_reference": {
+    "version": "B-v1",
+    "source_commit": "444b9f6c11a5ba0cc4979b954b97682423cec0b0",
+    "metrics": {
+      "trades": 72,
+      "wins": 22,
+      "losses": 50,
+      "win_rate_pct": 30.555555555555557,
+      "profit_factor": 0.8684613868813545,
+      "gross_R": 8.063488536133743,
+      "cost_R": 16.047298300293267,
+      "net_R": -7.983809764159523,
+      "average_net_R": -0.11088624672443782,
+      "max_drawdown_R": 32.94073222311259,
+      "average_planned_RR": 3.357640185744242
+    }
+  },
+  "controls_held_equal_to_b1": {
+    "value_fraction": 0.15,
+    "range_lookback_bars": 288,
+    "liquidity_lookback_bars": 12,
+    "choch_lookback_bars": 3,
+    "pending_expiry_bars": 6,
+    "stop_atr_buffer": 0.1,
+    "min_stop_buffer_pips": 0.5,
+    "min_reward_risk": 1.0,
+    "max_holding_bars": 288,
+    "round_turn_cost_pips": 1.5,
+    "entry": "next M5 open after confirmation",
+    "intrabar_policy": "gap-aware; stop-first when stop and target are both touched in one OHLC bar",
+    "position_rule": "one open position per pair; no portfolio leverage or allocation overlay"
+  },
+  "data": {
+    "AUDUSD": {
+      "source_dataset": "24d cTrader native trendbar volume",
+      "bars": 2874,
+      "start_utc": "2026-09-13T21:05:00+00:00",
+      "end_utc": "2026-09-25T20:55:00+00:00"
+    },
+    "EURUSD": {
+      "source_dataset": "24d cTrader native trendbar volume",
+      "bars": 2878,
+      "start_utc": "2026-09-13T21:05:00+00:00",
+      "end_utc": "2026-09-25T20:55:00+00:00"
+    },
+    "GBPUSD": {
+      "source_dataset": "24d cTrader native trendbar volume",
+      "bars": 2876,
+      "start_utc": "2026-09-13T21:05:00+00:00",
+      "end_utc": "2026-09-25T20:55:00+00:00"
+    },
+    "NZDUSD": {
+      "source_dataset": "24d cTrader native trendbar volume",
+      "bars": 2877,
+      "start_utc": "2026-09-13T21:10:00+00:00",
+      "end_utc": "2026-09-25T20:55:00+00:00"
+    },
+    "USDCAD": {
+      "source_dataset": "24d cTrader native trendbar volume",
+      "bars": 2878,
+      "start_utc": "2026-09-13T21:05:00+00:00",
+      "end_utc": "2026-09-25T20:55:00+00:00"
+    },
+    "USDCHF": {
+      "source_dataset": "24d cTrader native trendbar volume",
+      "bars": 2839,
+      "start_utc": "2026-09-13T21:40:00+00:00",
+      "end_utc": "2026-09-25T20:55:00+00:00"
+    },
+    "USDJPY": {
+      "source_dataset": "24d cTrader native trendbar volume",
+      "bars": 2877,
+      "start_utc": "2026-09-13T21:05:00+00:00",
+      "end_utc": "2026-09-25T20:55:00+00:00"
+    }
+  },
+  "aggregate_metrics": {
+    "trades": 72,
+    "wins": 22,
+    "losses": 50,
+    "win_rate_pct": 30.555555555555557,
+    "profit_factor": 0.8684613868813545,
+    "gross_R": 8.063488536133743,
+    "cost_R": 16.047298300293267,
+    "net_R": -7.983809764159523,
+    "average_net_R": -0.11088624672443782,
+    "max_drawdown_R": 32.94073222311259,
+    "average_planned_RR": 3.357640185744242
+  },
+  "pair_metrics": {
+    "AUDUSD": {
+      "trades": 7,
+      "wins": 1,
+      "losses": 6,
+      "win_rate_pct": 14.285714285714286,
+      "profit_factor": 0.15648429454328086,
+      "gross_R": -4.522058823529556,
+      "cost_R": 2.255598680566427,
+      "net_R": -6.777657504095983,
+      "average_net_R": -0.9682367862994262,
+      "max_drawdown_R": 8.035010445272315,
+      "average_planned_RR": 4.895071869912584
+    },
+    "EURUSD": {
+      "trades": 6,
+      "wins": 3,
+      "losses": 3,
+      "win_rate_pct": 50.0,
+      "profit_factor": 2.4626939541974,
+      "gross_R": 6.765486761842041,
+      "cost_R": 1.4242706944909813,
+      "net_R": 5.34121606735106,
+      "average_net_R": 0.8902026778918434,
+      "max_drawdown_R": 3.6516292776241484,
+      "average_planned_RR": 3.814269381091956
+    },
+    "GBPUSD": {
+      "trades": 13,
+      "wins": 5,
+      "losses": 8,
+      "win_rate_pct": 38.46153846153846,
+      "profit_factor": 1.3266102115031906,
+      "gross_R": 5.665129706326945,
+      "cost_R": 2.595828223060254,
+      "net_R": 3.069301483266691,
+      "average_net_R": 0.23610011409743775,
+      "max_drawdown_R": 4.671133078601461,
+      "average_planned_RR": 3.5831861463746995
+    },
+    "NZDUSD": {
+      "trades": 7,
+      "wins": 3,
+      "losses": 4,
+      "win_rate_pct": 42.857142857142854,
+      "profit_factor": 1.5171390368129538,
+      "gross_R": 4.434686200147051,
+      "cost_R": 1.8795124510236227,
+      "net_R": 2.555173749123428,
+      "average_net_R": 0.36502482130334685,
+      "max_drawdown_R": 2.5409090909090866,
+      "average_planned_RR": 2.891116890242905
+    },
+    "USDCAD": {
+      "trades": 16,
+      "wins": 2,
+      "losses": 14,
+      "win_rate_pct": 12.5,
+      "profit_factor": 0.21961602521473952,
+      "gross_R": -9.787405303031322,
+      "cost_R": 3.5412163335635327,
+      "net_R": -13.328621636594855,
+      "average_net_R": -0.8330388522871784,
+      "max_drawdown_R": 13.328621636594853,
+      "average_planned_RR": 2.6198336819544665
+    },
+    "USDCHF": {
+      "trades": 12,
+      "wins": 6,
+      "losses": 6,
+      "win_rate_pct": 50.0,
+      "profit_factor": 1.629670446792741,
+      "gross_R": 7.653853700979906,
+      "cost_R": 2.9953629626619978,
+      "net_R": 4.658490738317908,
+      "average_net_R": 0.38820756152649233,
+      "max_drawdown_R": 6.242639419060844,
+      "average_planned_RR": 3.063645106230636
+    },
+    "USDJPY": {
+      "trades": 11,
+      "wins": 2,
+      "losses": 9,
+      "win_rate_pct": 18.181818181818183,
+      "profit_factor": 0.6564464866709689,
+      "gross_R": -2.1462037066013213,
+      "cost_R": 1.3555089549264505,
+      "net_R": -3.5017126615277725,
+      "average_net_R": -0.31833751468434296,
+      "max_drawdown_R": 4.638629188310388,
+      "average_planned_RR": 3.5544232433668252
+    }
+  },
+  "pair_audits": {
+    "AUDUSD": {
+      "sweep_candidates": 23,
+      "balanced_sweeps_allowed": 23,
+      "trending_sweeps_rejected": 0,
+      "confirmed_entries": 7
+    },
+    "EURUSD": {
+      "sweep_candidates": 24,
+      "balanced_sweeps_allowed": 24,
+      "trending_sweeps_rejected": 0,
+      "confirmed_entries": 6
+    },
+    "GBPUSD": {
+      "sweep_candidates": 40,
+      "balanced_sweeps_allowed": 40,
+      "trending_sweeps_rejected": 0,
+      "confirmed_entries": 13
+    },
+    "NZDUSD": {
+      "sweep_candidates": 30,
+      "balanced_sweeps_allowed": 30,
+      "trending_sweeps_rejected": 0,
+      "confirmed_entries": 7
+    },
+    "USDCAD": {
+      "sweep_candidates": 54,
+      "balanced_sweeps_allowed": 54,
+      "trending_sweeps_rejected": 0,
+      "confirmed_entries": 16
+    },
+    "USDCHF": {
+      "sweep_candidates": 35,
+      "balanced_sweeps_allowed": 35,
+      "trending_sweeps_rejected": 0,
+      "confirmed_entries": 12
+    },
+    "USDJPY": {
+      "sweep_candidates": 42,
+      "balanced_sweeps_allowed": 42,
+      "trending_sweeps_rejected": 0,
+      "confirmed_entries": 11
+    }
+  },
+  "delta_vs_b1": {
+    "trades": 0,
+    "net_R": 0.0,
+    "profit_factor": 0.0
+  },
+  "caution": "Same 14d sample used for this exploratory comparison after B-v1; no out-of-sample validation. The ER threshold was preregistered before this run but the regime hypothesis itself was motivated by B-v1 diagnostics. Costs are estimated; M5 OHLC has intrabar ambiguity."
+}
