@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta, timezone
-
 from strategy.engine import Strategy
 from strategy.svl import alignment_for_execution, analyze_svl, market_profile
 from strategy.structure import get_m5_execution_confirmation
@@ -7,9 +5,7 @@ from strategy.models import Candle
 
 
 def row(i, o, h, l, c, volume=1):
-    stamp = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(hours=i)
-    return {"time": stamp.isoformat().replace("+00:00", "Z"),
-            "open": o, "high": h, "low": l, "close": c, "volume": volume}
+    return {"time": f"2026-01-01T{i:02d}:00:00Z", "open": o, "high": h, "low": l, "close": c, "volume": volume}
 
 
 def test_market_profile_exposes_value_levels_and_nodes():

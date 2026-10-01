@@ -275,7 +275,7 @@ def test_config_yaml_defaults_and_environment_overrides_are_consistent():
         "allow_weak_structure": False,
         "allow_equilibrium_overlapping_fvg": False,
         "setup_max_age_hours": 72,
-        "m5_confirmation_mode": "CHOCH_OR_BOS",
+        "m5_confirmation_mode": "BOS_AFTER_CHOCH",
         "svl_require_alignment": False, "svl_profile_bins": 24,
         "svl_equal_tolerance_pct": 0.001,
     }

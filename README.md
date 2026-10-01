@@ -15,9 +15,7 @@ H1 confirmed structure
 → untouched H1 swing target
 ```
 
-The canonical confirmed-swing engine emits body-close `BOS`/`CHOCH` events, and the latest unambiguous event stream alone determines direction, protected swing, dealing range, and external liquidity. The sequence is H1 structure → H1 FVG location → temporally later POI touch → relevant M5 liquidity sweep → newest M5 same-direction BOS/CHOCH. In the active configuration, displacement, POI confluence, `BOS_AFTER_CHOCH`, weak-structure rejection, and minimum `RR >= 2.5` are mandatory gates. Stale M5 breaks are never reused. The scanner records per-pair-and-variant setup lifecycle state and expires setups after the configured maximum age or when their premise changes. `strategy/engine.py` is the sole canonical strategy implementation; named variants are configurations of that engine.
-
-Session timing is recorded as evidence and is **not** an automatic trading-hours restriction: `strategy.require_killzone: false` keeps signals eligible outside the London/New York kill zones when the other safety conditions pass. Set it to `true` only when a deployment explicitly wants that gate. This is separate from the execution policy for positions held overnight.
+The canonical confirmed-swing engine emits body-close `BOS`/`CHOCH` events, and the latest unambiguous event stream alone determines direction, protected swing, dealing range, and external liquidity. The sequence is H1 structure → H1 FVG location → temporally later POI touch → relevant M5 liquidity sweep → newest M5 same-direction BOS/CHOCH. Displacement is ATR-normalized evidence, not a mandatory gate; stale M5 breaks are never reused. The scanner records per-pair-and-variant setup lifecycle state and expires setups after the configured maximum age or when their premise changes. `strategy/engine.py` is the sole canonical strategy implementation; named variants are configurations of that engine.
 
 ## SVL alignment engine
 
@@ -124,7 +122,7 @@ Risk sizing is opt-in and requires an explicit account-equity snapshot plus a ca
 
 The cash conversion must be calculated for the account currency and symbol; the bot does not silently assume every pair is USD-quoted. If those values are missing, execution stops. Live order submission is disabled in the adapter; use demo only until a separately reviewed live execution boundary exists.
 
-The filters in `config/config.yaml` are the executable defaults and must be treated as part of the tested strategy. Do not select or relax them after looking at the test results; freeze the configuration before an out-of-sample run and record the commit used.
+No additional strategy filters are enabled by default. This keeps the signal sample stable and puts overfitting control in the validation process rather than in an expanding list of gates.
 
 ## Overfitting control
 

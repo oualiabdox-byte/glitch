@@ -66,23 +66,15 @@ class Strategy:
         m5 = [Candle.from_dict(row) for row in m5_rows]
         # H1 candles closing after the latest M5 close are outside this scan's
         # information set and cannot influence structure, POI, or target state.
-        cutoff_error = False
         if m5:
             m5_open = _time_key(m5[-1].time)
             if isinstance(m5_open, datetime):
                 cutoff = m5_open + timedelta(minutes=5)
-                kept = []
-                for row, candle in zip(h1_rows, h1):
-                    opened = _time_key(candle.time)
-                    if not isinstance(opened, datetime):
-                        cutoff_error = True
-                        continue
-                    if opened + timedelta(hours=1) <= cutoff:
-                        kept.append((row, candle))
+                kept = [(row, candle) for row, candle in zip(h1_rows, h1)
+                        if isinstance(_time_key(candle.time), datetime)
+                        and _time_key(candle.time) + timedelta(hours=1) <= cutoff]
                 h1_rows = [row for row, _ in kept]
                 h1 = [candle for _, candle in kept]
-            else:
-                cutoff_error = True
         evidence: dict[str, Any] = {
             "timeframes": {"context": "1H", "execution": "M5"},
             "h1_structure": {}, "h1_dealing_range": {}, "h1_poi": {},
@@ -95,13 +87,6 @@ class Strategy:
             "displacement": {}, "stop": {}, "target": {}, "timing": {},
             "higher_timeframe": {},
         }
-        evidence["h1_cutoff"] = {
-            "applied": bool(m5),
-            "timestamp_contract": "candle time is opening time; only fully closed H1 bars are used",
-            "failed_closed": cutoff_error,
-        }
-        if cutoff_error:
-            return Decision("NO_TRADE", ["INVALID_CANDLE_TIMESTAMP"], evidence=evidence)
         if m5:
             try:
                 timing = session_context(as_utc(m5[-1].time) + timedelta(minutes=5))
@@ -408,12 +393,6 @@ class Strategy:
         if rr < self.min_rr:
             evidence["poi_state"]["status"] = "INVALIDATED"
             return Decision("NO_TRADE", ["RISK_REWARD_BELOW_MINIMUM"], side=side, risk_reward=rr, evidence=evidence)
-        if _stop_touched_before_entry(m5, sweep["index"], stop_price, side):
-            evidence["poi_state"].update({"status": "STOP_ALREADY_VIOLATED", "target_invalidated": True})
-            evidence["stop"]["touched_before_entry"] = True
-            return Decision("NO_TRADE", ["STOP_ALREADY_VIOLATED_BEFORE_ENTRY"], side=side,
-                            risk_reward=rr, evidence=evidence)
-        evidence["stop"]["touched_before_entry"] = False
         evidence["poi_state"]["status"] = "CONFIRMED"
         return Decision("SIGNAL", [], side=side, entry_price=entry, stop_price=stop_price,
                         target_price=target_price, risk_reward=rr, evidence=evidence)
@@ -449,26 +428,16 @@ def _same_setup(previous: dict[str, Any], side: Side, structure: dict[str, Any],
         return False
     prior_structure = previous.get("h1_structure", {})
     prior_poi = previous.get("h1_poi", {})
-    structure_matches = _structure_identity(prior_structure) == _structure_identity(structure)
+    structural_keys = ("side", "state", "last_event", "protected_swing",
+                       "external_high", "external_low", "external_high_index",
+                       "external_low_index")
+    structure_matches = all(prior_structure.get(key) == structure.get(key)
+                            for key in structural_keys)
     return (previous.get("side") == side
             and structure_matches
             and prior_poi.get("time") == poi.time
             and prior_poi.get("bottom") == poi.bottom
             and prior_poi.get("top") == poi.top)
-
-
-def _structure_identity(structure: dict[str, Any]) -> tuple[Any, ...]:
-    """Return the persisted identity of a structure without window indices."""
-    event = structure.get("last_event") or {}
-    protected = structure.get("protected_swing") or {}
-    high = structure.get("external_high_swing") or {}
-    low = structure.get("external_low_swing") or {}
-    return (
-        structure.get("side"), structure.get("state"),
-        event.get("time"), event.get("type"), event.get("side"), event.get("level"),
-        protected.get("time"), protected.get("kind"), protected.get("price"),
-        high.get("time"), high.get("price"), low.get("time"), low.get("price"),
-    )
 
 
 def _index_after_time(candles: list[Candle], value: str) -> int | None:
@@ -493,22 +462,6 @@ def _target_reached_before(candles: list[Candle], target_index: int | None,
         if side == "LONG" and candle.high >= target_price:
             return True
         if side == "SHORT" and candle.low <= target_price:
-            return True
-    return False
-
-
-def _stop_touched_before_entry(candles: list[Candle], sweep_index: int,
-                               stop_price: float, side: Side) -> bool:
-    """Reject setups whose stop was touched after the sweep and before fill.
-
-    The sweep candle is excluded because its extreme is the stop anchor by
-    design. Every later closed M5 candle is part of the information set before
-    the next-bar fill, so an adverse touch there invalidates the setup.
-    """
-    for candle in candles[sweep_index + 1:]:
-        if side == "LONG" and candle.low <= stop_price:
-            return True
-        if side == "SHORT" and candle.high >= stop_price:
             return True
     return False
 
