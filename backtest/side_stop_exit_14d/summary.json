@@ -1,0 +1,161 @@
+{
+  "experiment": "side_stop_exit_14d",
+  "production_code_changed": false,
+  "signal_source": "backtest/ablation_14d_bos_after_choch/signal_cache.json",
+  "signal_source_sha256": "2019562cbff2febd4237dcbd4a2cd0534911c64acc7cd396722dff1ff837f0ce",
+  "data_sha256": {
+    "AUDUSD": "52be4671d877f78b99fdf497661568e1f3c1be613fe9415c6f3ab73ecf864b5f",
+    "EURUSD": "3a0f29cb24054ea4f36475834076dac95d5d228a1dd9ca3f3ae182e541b2d848",
+    "GBPUSD": "d8c419d21d3063ae3c6fcf0670ed8adcd466e1fb81c003024ae17449edb0de2f",
+    "NZDUSD": "5382550fb7ac7409eabb51040c089ac662be903fa34c33e6e5cdf731102da1f4",
+    "USDCAD": "9e79512d899b253edc21d33332b072ec11506641638b7907e60ac6889a4ce659",
+    "USDCHF": "146dd8e821480577e74f7748e6e46217a57f21f8d59dd00a983ce9b5f099d557",
+    "USDJPY": "2432326a87e0fe8af4f43f2ad9478be4b3eeb894d79c5724ec55d7e9d9ed226e"
+  },
+  "git_commit": "6bc840e8a565d0a1c5be0fae5c93e12968f7575a",
+  "period": "2026-09-13T21:40:00+00:00 to 2026-09-25T20:55:00+00:00",
+  "cost_pips_round_turn": 1.5,
+  "overnight_false_rule": "close at first bar whose UTC date differs from entry date",
+  "intrabar_policy": "sl_first; gap checked before wick; same-bar stop wins over target",
+  "buffers_pips": [
+    0.0,
+    0.5,
+    1.0,
+    1.5
+  ],
+  "candidates": 18,
+  "results": [
+    {
+      "buffer_pips": 0.0,
+      "allow_overnight": false,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "overnight_close": 4,
+        "stop": 4,
+        "target": 10
+      },
+      "wins": 10,
+      "losses": 8,
+      "win_rate_pct": 55.55555555555556,
+      "total_R_net": 2.193038317773879,
+      "average_R_net": 0.12183546209854883
+    },
+    {
+      "buffer_pips": 0.0,
+      "allow_overnight": true,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "stop": 4,
+        "target": 14
+      },
+      "wins": 13,
+      "losses": 5,
+      "win_rate_pct": 72.22222222222221,
+      "total_R_net": 9.367924364222933,
+      "average_R_net": 0.5204402424568296
+    },
+    {
+      "buffer_pips": 0.5,
+      "allow_overnight": false,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "overnight_close": 4,
+        "stop": 4,
+        "target": 10
+      },
+      "wins": 10,
+      "losses": 8,
+      "win_rate_pct": 55.55555555555556,
+      "total_R_net": 1.9676301961507918,
+      "average_R_net": 0.10931278867504399
+    },
+    {
+      "buffer_pips": 0.5,
+      "allow_overnight": true,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "stop": 4,
+        "target": 14
+      },
+      "wins": 13,
+      "losses": 5,
+      "win_rate_pct": 72.22222222222221,
+      "total_R_net": 8.685315353230633,
+      "average_R_net": 0.4825175196239241
+    },
+    {
+      "buffer_pips": 1.0,
+      "allow_overnight": false,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "overnight_close": 4,
+        "stop": 4,
+        "target": 10
+      },
+      "wins": 10,
+      "losses": 8,
+      "win_rate_pct": 55.55555555555556,
+      "total_R_net": 1.7613676399172,
+      "average_R_net": 0.09785375777317779
+    },
+    {
+      "buffer_pips": 1.0,
+      "allow_overnight": true,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "stop": 4,
+        "target": 14
+      },
+      "wins": 13,
+      "losses": 5,
+      "win_rate_pct": 72.22222222222221,
+      "total_R_net": 8.086890194739556,
+      "average_R_net": 0.44927167748553093
+    },
+    {
+      "buffer_pips": 1.5,
+      "allow_overnight": false,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "overnight_close": 4,
+        "stop": 4,
+        "target": 10
+      },
+      "wins": 10,
+      "losses": 8,
+      "win_rate_pct": 55.55555555555556,
+      "total_R_net": 1.5713707135857686,
+      "average_R_net": 0.08729837297698714
+    },
+    {
+      "buffer_pips": 1.5,
+      "allow_overnight": true,
+      "candidates": 18,
+      "simulated": 18,
+      "invalid_or_unfilled": 0,
+      "exit_reason_counts": {
+        "stop": 4,
+        "target": 14
+      },
+      "wins": 13,
+      "losses": 5,
+      "win_rate_pct": 72.22222222222221,
+      "total_R_net": 7.555749433652847,
+      "average_R_net": 0.41976385742515815
+    }
+  ]
+}
