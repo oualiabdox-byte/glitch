@@ -35,7 +35,7 @@ def test_presets_keep_other_runtime_strategy_options():
     assert strategy.swing_left == strategy.swing_right == 2
     assert strategy.setup_max_age_hours == 24
     assert strategy.allow_weak_structure is False
-    assert strategy.m5_confirmation_mode == "CHOCH_ONLY"
+    assert strategy.m5_confirmation_mode == "BOS_AFTER_CHOCH"
 
 
 def test_cli_scans_all_three_presets_and_uses_config_default_for_other_pairs(monkeypatch, capsys):

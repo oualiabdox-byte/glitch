@@ -51,6 +51,9 @@ strategy:
   allow_equilibrium_overlapping_fvg: false
   setup_max_age_hours: 72
   m5_confirmation_mode: BOS_AFTER_CHOCH
+  # Session timing is evidence by default, not a mandatory entry gate. Set
+  # true only when the deployment explicitly wants the London/NY kill zones.
+  require_killzone: false
   require_displacement: true
   min_displacement_ratio: 1.0
   require_poi_confluence: true
