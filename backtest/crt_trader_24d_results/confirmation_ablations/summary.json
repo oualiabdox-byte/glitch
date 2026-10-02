@@ -1,0 +1,278 @@
+{
+  "baseline_trade_count": 132,
+  "variants": [
+    {
+      "trades": 132,
+      "wins": 49,
+      "losses": 83,
+      "win_rate_pct": 37.12,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622,
+      "max_drawdown_r": 26.953797,
+      "longest_losing_streak": 14,
+      "variant": "baseline",
+      "settings": {}
+    },
+    {
+      "trades": 84,
+      "wins": 34,
+      "losses": 50,
+      "win_rate_pct": 40.48,
+      "total_r": -14.15134,
+      "avg_r": -0.168468,
+      "profit_factor": 0.716973,
+      "max_drawdown_r": 21.41183,
+      "longest_losing_streak": 9,
+      "variant": "confirm_2_closes",
+      "settings": {
+        "confirm_bars": 2
+      }
+    },
+    {
+      "trades": 62,
+      "wins": 26,
+      "losses": 36,
+      "win_rate_pct": 41.94,
+      "total_r": -12.930235,
+      "avg_r": -0.208552,
+      "profit_factor": 0.640827,
+      "max_drawdown_r": 14.041525,
+      "longest_losing_streak": 8,
+      "variant": "confirm_3_closes",
+      "settings": {
+        "confirm_bars": 3
+      }
+    },
+    {
+      "trades": 90,
+      "wins": 34,
+      "losses": 56,
+      "win_rate_pct": 37.78,
+      "total_r": -5.076507,
+      "avg_r": -0.056406,
+      "profit_factor": 0.909348,
+      "max_drawdown_r": 18.404593,
+      "longest_losing_streak": 8,
+      "variant": "sweep_depth_5pct",
+      "settings": {
+        "min_sweep_range_pct": 0.05
+      }
+    },
+    {
+      "trades": 56,
+      "wins": 21,
+      "losses": 35,
+      "win_rate_pct": 37.5,
+      "total_r": -6.963915,
+      "avg_r": -0.124356,
+      "profit_factor": 0.801031,
+      "max_drawdown_r": 16.677642,
+      "longest_losing_streak": 7,
+      "variant": "sweep_depth_10pct",
+      "settings": {
+        "min_sweep_range_pct": 0.1
+      }
+    },
+    {
+      "trades": 114,
+      "wins": 42,
+      "losses": 72,
+      "win_rate_pct": 36.84,
+      "total_r": -12.660648,
+      "avg_r": -0.111058,
+      "profit_factor": 0.824158,
+      "max_drawdown_r": 26.651057,
+      "longest_losing_streak": 13,
+      "variant": "body_ratio_0.30",
+      "settings": {
+        "min_body_ratio": 0.3
+      }
+    },
+    {
+      "trades": 87,
+      "wins": 32,
+      "losses": 55,
+      "win_rate_pct": 36.78,
+      "total_r": -8.184737,
+      "avg_r": -0.094077,
+      "profit_factor": 0.851187,
+      "max_drawdown_r": 22.781692,
+      "longest_losing_streak": 11,
+      "variant": "body_ratio_0.50",
+      "settings": {
+        "min_body_ratio": 0.5
+      }
+    },
+    {
+      "trades": 28,
+      "wins": 14,
+      "losses": 14,
+      "win_rate_pct": 50.0,
+      "total_r": -5.852484,
+      "avg_r": -0.209017,
+      "profit_factor": 0.581965,
+      "max_drawdown_r": 6.273437,
+      "longest_losing_streak": 4,
+      "variant": "displacement_0.50_atr",
+      "settings": {
+        "min_displacement_atr": 0.5
+      }
+    },
+    {
+      "trades": 21,
+      "wins": 11,
+      "losses": 10,
+      "win_rate_pct": 52.38,
+      "total_r": -4.479331,
+      "avg_r": -0.213301,
+      "profit_factor": 0.552067,
+      "max_drawdown_r": 6.549481,
+      "longest_losing_streak": 3,
+      "variant": "bos_after_reentry",
+      "settings": {
+        "require_bos": true
+      }
+    },
+    {
+      "trades": 80,
+      "wins": 29,
+      "losses": 51,
+      "win_rate_pct": 36.25,
+      "total_r": -5.439125,
+      "avg_r": -0.067989,
+      "profit_factor": 0.89335,
+      "max_drawdown_r": 19.526227,
+      "longest_losing_streak": 8,
+      "variant": "sweep5_body30",
+      "settings": {
+        "min_sweep_range_pct": 0.05,
+        "min_body_ratio": 0.3
+      }
+    },
+    {
+      "trades": 63,
+      "wins": 23,
+      "losses": 40,
+      "win_rate_pct": 36.51,
+      "total_r": -4.589508,
+      "avg_r": -0.072849,
+      "profit_factor": 0.885262,
+      "max_drawdown_r": 17.758266,
+      "longest_losing_streak": 7,
+      "variant": "sweep5_body50",
+      "settings": {
+        "min_sweep_range_pct": 0.05,
+        "min_body_ratio": 0.5
+      }
+    },
+    {
+      "trades": 59,
+      "wins": 24,
+      "losses": 35,
+      "win_rate_pct": 40.68,
+      "total_r": -10.885067,
+      "avg_r": -0.184493,
+      "profit_factor": 0.688998,
+      "max_drawdown_r": 16.34376,
+      "longest_losing_streak": 5,
+      "variant": "sweep5_confirm2",
+      "settings": {
+        "min_sweep_range_pct": 0.05,
+        "confirm_bars": 2
+      }
+    }
+  ],
+  "diagnostics": {
+    "baseline": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 132,
+      "trades": 132,
+      "rejected_variant": 487
+    },
+    "confirm_2_closes": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 84,
+      "trades": 84,
+      "rejected_variant": 535
+    },
+    "confirm_3_closes": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 62,
+      "trades": 62,
+      "rejected_variant": 557
+    },
+    "sweep_depth_5pct": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 90,
+      "trades": 90,
+      "rejected_variant": 529
+    },
+    "sweep_depth_10pct": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 56,
+      "trades": 56,
+      "rejected_variant": 563
+    },
+    "body_ratio_0.30": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 114,
+      "trades": 114,
+      "rejected_variant": 505
+    },
+    "body_ratio_0.50": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 87,
+      "trades": 87,
+      "rejected_variant": 532
+    },
+    "displacement_0.50_atr": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 28,
+      "trades": 28,
+      "rejected_variant": 591
+    },
+    "bos_after_reentry": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 21,
+      "trades": 21,
+      "rejected_variant": 598
+    },
+    "sweep5_body30": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 80,
+      "trades": 80,
+      "rejected_variant": 539
+    },
+    "sweep5_body50": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 63,
+      "trades": 63,
+      "rejected_variant": 556
+    },
+    "sweep5_confirm2": {
+      "purges": 625,
+      "base_candidates": 304,
+      "variant_candidates": 59,
+      "trades": 59,
+      "rejected_variant": 560
+    }
+  },
+  "limitations": [
+    "Research-only ablation; no live or production strategy files were changed.",
+    "Confirmation/displacement/BOS variants delay entry and therefore are not directly comparable to the original entry price without execution-cost modeling.",
+    "OHLC data cannot resolve intrabar ordering; spread, slippage, commission, and news are absent.",
+    "The BOS test uses causal 3-bar confirmed pivots and is an approximation of the original structure engine."
+  ]
+}
