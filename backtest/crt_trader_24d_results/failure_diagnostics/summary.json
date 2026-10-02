@@ -1,0 +1,198 @@
+{
+  "trades": 132,
+  "variant_metrics": {
+    "baseline_current": {
+      "trades": 132,
+      "win_rate_pct": 37.12,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622,
+      "max_drawdown_r": 26.953797
+    },
+    "wider_stop_0.25_atr": {
+      "trades": 132,
+      "win_rate_pct": 41.67,
+      "total_r": -12.227783,
+      "avg_r": -0.092635,
+      "profit_factor": 0.816745,
+      "max_drawdown_r": 21.34061
+    },
+    "structural_stop": {
+      "trades": 132,
+      "win_rate_pct": 41.67,
+      "total_r": -4.451674,
+      "avg_r": -0.033725,
+      "profit_factor": 0.920018,
+      "max_drawdown_r": 19.305497
+    },
+    "no_breakeven": {
+      "trades": 132,
+      "win_rate_pct": 21.21,
+      "total_r": -22.964577,
+      "avg_r": -0.173974,
+      "profit_factor": 0.756038,
+      "max_drawdown_r": 43.151971
+    },
+    "full_exit_equilibrium": {
+      "trades": 132,
+      "win_rate_pct": 37.12,
+      "total_r": -6.255064,
+      "avg_r": -0.047387,
+      "profit_factor": 0.924638,
+      "max_drawdown_r": 27.787697
+    },
+    "nearest_swing_beyond_eq": {
+      "trades": 132,
+      "win_rate_pct": 37.12,
+      "total_r": 18.53495,
+      "avg_r": 0.140416,
+      "profit_factor": 1.223313,
+      "max_drawdown_r": 20.434625
+    }
+  },
+  "groups": {
+    "htf_alignment=False": {
+      "trades": 94,
+      "win_rate_pct": 26.6,
+      "total_r": -30.4325,
+      "avg_r": -0.32375,
+      "profit_factor": 0.558949,
+      "max_drawdown_r": 35.741332
+    },
+    "htf_alignment=True": {
+      "trades": 38,
+      "win_rate_pct": 63.16,
+      "total_r": 15.710095,
+      "avg_r": 0.413424,
+      "profit_factor": 2.12215,
+      "max_drawdown_r": 5.310294
+    },
+    "fvg_near_entry=False": {
+      "trades": 65,
+      "win_rate_pct": 29.23,
+      "total_r": -16.425918,
+      "avg_r": -0.252706,
+      "profit_factor": 0.642915,
+      "max_drawdown_r": 23.49362
+    },
+    "fvg_near_entry=True": {
+      "trades": 67,
+      "win_rate_pct": 44.78,
+      "total_r": 1.703514,
+      "avg_r": 0.025426,
+      "profit_factor": 1.046041,
+      "max_drawdown_r": 15.482114
+    },
+    "ob_near_entry=False": {
+      "trades": 1,
+      "win_rate_pct": 100.0,
+      "total_r": 0.542865,
+      "avg_r": 0.542865,
+      "profit_factor": null,
+      "max_drawdown_r": 0.0
+    },
+    "ob_near_entry=True": {
+      "trades": 131,
+      "win_rate_pct": 36.64,
+      "total_r": -15.265269,
+      "avg_r": -0.116529,
+      "profit_factor": 0.816081,
+      "max_drawdown_r": 27.496661
+    },
+    "path=EQ_THEN_BE": {
+      "trades": 36,
+      "win_rate_pct": 100.0,
+      "total_r": 27.051342,
+      "avg_r": 0.751426,
+      "profit_factor": null,
+      "max_drawdown_r": 0.0
+    },
+    "path=EQ_THEN_TARGET": {
+      "trades": 13,
+      "win_rate_pct": 100.0,
+      "total_r": 41.226253,
+      "avg_r": 3.17125,
+      "profit_factor": null,
+      "max_drawdown_r": 0.0
+    },
+    "path=STOP_BEFORE_EQ": {
+      "trades": 83,
+      "win_rate_pct": 0.0,
+      "total_r": -83.0,
+      "avg_r": -1.0,
+      "profit_factor": 0.0,
+      "max_drawdown_r": 82.0
+    }
+  },
+  "cost_sensitivity": {
+    "cost_0.02R": {
+      "trades": 132,
+      "win_rate_pct": 35.61,
+      "total_r": -17.362405,
+      "avg_r": -0.131533,
+      "profit_factor": 0.794957,
+      "max_drawdown_r": 28.793797
+    },
+    "cost_0.05R": {
+      "trades": 132,
+      "win_rate_pct": 34.85,
+      "total_r": -21.322405,
+      "avg_r": -0.161533,
+      "profit_factor": 0.755596,
+      "max_drawdown_r": 31.844999
+    },
+    "cost_0.10R": {
+      "trades": 132,
+      "win_rate_pct": 34.09,
+      "total_r": -27.922405,
+      "avg_r": -0.211533,
+      "profit_factor": 0.695129,
+      "max_drawdown_r": 37.244999
+    },
+    "cost_0.15R": {
+      "trades": 132,
+      "win_rate_pct": 31.82,
+      "total_r": -34.522405,
+      "avg_r": -0.261533,
+      "profit_factor": 0.640365,
+      "max_drawdown_r": 42.644999
+    },
+    "cost_0.20R": {
+      "trades": 132,
+      "win_rate_pct": 30.3,
+      "total_r": -41.122405,
+      "avg_r": -0.311533,
+      "profit_factor": 0.590951,
+      "max_drawdown_r": 48.067398
+    }
+  },
+  "target_distance_groups": {
+    "target_le_6_atr": {
+      "trades": 68,
+      "win_rate_pct": 54.41,
+      "total_r": 11.939562,
+      "avg_r": 0.175582,
+      "profit_factor": 1.385147,
+      "max_drawdown_r": 9.758919
+    },
+    "target_gt_6_atr": {
+      "trades": 64,
+      "win_rate_pct": 18.75,
+      "total_r": -26.661967,
+      "avg_r": -0.416593,
+      "profit_factor": 0.48727,
+      "max_drawdown_r": 28.284007
+    }
+  },
+  "counts": {
+    "structural_stop_available": 127,
+    "nearest_target_available": 111,
+    "target_le_6_atr": 68
+  },
+  "limitations": [
+    "Nearest swing and structural stop use causal 3-bar pivots as a research approximation.",
+    "FVG/OB groups use causal proximity evidence from the hybrid layer; they are not yet a retest-entry engine.",
+    "Costs are sensitivity assumptions in R because the fixture has no bid/ask or commission.",
+    "No variant changes the production CRT engine."
+  ]
+}
