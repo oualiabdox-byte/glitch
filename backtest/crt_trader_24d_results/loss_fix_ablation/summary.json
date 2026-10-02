@@ -1,0 +1,231 @@
+{
+  "source": "/home/ubuntu/glitch/backtest/crt_trader_24d_results/feature_analysis/feature_matrix.csv",
+  "results": {
+    "raw_current_exit": {
+      "trades": 132,
+      "wins": 49,
+      "losses": 83,
+      "win_rate_pct": 37.1212,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622
+    },
+    "long_only": {
+      "trades": 53,
+      "wins": 23,
+      "losses": 30,
+      "win_rate_pct": 43.3962,
+      "total_r": 5.428622,
+      "avg_r": 0.102427,
+      "profit_factor": 1.180954
+    },
+    "short_only": {
+      "trades": 79,
+      "wins": 26,
+      "losses": 53,
+      "win_rate_pct": 32.9114,
+      "total_r": -20.151027,
+      "avg_r": -0.255076,
+      "profit_factor": 0.619792
+    },
+    "overlap_only": {
+      "trades": 23,
+      "wins": 15,
+      "losses": 8,
+      "win_rate_pct": 65.2174,
+      "total_r": 15.045401,
+      "avg_r": 0.654148,
+      "profit_factor": 2.880675
+    },
+    "long_overlap": {
+      "trades": 12,
+      "wins": 10,
+      "losses": 2,
+      "win_rate_pct": 83.3333,
+      "total_r": 16.10574,
+      "avg_r": 1.342145,
+      "profit_factor": 9.05287
+    },
+    "non_expansion": {
+      "trades": 78,
+      "wins": 31,
+      "losses": 47,
+      "win_rate_pct": 39.7436,
+      "total_r": -1.346422,
+      "avg_r": -0.017262,
+      "profit_factor": 0.971353
+    },
+    "equilibrium_exit_all": {
+      "trades": 132,
+      "wins": 36,
+      "losses": 96,
+      "win_rate_pct": 27.2727,
+      "total_r": -43.586513,
+      "avg_r": -0.330201,
+      "profit_factor": 0.545974
+    },
+    "equilibrium_exit_overlap": {
+      "trades": 23,
+      "wins": 10,
+      "losses": 13,
+      "win_rate_pct": 43.4783,
+      "total_r": 5.833431,
+      "avg_r": 0.253627,
+      "profit_factor": 1.448725
+    },
+    "equilibrium_exit_long": {
+      "trades": 53,
+      "wins": 20,
+      "losses": 33,
+      "win_rate_pct": 37.7358,
+      "total_r": -4.00265,
+      "avg_r": -0.075522,
+      "profit_factor": 0.878708
+    }
+  },
+  "pair_current_exit": {
+    "AUDUSD": {
+      "trades": 12,
+      "wins": 7,
+      "losses": 5,
+      "win_rate_pct": 58.3333,
+      "total_r": 6.643043,
+      "avg_r": 0.553587,
+      "profit_factor": 2.328609
+    },
+    "EURUSD": {
+      "trades": 21,
+      "wins": 8,
+      "losses": 13,
+      "win_rate_pct": 38.0952,
+      "total_r": -3.713284,
+      "avg_r": -0.176823,
+      "profit_factor": 0.714363
+    },
+    "GBPUSD": {
+      "trades": 14,
+      "wins": 4,
+      "losses": 10,
+      "win_rate_pct": 28.5714,
+      "total_r": -7.644165,
+      "avg_r": -0.546012,
+      "profit_factor": 0.235583
+    },
+    "NZDUSD": {
+      "trades": 22,
+      "wins": 12,
+      "losses": 10,
+      "win_rate_pct": 54.5455,
+      "total_r": 7.772311,
+      "avg_r": 0.353287,
+      "profit_factor": 1.777231
+    },
+    "USDCAD": {
+      "trades": 23,
+      "wins": 8,
+      "losses": 15,
+      "win_rate_pct": 34.7826,
+      "total_r": -2.577255,
+      "avg_r": -0.112055,
+      "profit_factor": 0.828183
+    },
+    "USDCHF": {
+      "trades": 23,
+      "wins": 5,
+      "losses": 18,
+      "win_rate_pct": 21.7391,
+      "total_r": -11.198686,
+      "avg_r": -0.486899,
+      "profit_factor": 0.377851
+    },
+    "USDJPY": {
+      "trades": 17,
+      "wins": 5,
+      "losses": 12,
+      "win_rate_pct": 29.4118,
+      "total_r": -4.004368,
+      "avg_r": -0.235551,
+      "profit_factor": 0.666303
+    }
+  },
+  "pair_equilibrium_exit": {
+    "AUDUSD": {
+      "trades": 12,
+      "wins": 6,
+      "losses": 6,
+      "win_rate_pct": 50.0,
+      "total_r": 4.416133,
+      "avg_r": 0.368011,
+      "profit_factor": 1.736022
+    },
+    "EURUSD": {
+      "trades": 21,
+      "wins": 5,
+      "losses": 16,
+      "win_rate_pct": 23.8095,
+      "total_r": -11.420467,
+      "avg_r": -0.543832,
+      "profit_factor": 0.286221
+    },
+    "GBPUSD": {
+      "trades": 14,
+      "wins": 4,
+      "losses": 10,
+      "win_rate_pct": 28.5714,
+      "total_r": -5.288331,
+      "avg_r": -0.377738,
+      "profit_factor": 0.471167
+    },
+    "NZDUSD": {
+      "trades": 22,
+      "wins": 9,
+      "losses": 13,
+      "win_rate_pct": 40.9091,
+      "total_r": 2.816098,
+      "avg_r": 0.128004,
+      "profit_factor": 1.216623
+    },
+    "USDCAD": {
+      "trades": 23,
+      "wins": 6,
+      "losses": 17,
+      "win_rate_pct": 26.087,
+      "total_r": -13.441393,
+      "avg_r": -0.584408,
+      "profit_factor": 0.20933
+    },
+    "USDCHF": {
+      "trades": 23,
+      "wins": 4,
+      "losses": 19,
+      "win_rate_pct": 17.3913,
+      "total_r": -12.915405,
+      "avg_r": -0.561539,
+      "profit_factor": 0.320242
+    },
+    "USDJPY": {
+      "trades": 17,
+      "wins": 2,
+      "losses": 15,
+      "win_rate_pct": 11.7647,
+      "total_r": -7.753149,
+      "avg_r": -0.456068,
+      "profit_factor": 0.483123
+    }
+  },
+  "equilibrium_hit_rate_pct": 27.2727,
+  "definitions": {
+    "long_only": "side == LONG",
+    "short_only": "side == SHORT",
+    "overlap_only": "session == overlap",
+    "long_overlap": "side == LONG and session == overlap",
+    "non_expansion": "volatility_regime != RANGE_EXPANSION",
+    "equilibrium_exit": "first causal bar whose OHLC reaches equilibrium; if stop and equilibrium share a bar, stop is counted first"
+  },
+  "limitations": [
+    "Filters are counterfactual over already accepted CRT trades and do not recover rejected opportunities.",
+    "Equilibrium simulation uses OHLC and is conservative on same-bar stop/target ambiguity.",
+    "No spread, slippage, news, or bid/ask data are present in the fixtures.",
+    "No configuration is promoted to live execution by this experiment."
+  ]
+}
