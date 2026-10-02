@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+from strategy.timing import session_at
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +51,17 @@ class Trade:
     htf_purge_time: str
     liquidity_level: float
     candles_between: int
+    sweep_size_atr: float = 0.0
+    stop_distance_atr: float = 0.0
+    target_distance_atr: float = 0.0
+    equilibrium_distance_atr: float = 0.0
+    entry_body_ratio: float = 0.0
+    entry_wick_ratio: float = 0.0
+    reentry_penetration_atr: float = 0.0
+    session: str = "other"
+    range_ratio: float = 1.0
+    volume_ratio: float = 1.0
+    volatility_regime: str = "INSUFFICIENT_HISTORY"
 
 
 def fetch_5m(symbol: str, start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFrame:
@@ -184,7 +196,8 @@ def body_tbs_candidates(
 def simulate_trade(frame: pd.DataFrame, candidate: dict, side: str, crt: dict, htf_purge_time: pd.Timestamp) -> Trade | None:
     entry_i = candidate["entry"]
     entry = float(frame.close.iloc[entry_i])
-    buffer = max(atr(frame, entry_i) * 0.05, entry * 0.00002)
+    entry_atr = atr(frame, entry_i)
+    buffer = max(entry_atr * 0.05, entry * 0.00002)
     if side == "SHORT":
         stop = candidate["sweep_extreme"] + buffer
         equilibrium = (crt["range_high"] + crt["range_low"]) / 2
@@ -201,6 +214,39 @@ def simulate_trade(frame: pd.DataFrame, candidate: dict, side: str, crt: dict, h
     full_target_r = ((entry - target) / risk if side == "SHORT" else (target - entry) / risk)
     if half_target_r <= 0 or full_target_r <= 0:
         return None
+    entry_range = max(float(frame.high.iloc[entry_i] - frame.low.iloc[entry_i]), 1e-12)
+    entry_body = abs(float(frame.close.iloc[entry_i] - frame.open.iloc[entry_i]))
+    entry_wicks = entry_range - entry_body
+    sweep_size = abs(float(candidate["sweep_extreme"]) - float(candidate["level"]))
+    reentry_penetration = abs(entry - float(candidate["level"]))
+    prior = frame.iloc[:entry_i + 1].tail(48)
+    range_ratio = 1.0
+    volume_ratio = 1.0
+    regime = "INSUFFICIENT_HISTORY"
+    if len(prior) >= 20:
+        ranges = (prior.high - prior.low).astype(float)
+        current_ranges = ranges.tail(12)
+        older_ranges = ranges.iloc[:-12]
+        range_ratio = float(current_ranges.median()) / max(float(older_ranges.median()), 1e-12)
+        if "volume" in prior.columns and prior.volume.notna().sum() >= 20:
+            volumes = prior.volume.astype(float)
+            volume_ratio = float(volumes.tail(12).median()) / max(float(volumes.iloc[:-12].median()), 1e-12)
+        direction = float(prior.close.iloc[-1] - prior.close.iloc[0])
+        efficiency = abs(direction) / max(float(prior.close.diff().abs().sum()), 1e-12)
+        aligned = (direction >= 0) == (side == "LONG")
+        trend_strength = min(1.0, 0.5 * efficiency + 0.5 * float(aligned))
+        expansion = max(0.0, min(1.0, (range_ratio - 0.75) / (1.35 - 0.75)))
+        contraction = 1.0 - expansion
+        if trend_strength >= 0.62 and expansion >= 0.5:
+            regime = "TREND_EXPANSION"
+        elif trend_strength >= 0.62:
+            regime = "TREND_CONTRACTION"
+        elif expansion >= 0.5:
+            regime = "RANGE_EXPANSION"
+        elif contraction >= 0.65:
+            regime = "RANGE_CONTRACTION"
+        else:
+            regime = "TRANSITION"
     be_active = False
     realized = 0.0
     exit_i = None
@@ -247,6 +293,17 @@ def simulate_trade(frame: pd.DataFrame, candidate: dict, side: str, crt: dict, h
         exit_time=frame.index[exit_i].isoformat(), exit_price=float(exit_price), exit_reason=reason,
         r_multiple=realized, htf_purge_time=htf_purge_time.isoformat(),
         liquidity_level=float(candidate["level"]), candles_between=int(candidate["gap"]),
+        sweep_size_atr=sweep_size / max(entry_atr, 1e-12),
+        stop_distance_atr=risk / max(entry_atr, 1e-12),
+        target_distance_atr=abs(target - entry) / max(entry_atr, 1e-12),
+        equilibrium_distance_atr=abs(equilibrium - entry) / max(entry_atr, 1e-12),
+        entry_body_ratio=entry_body / entry_range,
+        entry_wick_ratio=entry_wicks / entry_range,
+        reentry_penetration_atr=reentry_penetration / max(entry_atr, 1e-12),
+        session=session_at(frame.index[entry_i]),
+        range_ratio=range_ratio,
+        volume_ratio=volume_ratio,
+        volatility_regime=regime,
     )
 
 
