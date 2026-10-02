@@ -214,3 +214,19 @@ Run the focused allocation tests with:
 ```bash
 python3 -m pytest -q tests/test_adaptive_portfolio.py tests/test_volume_cycle_allocator.py
 ```
+
+## CRT trader adapter on cTrader fixtures
+
+The repository does not contain a standalone file named `trader`; its active cTrader path is `execution/bot_main.py` plus the strategy engine. To avoid changing order routing before validation, `strategy/crt_trader.py` is a separate CRT/TBS adapter for research. `backtest/crt_trader_14d.py` runs it on the existing local cTrader M5 fixtures:
+
+```bash
+python3 backtest/crt_trader_14d.py --days 14
+```
+
+The adapter uses completed 2-hour CRT ranges, a higher-timeframe purge, an M5 body-close/re-entry TBS, and the 2–6-candle structure filter. It is explicitly research-only and submits no orders. The checked-in fixtures cover seven FX pairs; no local XAUUSD/GC=F cTrader file exists, so Gold is reported as not tested rather than substituted.
+
+The CRT-specific tests are:
+
+```bash
+python3 -m pytest -q tests/test_crt_tbs_14d.py tests/test_crt_trader.py
+```

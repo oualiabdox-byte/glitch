@@ -1,0 +1,118 @@
+{
+  "strategy": {
+    "htf_rule": "2h",
+    "entry_rule": "body_close_reentry",
+    "structure_gap": "2-6 M5 candles",
+    "execution": "research_only_no_orders"
+  },
+  "data_source": "repository cTrader M5 JSON fixtures",
+  "period": "14d",
+  "pairs_tested": [
+    "AUDUSD",
+    "EURUSD",
+    "GBPUSD",
+    "NZDUSD",
+    "USDCAD",
+    "USDCHF",
+    "USDJPY"
+  ],
+  "not_tested": {
+    "GOLD": "No local XAUUSD/GC=F cTrader dataset; not substituted"
+  },
+  "by_pair": {
+    "AUDUSD": {
+      "trades": 7,
+      "wins": 4,
+      "losses": 3,
+      "win_rate_pct": 57.14,
+      "total_r": -0.505034,
+      "avg_r": -0.072148,
+      "profit_factor": 0.831655,
+      "max_drawdown_r": 2.0,
+      "longest_losing_streak": 2
+    },
+    "EURUSD": {
+      "trades": 11,
+      "wins": 5,
+      "losses": 6,
+      "win_rate_pct": 45.45,
+      "total_r": 2.328998,
+      "avg_r": 0.211727,
+      "profit_factor": 1.388166,
+      "max_drawdown_r": 3.0,
+      "longest_losing_streak": 3
+    },
+    "GBPUSD": {
+      "trades": 7,
+      "wins": 1,
+      "losses": 6,
+      "win_rate_pct": 14.29,
+      "total_r": -5.116939,
+      "avg_r": -0.730991,
+      "profit_factor": 0.147177,
+      "max_drawdown_r": 5.116939,
+      "longest_losing_streak": 5
+    },
+    "NZDUSD": {
+      "trades": 12,
+      "wins": 7,
+      "losses": 5,
+      "win_rate_pct": 58.33,
+      "total_r": 7.809325,
+      "avg_r": 0.650777,
+      "profit_factor": 2.561865,
+      "max_drawdown_r": 4.439029,
+      "longest_losing_streak": 3
+    },
+    "USDCAD": {
+      "trades": 7,
+      "wins": 3,
+      "losses": 4,
+      "win_rate_pct": 42.86,
+      "total_r": -2.098447,
+      "avg_r": -0.299778,
+      "profit_factor": 0.475388,
+      "max_drawdown_r": 2.098447,
+      "longest_losing_streak": 2
+    },
+    "USDCHF": {
+      "trades": 11,
+      "wins": 3,
+      "losses": 8,
+      "win_rate_pct": 27.27,
+      "total_r": -5.621877,
+      "avg_r": -0.51108,
+      "profit_factor": 0.297265,
+      "max_drawdown_r": 6.535648,
+      "longest_losing_streak": 4
+    },
+    "USDJPY": {
+      "trades": 9,
+      "wins": 2,
+      "losses": 7,
+      "win_rate_pct": 22.22,
+      "total_r": -3.376574,
+      "avg_r": -0.375175,
+      "profit_factor": 0.517632,
+      "max_drawdown_r": 5.0,
+      "longest_losing_streak": 5
+    }
+  },
+  "total": {
+    "trades": 64,
+    "wins": 25,
+    "losses": 39,
+    "win_rate_pct": 39.06,
+    "total_r": -6.58055,
+    "avg_r": -0.102821,
+    "profit_factor": 0.831268,
+    "max_drawdown_r": 14.308151,
+    "longest_losing_streak": 8
+  },
+  "limitations": [
+    "14 days is a small research sample",
+    "cTrader trendbar OHLC cannot reveal intrabar stop/target ordering",
+    "the fixture does not contain bid/ask spread or slippage",
+    "this runner does not submit orders or modify execution/demo code"
+  ]
+}
