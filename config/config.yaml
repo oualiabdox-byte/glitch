@@ -1,1 +1,75 @@
-PLACEHOLDER
+# Forex bot configuration — professional SMC profile
+# -------------------------------------------------
+# Defaults reflect rules that survive multi-robot testing:
+# strong H1 structure, displacement FVG in location, OB/FVG confluence,
+# M5 liquidity sweep + BOS after CHOCH, min 2.5R, no weak structure.
+# All new gates remain overridable via CTRADER_* env vars for ablation.
+
+pairs:
+  - EURUSD
+  - GBPUSD
+  - USDJPY
+  - USDCHF
+  - USDCAD
+  - AUDUSD
+  - NZDUSD
+
+risk:
+  risk_per_trade_pct: 0.005
+  max_open_per_pair: 1
+  max_correlated_usd_exposure: 3
+  max_daily_loss_r: 3.0
+  max_open_positions: 3
+  max_risk_per_trade_r: 0.02
+  max_quote_age_seconds: 60
+
+sessions:
+  london:
+    timezone: Europe/London
+    open: "08:00"
+    close: "17:00"
+  new_york:
+    timezone: America/New_York
+    open: "08:00"
+    close: "17:00"
+
+execution:
+  allow_overnight: false
+  live_trading: false
+  max_spread_pips: 3.0
+  spread_pips: 1.5
+  commission_per_lot_round_turn: 0.0
+
+backtest:
+  look_ahead_guard: true
+  mode: h1_location_m5_execution
+  intrabar_policy: sl_first
+  data_prices: mid
+  require_closed_bars: true
+
+strategy:
+  context_timeframe: H1
+  execution_timeframe: M5
+  swing_length: 3
+  min_rr: 2.5
+  stop_buffer: 0.0
+  # ATR padding beyond structural stop (0.15–0.25 common on major FX)
+  stop_buffer_atr_mult: 0.15
+  allow_weak_structure: false
+  allow_equilibrium_overlapping_fvg: false
+  setup_max_age_hours: 48
+  m5_confirmation_mode: BOS_AFTER_CHOCH
+  require_displacement: true
+  min_displacement_ratio: 1.0
+  require_poi_confluence: true
+  # HTF: block only when H4 *and* D1 actively oppose H1 side
+  require_htf_bias: true
+  # Only accept FVGs created by real displacement (filters noise gaps)
+  require_displacement_fvg: true
+  fvg_min_displacement_ratio: 0.8
+  # Killzone is evidence, not a hard gate by default (too few signals on 24h pairs)
+  require_killzone: false
+  svl:
+    require_alignment: false
+    profile_bins: 24
+    equal_tolerance_pct: 0.001
