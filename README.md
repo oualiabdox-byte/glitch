@@ -189,3 +189,28 @@ python3 backtest/crt_tbs_14d.py --days 14
 ```
 
 Outputs are written to `backtest/crt_tbs_14d_results/` (`report.md`, `summary.json`, and `trades.csv`). This is a small-sample research result: Yahoo OHLC is indicative, not broker-executable, and the backtest excludes spread, slippage, commission, financing, and contract-specific sizing. Do not use the result as a profitability guarantee or connect this strategy to live execution without further validation.
+
+## Adaptive allocation framework
+
+`allocation/adaptive_portfolio.py` provides a research-only allocation layer for competing signals. It does not create signals and it is not connected to live or demo order submission. The default policy is:
+
+- **0.25% of equity per accepted trade**;
+- **1.00% maximum total open risk**;
+- **0.50% maximum risk per currency cluster**;
+- **0.50% maximum risk per correlated cluster**;
+- maximum four open positions;
+- reject, rather than silently resize, a signal that violates a risk budget;
+- rank candidates by quality, prior expectancy, and a conservative small-sample penalty.
+
+The allocator reduces concentration in related instruments using two independent backstops:
+
+1. semantic currency clusters, such as `EURUSD`/`GBPUSD`/`AUDUSD`/`NZDUSD` and `USDJPY`/`USDCHF`/`USDCAD`;
+2. a rolling-return correlation matrix estimated strictly from data available before the allocation timestamp, with a default high-correlation threshold of `0.70`.
+
+The intended workflow is to generate all valid signals first, rank them, apply the allocation decision once per timestamp, then pass only accepted signals to a separately guarded execution layer. Correlations, historical expectancy, and quality scores must be point-in-time values; full-sample estimates are not valid for production evaluation.
+
+Run the focused allocation tests with:
+
+```bash
+python3 -m pytest -q tests/test_adaptive_portfolio.py tests/test_volume_cycle_allocator.py
+```
