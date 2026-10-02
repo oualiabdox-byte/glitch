@@ -1,0 +1,362 @@
+{
+  "baseline": {
+    "trades": 79,
+    "wins": 35,
+    "losses": 44,
+    "win_rate_pct": 44.3,
+    "total_r": 12.913268,
+    "avg_r": 0.163459,
+    "profit_factor": 1.293483,
+    "max_drawdown_r": 10.835265
+  },
+  "losses": {
+    "trades": 44,
+    "wins": 0,
+    "losses": 44,
+    "win_rate_pct": 0.0,
+    "total_r": -44.0,
+    "avg_r": -1.0,
+    "profit_factor": 0.0,
+    "max_drawdown_r": 43.0
+  },
+  "winners": {
+    "trades": 35,
+    "wins": 35,
+    "losses": 0,
+    "win_rate_pct": 100.0,
+    "total_r": 56.913268,
+    "avg_r": 1.626093,
+    "profit_factor": null,
+    "max_drawdown_r": 0.0
+  },
+  "loss_anatomy": {
+    "n": 44,
+    "entry_body_ratio": {
+      "mean": 0.535866,
+      "median": 0.584517,
+      "p25": 0.348756,
+      "p75": 0.699721
+    },
+    "stop_distance_atr": {
+      "mean": 0.701884,
+      "median": 0.672928,
+      "p25": 0.478247,
+      "p75": 0.96359
+    },
+    "sweep_size_atr": {
+      "mean": 0.388905,
+      "median": 0.345388,
+      "p25": 0.252575,
+      "p75": 0.531416
+    },
+    "reentry_penetration_atr": {
+      "mean": 0.256954,
+      "median": 0.179579,
+      "p25": 0.096144,
+      "p75": 0.435917
+    },
+    "equilibrium_distance_atr": {
+      "mean": 2.478186,
+      "median": 2.188298,
+      "p25": 1.335393,
+      "p75": 3.372234
+    },
+    "range_ratio": {
+      "mean": 1.071946,
+      "median": 1.029975,
+      "p25": 0.707306,
+      "p75": 1.302293
+    },
+    "volume_ratio": {
+      "mean": 1.100995,
+      "median": 1.17833,
+      "p25": 0.6173,
+      "p75": 1.539027
+    },
+    "duration_min": {
+      "mean": 208.295,
+      "median": 37.5,
+      "p25": 15.0,
+      "p75": 60.0
+    }
+  },
+  "winner_anatomy": {
+    "n": 35,
+    "entry_body_ratio": {
+      "mean": 0.657357,
+      "median": 0.673469,
+      "p25": 0.493243,
+      "p75": 0.813312
+    },
+    "stop_distance_atr": {
+      "mean": 1.11088,
+      "median": 0.903659,
+      "p25": 0.65029,
+      "p75": 1.354636
+    },
+    "sweep_size_atr": {
+      "mean": 0.654033,
+      "median": 0.474153,
+      "p25": 0.323911,
+      "p75": 0.784689
+    },
+    "reentry_penetration_atr": {
+      "mean": 0.397656,
+      "median": 0.292174,
+      "p25": 0.126163,
+      "p75": 0.580071
+    },
+    "equilibrium_distance_atr": {
+      "mean": 1.463518,
+      "median": 1.094714,
+      "p25": 0.650819,
+      "p75": 2.277828
+    },
+    "range_ratio": {
+      "mean": 1.093442,
+      "median": 0.992958,
+      "p25": 0.751852,
+      "p75": 1.337956
+    },
+    "volume_ratio": {
+      "mean": 1.183908,
+      "median": 1.121905,
+      "p25": 0.768786,
+      "p75": 1.526931
+    },
+    "duration_min": {
+      "mean": 322.714,
+      "median": 90.0,
+      "p25": 37.5,
+      "p75": 202.5
+    }
+  },
+  "loss_anatomy_by_side": {
+    "LONG": {
+      "n": 23,
+      "entry_body_ratio": {
+        "mean": 0.567844,
+        "median": 0.616667,
+        "p25": 0.374206,
+        "p75": 0.705214
+      },
+      "stop_distance_atr": {
+        "mean": 0.738066,
+        "median": 0.713317,
+        "p25": 0.493459,
+        "p75": 0.999225
+      },
+      "sweep_size_atr": {
+        "mean": 0.41034,
+        "median": 0.358974,
+        "p25": 0.248665,
+        "p75": 0.534585
+      },
+      "reentry_penetration_atr": {
+        "mean": 0.270619,
+        "median": 0.219731,
+        "p25": 0.095513,
+        "p75": 0.487644
+      },
+      "equilibrium_distance_atr": {
+        "mean": 2.527129,
+        "median": 2.395181,
+        "p25": 1.296554,
+        "p75": 3.54057
+      },
+      "range_ratio": {
+        "mean": 1.097311,
+        "median": 0.980392,
+        "p25": 0.65261,
+        "p75": 1.49018
+      },
+      "volume_ratio": {
+        "mean": 1.046563,
+        "median": 1.04676,
+        "p25": 0.478218,
+        "p75": 1.462597
+      },
+      "duration_min": {
+        "mean": 358.696,
+        "median": 30.0,
+        "p25": 15.0,
+        "p75": 82.5
+      }
+    },
+    "SHORT": {
+      "n": 21,
+      "entry_body_ratio": {
+        "mean": 0.500843,
+        "median": 0.510204,
+        "p25": 0.328358,
+        "p75": 0.678571
+      },
+      "stop_distance_atr": {
+        "mean": 0.662257,
+        "median": 0.633934,
+        "p25": 0.45,
+        "p75": 0.861189
+      },
+      "sweep_size_atr": {
+        "mean": 0.365429,
+        "median": 0.333996,
+        "p25": 0.257353,
+        "p75": 0.507087
+      },
+      "reentry_penetration_atr": {
+        "mean": 0.241987,
+        "median": 0.156983,
+        "p25": 0.12844,
+        "p75": 0.349169
+      },
+      "equilibrium_distance_atr": {
+        "mean": 2.424583,
+        "median": 2.107303,
+        "p25": 1.34357,
+        "p75": 2.590395
+      },
+      "range_ratio": {
+        "mean": 1.044166,
+        "median": 1.038168,
+        "p25": 0.795455,
+        "p75": 1.258621
+      },
+      "volume_ratio": {
+        "mean": 1.160612,
+        "median": 1.182875,
+        "p25": 0.957734,
+        "p75": 1.536569
+      },
+      "duration_min": {
+        "mean": 43.571,
+        "median": 45.0,
+        "p25": 15.0,
+        "p75": 60.0
+      }
+    }
+  },
+  "winner_anatomy_by_side": {
+    "LONG": {
+      "n": 11,
+      "entry_body_ratio": {
+        "mean": 0.714344,
+        "median": 0.75,
+        "p25": 0.597356,
+        "p75": 0.817398
+      },
+      "stop_distance_atr": {
+        "mean": 1.070874,
+        "median": 0.868182,
+        "p25": 0.724247,
+        "p75": 1.350898
+      },
+      "sweep_size_atr": {
+        "mean": 0.695139,
+        "median": 0.545226,
+        "p25": 0.322097,
+        "p75": 0.790954
+      },
+      "reentry_penetration_atr": {
+        "mean": 0.319588,
+        "median": 0.193467,
+        "p25": 0.138251,
+        "p75": 0.457978
+      },
+      "equilibrium_distance_atr": {
+        "mean": 1.116675,
+        "median": 0.893939,
+        "p25": 0.568238,
+        "p75": 1.104305
+      },
+      "range_ratio": {
+        "mean": 0.946844,
+        "median": 0.849206,
+        "p25": 0.773996,
+        "p75": 1.082213
+      },
+      "volume_ratio": {
+        "mean": 0.896484,
+        "median": 0.981931,
+        "p25": 0.569531,
+        "p75": 1.187413
+      },
+      "duration_min": {
+        "mean": 173.182,
+        "median": 60.0,
+        "p25": 37.5,
+        "p75": 277.5
+      }
+    },
+    "SHORT": {
+      "n": 24,
+      "entry_body_ratio": {
+        "mean": 0.631238,
+        "median": 0.663481,
+        "p25": 0.465556,
+        "p75": 0.799513
+      },
+      "stop_distance_atr": {
+        "mean": 1.129215,
+        "median": 0.979159,
+        "p25": 0.639171,
+        "p75": 1.289601
+      },
+      "sweep_size_atr": {
+        "mean": 0.635193,
+        "median": 0.468938,
+        "p25": 0.328087,
+        "p75": 0.718205
+      },
+      "reentry_penetration_atr": {
+        "mean": 0.433437,
+        "median": 0.313257,
+        "p25": 0.116525,
+        "p75": 0.661008
+      },
+      "equilibrium_distance_atr": {
+        "mean": 1.622487,
+        "median": 1.277848,
+        "p25": 0.711959,
+        "p75": 2.566273
+      },
+      "range_ratio": {
+        "mean": 1.160633,
+        "median": 1.053236,
+        "p25": 0.729762,
+        "p75": 1.444327
+      },
+      "volume_ratio": {
+        "mean": 1.315644,
+        "median": 1.16415,
+        "p25": 0.841403,
+        "p75": 1.77849
+      },
+      "duration_min": {
+        "mean": 391.25,
+        "median": 105.0,
+        "p25": 41.25,
+        "p75": 198.75
+      }
+    }
+  },
+  "loss_count_by_side": {
+    "LONG": 23,
+    "SHORT": 21
+  },
+  "loss_count_by_regime": {
+    "RANGE_CONTRACTION": 19,
+    "RANGE_EXPANSION": 18,
+    "TRANSITION": 6,
+    "TREND_EXPANSION": 1
+  },
+  "loss_count_by_session": {
+    "other": 19,
+    "new_york": 9,
+    "london": 8,
+    "overlap": 8
+  },
+  "missing_features": [
+    "displacement is not present in the frozen M15 trade CSV; it is not inferred from a proxy."
+  ],
+  "matrix_rows": 105
+}
