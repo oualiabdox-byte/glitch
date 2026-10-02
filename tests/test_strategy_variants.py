@@ -17,8 +17,8 @@ def test_requested_variants_build_the_installed_crt_engine():
         strategy = build_variant(name)
         assert strategy.execution_timeframe == "15m"
         assert strategy.post_purge_window_hours == 4
-        assert strategy.min_entry_body_ratio == 0.5
-        assert strategy.min_stop_distance_atr == 0.75
+        assert strategy.min_entry_body_ratio == 0.3
+        assert strategy.min_stop_distance_atr == 0.0
 
 
 def test_shared_factory_default_uses_the_same_crt_settings():
@@ -28,5 +28,5 @@ def test_shared_factory_default_uses_the_same_crt_settings():
     })
     assert strategy.execution_timeframe == "15m"
     assert strategy.post_purge_window_hours == 4
-    assert strategy.min_entry_body_ratio == 0.5
-    assert strategy.min_stop_distance_atr == 0.75
+    assert strategy.min_entry_body_ratio == 0.3
+    assert strategy.min_stop_distance_atr == 0.0

@@ -5,8 +5,8 @@ The selected research configuration is intentionally narrow:
 - M15 execution candles
 - 4H post-purge search window
 - equal-level gap 2–6 M15 candles
-- entry body ratio >= 0.50
-- stop distance >= 0.75 M15 ATR
+- entry body ratio >= 0.30
+- no minimum stop-distance filter
 
 The strategy emits a closed-bar Decision only. It never submits orders.
 """
@@ -29,8 +29,8 @@ class CrtM15Strategy:
     post_purge_window_hours: int = 4
     min_structure_gap: int = 2
     max_structure_gap: int = 6
-    min_entry_body_ratio: float = 0.50
-    min_stop_distance_atr: float = 0.75
+    min_entry_body_ratio: float = 0.30
+    min_stop_distance_atr: float = 0.0
 
     @staticmethod
     def _frame(rows: Any) -> pd.DataFrame:
@@ -108,7 +108,7 @@ class CrtM15Strategy:
                     continue
                 if trade.entry_body_ratio < self.min_entry_body_ratio:
                     continue
-                if trade.stop_distance_atr < self.min_stop_distance_atr:
+                if self.min_stop_distance_atr > 0 and trade.stop_distance_atr < self.min_stop_distance_atr:
                     continue
                 trade.instrument = ""
                 trade.symbol = ""
@@ -150,12 +150,12 @@ class CrtM15Strategy:
                     "liquidity_level": trade["liquidity_level"], "entry_body_ratio": trade["entry_body_ratio"],
                     "stop_distance_atr": trade["stop_distance_atr"], "target_distance_atr": trade["target_distance_atr"],
                     "session": trade["session"], "volatility_regime": trade["volatility_regime"]}
-        return Decision(status="SIGNAL", reason_codes=["CRT_M15_4H", "BODY_RATIO_0_50", "STOP_DISTANCE_GE_0_75_ATR"],
+        return Decision(status="SIGNAL", reason_codes=["CRT_M15_4H", "BODY_RATIO_0_30"],
                         side=side, entry_price=entry, stop_price=stop, target_price=target,
                         risk_reward=rr, evidence=evidence)
 
     def report(self) -> dict[str, Any]:
-        return {"engine": "CRT_M15_4H_FILTERED", "htf_rule": self.htf_rule,
+        return {"engine": "CRT_M15_4H_BODY_030", "htf_rule": self.htf_rule,
                 "execution_timeframe": self.execution_timeframe,
                 "post_purge_window_hours": self.post_purge_window_hours,
                 "structure_gap": f"{self.min_structure_gap}-{self.max_structure_gap} M15 candles",

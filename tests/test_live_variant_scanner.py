@@ -22,8 +22,8 @@ def test_named_presets_use_the_installed_crt_engine():
         strategy = build_variant(name)
         assert strategy.execution_timeframe == "15m"
         assert strategy.post_purge_window_hours == 4
-        assert strategy.min_entry_body_ratio == 0.5
-        assert strategy.min_stop_distance_atr == 0.75
+        assert strategy.min_entry_body_ratio == 0.3
+        assert strategy.min_stop_distance_atr == 0.0
 
 
 def test_presets_ignore_old_smc_runtime_options():
@@ -35,8 +35,8 @@ def test_presets_ignore_old_smc_runtime_options():
     })
     assert strategy.execution_timeframe == "15m"
     assert strategy.post_purge_window_hours == 4
-    assert strategy.min_entry_body_ratio == 0.5
-    assert strategy.min_stop_distance_atr == 0.75
+    assert strategy.min_entry_body_ratio == 0.3
+    assert strategy.min_stop_distance_atr == 0.0
 
 
 def test_cli_scans_all_three_presets_and_uses_config_default_for_other_pairs(monkeypatch, capsys):

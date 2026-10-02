@@ -1,6 +1,6 @@
 # forex_bot
 
-A cTrader Open API forex research and demo-execution project. The installed production-facing engine is the tested **CRT M15/4H filtered strategy**; the previous SMC engine is preserved in the private backup repository `oualiabdox-byte/glitch-original`.
+A cTrader Open API forex research and demo-execution project. The installed production-facing engine is the tested **CRT M15/4H Body-0.30 strategy**; the previous SMC engine is preserved in the private backup repository `oualiabdox-byte/glitch-original`.
 
 ## Installed strategy model
 
@@ -9,8 +9,8 @@ completed 2H CRT range
 → 2H purge/sweep and close back inside
 → M15 equal-level sweep + body-close re-entry
 → search the next 4H window
-→ entry body ratio >= 0.50
-→ stop distance >= 0.75 M15 ATR
+→ entry body ratio >= 0.30
+→ original CRT stop placement (no minimum-stop filter)
 → 50% at CRT equilibrium, remainder at CRT boundary
 ```
 
@@ -121,7 +121,7 @@ Risk sizing is opt-in and requires an explicit account-equity snapshot plus a ca
 
 The cash conversion must be calculated for the account currency and symbol; the bot does not silently assume every pair is USD-quoted. If those values are missing, execution stops. Live order submission is disabled in the adapter; use demo only until a separately reviewed live execution boundary exists.
 
-The installed CRT engine deliberately enables only the selected fixed gates: M15 entry body ratio `>= 0.50` and stop distance `>= 0.75 ATR`. Do not add further gates without a new chronological validation run.
+The installed CRT engine deliberately enables only the selected fixed gate: M15 entry body ratio `>= 0.30`. It does not apply a minimum-stop-distance filter. Do not add further gates without a new chronological validation run.
 
 ## Overfitting control
 
@@ -137,7 +137,7 @@ The tests cover closed-bar causal structure, BOS/CHOCH behavior, H1 POI filterin
 
 ## Repository layout
 
-- `strategy/crt_trader.py` — installed CRT M15/4H filtered strategy engine.
+- `strategy/crt_trader.py` — installed CRT M15/4H Body-0.30 strategy engine.
 - `strategy/engine.py` — archived SMC compatibility module; not selected by the production factory.
 - `strategy/variants.py` — pair routing and shared CRT strategy factory.
 - `strategy/selection.py` — deterministic pair-level signal selection and conflict handling.
@@ -223,7 +223,7 @@ The repository does not contain a standalone file named `trader`; its active cTr
 python3 backtest/crt_trader_14d.py --days 14
 ```
 
-The installed engine uses completed 2-hour CRT ranges, a higher-timeframe purge, M15 body-close/re-entry TBS, a 4-hour post-purge window, `body_ratio >= 0.50`, and `stop_distance >= 0.75 ATR`. It emits signals only; order submission remains in the guarded execution boundary. The checked-in fixtures cover seven FX pairs; no local XAUUSD/GC=F cTrader file exists, so Gold is reported as not tested rather than substituted.
+The installed engine uses completed 2-hour CRT ranges, a higher-timeframe purge, M15 body-close/re-entry TBS, a 4-hour post-purge window, and `body_ratio >= 0.30`. It keeps the original CRT stop placement without a minimum-stop filter. It emits signals only; order submission remains in the guarded execution boundary. The checked-in fixtures cover seven FX pairs; no local XAUUSD/GC=F cTrader file exists, so Gold is reported as not tested rather than substituted.
 
 The CRT-specific tests are:
 
