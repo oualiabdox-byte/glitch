@@ -230,3 +230,13 @@ The CRT-specific tests are:
 ```bash
 python3 -m pytest -q tests/test_crt_tbs_14d.py tests/test_crt_trader.py
 ```
+
+### Current active scope: Gold only
+
+For the current research phase, ignore the FX results and use the Gold-only runner:
+
+```bash
+python3 backtest/crt_gold_14d.py
+```
+
+It tests only `GOLD` using Yahoo `GC=F` as the public gold-futures proxy. The fresh 14-day run produced **12 trades, +4.7909R, 33.33% win rate, 1.5989 profit factor, 3.0R maximum drawdown, and a 3-trade longest losing streak**. This is still a small sample and is not broker-specific XAUUSD execution evidence; the multi-pair runner remains in the repository for later comparison but is not the active scope now.
