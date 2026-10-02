@@ -1,0 +1,150 @@
+{
+  "trades_preserved": 132,
+  "unweighted_baseline": {
+    "trades": 132,
+    "total_r": -14.722405,
+    "avg_r": -0.111533,
+    "win_rate_pct": 37.12,
+    "profit_factor": 0.822622,
+    "max_drawdown_r": 27.953797
+  },
+  "folds": {
+    "train_first_half_test_second_half": {
+      "train_period": [
+        "2026-09-02 13:00:00+00:00",
+        "2026-09-13 23:40:00+00:00"
+      ],
+      "test_period": [
+        "2026-09-14 01:35:00+00:00",
+        "2026-09-25 17:30:00+00:00"
+      ],
+      "best": {
+        "low": 40,
+        "high": 50,
+        "multipliers": [
+          0.25,
+          1.0,
+          1.0
+        ],
+        "objective": 1.9344475849129,
+        "train_metrics": {
+          "trades": 65,
+          "total_r": 10.308433,
+          "avg_r": 0.158591,
+          "win_rate_pct": 36.92,
+          "profit_factor": 1.66506,
+          "max_drawdown_r": 5.384547
+        },
+        "train_band_counts": {
+          "WEAK": 45,
+          "BALANCED": 13,
+          "STRONG": 7
+        }
+      },
+      "test_metrics": {
+        "trades": 67,
+        "total_r": -3.697138,
+        "avg_r": -0.055181,
+        "win_rate_pct": 37.31,
+        "profit_factor": 0.785673,
+        "max_drawdown_r": 7.272921
+      },
+      "test_band_counts": {
+        "WEAK": 48,
+        "STRONG": 10,
+        "BALANCED": 9
+      },
+      "test_unweighted_metrics": {
+        "trades": 67,
+        "total_r": -9.58055,
+        "avg_r": -0.142993,
+        "win_rate_pct": 37.31,
+        "profit_factor": 0.771892,
+        "max_drawdown_r": 14.308151
+      }
+    },
+    "train_first_75_test_last_25": {
+      "train_period": [
+        "2026-09-02 13:00:00+00:00",
+        "2026-09-18 15:35:00+00:00"
+      ],
+      "test_period": [
+        "2026-09-21 00:40:00+00:00",
+        "2026-09-25 17:30:00+00:00"
+      ],
+      "best": {
+        "low": 40,
+        "high": 50,
+        "multipliers": [
+          0.25,
+          1.0,
+          1.0
+        ],
+        "objective": 1.2581685864231458,
+        "train_metrics": {
+          "trades": 99,
+          "total_r": 11.000567,
+          "avg_r": 0.111117,
+          "win_rate_pct": 36.36,
+          "profit_factor": 1.473143,
+          "max_drawdown_r": 8.884547
+        },
+        "train_band_counts": {
+          "WEAK": 70,
+          "BALANCED": 19,
+          "STRONG": 10
+        }
+      },
+      "test_metrics": {
+        "trades": 33,
+        "total_r": -4.389272,
+        "avg_r": -0.133008,
+        "win_rate_pct": 39.39,
+        "profit_factor": 0.537971,
+        "max_drawdown_r": 7.272921
+      },
+      "test_band_counts": {
+        "WEAK": 23,
+        "STRONG": 7,
+        "BALANCED": 3
+      },
+      "test_unweighted_metrics": {
+        "trades": 33,
+        "total_r": -6.763052,
+        "avg_r": -0.204941,
+        "win_rate_pct": 39.39,
+        "profit_factor": 0.661847,
+        "max_drawdown_r": 13.125791
+      }
+    }
+  },
+  "consensus": {
+    "low": 40,
+    "high": 50,
+    "multipliers": [
+      0.25,
+      1.0,
+      1.0
+    ]
+  },
+  "consensus_full_sample_descriptive": {
+    "trades": 132,
+    "total_r": 6.611295,
+    "avg_r": 0.050086,
+    "win_rate_pct": 37.12,
+    "profit_factor": 1.201872,
+    "max_drawdown_r": 10.493664
+  },
+  "consensus_band_counts": {
+    "WEAK": 93,
+    "BALANCED": 22,
+    "STRONG": 17
+  },
+  "interpretation": "Only soft risk allocation changes; no CRT trade is removed. The full-sample consensus result is descriptive, not a validation result.",
+  "limitations": [
+    "Only 132 trades over 24 days; thresholds are not production settings.",
+    "Walk-forward folds are small and use the same limited dataset for research.",
+    "The objective can optimize risk allocation, not the underlying trade expectancy; unweighted CRT remains unchanged.",
+    "No spread, slippage, commission, or news costs are included."
+  ]
+}
