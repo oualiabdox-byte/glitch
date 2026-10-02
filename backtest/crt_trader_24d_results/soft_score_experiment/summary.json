@@ -1,0 +1,63 @@
+{
+  "source": "/home/ubuntu/glitch/backtest/crt_trader_24d_results/feature_analysis/feature_matrix.csv",
+  "results": {
+    "raw_crt": {
+      "trades": 132,
+      "wins": 49,
+      "losses": 83,
+      "win_rate_pct": 37.1212,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622
+    },
+    "overlap_only": {
+      "trades": 23,
+      "wins": 15,
+      "losses": 8,
+      "win_rate_pct": 65.2174,
+      "total_r": 15.045401,
+      "avg_r": 0.654148,
+      "profit_factor": 2.880675
+    },
+    "range_contraction_only": {
+      "trades": 68,
+      "wins": 25,
+      "losses": 43,
+      "win_rate_pct": 36.7647,
+      "total_r": 1.019968,
+      "avg_r": 0.015,
+      "profit_factor": 1.02372
+    },
+    "soft_score_ge_0_60": {
+      "trades": 56,
+      "wins": 21,
+      "losses": 35,
+      "win_rate_pct": 37.5,
+      "total_r": 3.275419,
+      "avg_r": 0.05849,
+      "profit_factor": 1.093583
+    },
+    "soft_score_ge_0_70": {
+      "trades": 21,
+      "wins": 13,
+      "losses": 8,
+      "win_rate_pct": 61.9048,
+      "total_r": 17.891123,
+      "avg_r": 0.851958,
+      "profit_factor": 3.23639
+    }
+  },
+  "score_definition": {
+    "session": "overlap=1.0, other=0.4, london/new_york=0.1",
+    "regime": "range_contraction=1.0, transition/trend_contraction=0.5, expansion=0.1",
+    "sweep": "linear preference for sweep_size_atr <= 1.2",
+    "stop": "linear preference for stop_distance_atr <= 1.5",
+    "reentry": "linear preference for reentry_penetration_atr <= 1.0",
+    "weights": "session 25%, regime 25%, sweep 20%, stop 15%, reentry 15%"
+  },
+  "limitations": [
+    "This is a counterfactual over accepted CRT trades, not a full opportunity-recapture test.",
+    "The score uses causal entry features only and never uses r_multiple.",
+    "The 24-day result is not sufficient to promote any score or threshold to production."
+  ]
+}
