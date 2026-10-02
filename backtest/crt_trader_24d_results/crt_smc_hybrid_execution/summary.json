@@ -1,0 +1,126 @@
+{
+  "trades_preserved": 132,
+  "metrics": {
+    "baseline": {
+      "trades": 132,
+      "win_rate_pct": 37.12,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622,
+      "max_drawdown_r": 26.953797
+    },
+    "structural_stop_path_target": {
+      "trades": 132,
+      "win_rate_pct": 41.67,
+      "total_r": -2.306363,
+      "avg_r": -0.017472,
+      "profit_factor": 0.958562,
+      "max_drawdown_r": 18.894356
+    },
+    "hybrid_htf025": {
+      "trades": 132,
+      "win_rate_pct": 41.67,
+      "total_r": 4.479252,
+      "avg_r": 0.033934,
+      "profit_factor": 1.2242,
+      "max_drawdown_r": 4.308435
+    },
+    "hybrid_htf025_fvg075": {
+      "trades": 132,
+      "win_rate_pct": 41.67,
+      "total_r": 4.623775,
+      "avg_r": 0.035029,
+      "profit_factor": 1.264564,
+      "max_drawdown_r": 3.943743
+    }
+  },
+  "cost_sensitivity": {
+    "baseline": {
+      "cost_0.05R": {
+        "trades": 132,
+        "win_rate_pct": 34.85,
+        "total_r": -21.322405,
+        "avg_r": -0.161533,
+        "profit_factor": 0.755596,
+        "max_drawdown_r": 31.844999
+      },
+      "cost_0.10R": {
+        "trades": 132,
+        "win_rate_pct": 34.09,
+        "total_r": -27.922405,
+        "avg_r": -0.211533,
+        "profit_factor": 0.695129,
+        "max_drawdown_r": 37.244999
+      }
+    },
+    "structural_stop_path_target": {
+      "cost_0.05R": {
+        "trades": 132,
+        "win_rate_pct": 36.36,
+        "total_r": -8.906363,
+        "avg_r": -0.067472,
+        "profit_factor": 0.850759,
+        "max_drawdown_r": 21.644356
+      },
+      "cost_0.10R": {
+        "trades": 132,
+        "win_rate_pct": 30.3,
+        "total_r": -15.506363,
+        "avg_r": -0.117472,
+        "profit_factor": 0.758121,
+        "max_drawdown_r": 26.376047
+      }
+    },
+    "hybrid_htf025": {
+      "cost_0.05R": {
+        "trades": 132,
+        "win_rate_pct": 34.09,
+        "total_r": -2.120748,
+        "avg_r": -0.016066,
+        "profit_factor": 0.912047,
+        "max_drawdown_r": 7.122996
+      },
+      "cost_0.10R": {
+        "trades": 132,
+        "win_rate_pct": 25.0,
+        "total_r": -8.720748,
+        "avg_r": -0.066066,
+        "profit_factor": 0.697281,
+        "max_drawdown_r": 12.410616
+      }
+    },
+    "hybrid_htf025_fvg075": {
+      "cost_0.05R": {
+        "trades": 132,
+        "win_rate_pct": 31.06,
+        "total_r": -1.976225,
+        "avg_r": -0.014971,
+        "profit_factor": 0.908722,
+        "max_drawdown_r": 6.089342
+      },
+      "cost_0.10R": {
+        "trades": 132,
+        "win_rate_pct": 21.97,
+        "total_r": -8.576225,
+        "avg_r": -0.064971,
+        "profit_factor": 0.676208,
+        "max_drawdown_r": 11.568527
+      }
+    }
+  },
+  "counts": {
+    "target_crt_boundary": 68,
+    "target_causal_swing": 64,
+    "target_equilibrium_fallback": 0,
+    "structural_stop_available": 127,
+    "htf_aligned": 38,
+    "fvg_near_entry": 67
+  },
+  "policy": "All CRT candidates are retained; HTF and FVG affect soft risk only.",
+  "limitations": [
+    "The target is causal only from confirmed pre-entry pivots; it is not a full opposing-liquidity engine.",
+    "FVG/OB are evidence/risk features here, not a delayed retest-entry model.",
+    "Risk multipliers are hypotheses and must be walk-forward validated.",
+    "No spread, slippage, commission, or news data are in the fixtures."
+  ]
+}
