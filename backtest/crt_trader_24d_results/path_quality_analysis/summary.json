@@ -1,0 +1,270 @@
+{
+  "trades": 132,
+  "outcome_counts": {
+    "STOP_BEFORE_EQ": 83,
+    "EQ_THEN_BE": 36,
+    "EQ_THEN_TARGET": 13
+  },
+  "boolean_rates_by_outcome": {
+    "htf_directional_alignment": {
+      "EQ_THEN_BE": {
+        "trades": 36,
+        "true": 18,
+        "true_pct": 50.0
+      },
+      "EQ_THEN_TARGET": {
+        "trades": 13,
+        "true": 6,
+        "true_pct": 46.1538
+      },
+      "STOP_BEFORE_EQ": {
+        "trades": 83,
+        "true": 14,
+        "true_pct": 16.8675
+      }
+    },
+    "structure_bos_after_reentry": {
+      "EQ_THEN_BE": {
+        "trades": 36,
+        "true": 29,
+        "true_pct": 80.5556
+      },
+      "EQ_THEN_TARGET": {
+        "trades": 13,
+        "true": 12,
+        "true_pct": 92.3077
+      },
+      "STOP_BEFORE_EQ": {
+        "trades": 83,
+        "true": 30,
+        "true_pct": 36.1446
+      }
+    },
+    "equilibrium_reached_before_exit": {
+      "EQ_THEN_BE": {
+        "trades": 36,
+        "true": 36,
+        "true_pct": 100.0
+      },
+      "EQ_THEN_TARGET": {
+        "trades": 13,
+        "true": 13,
+        "true_pct": 100.0
+      },
+      "STOP_BEFORE_EQ": {
+        "trades": 83,
+        "true": 0,
+        "true_pct": 0.0
+      }
+    }
+  },
+  "displacement_bands": {
+    "(-999.0, -0.25]": {
+      "trades": 52,
+      "equilibrium_rate_pct": 11.5385,
+      "target_rate_pct": 1.9231,
+      "total_r": -44.807395
+    },
+    "(-0.25, 0.0]": {
+      "trades": 12,
+      "equilibrium_rate_pct": 50.0,
+      "target_rate_pct": 0.0,
+      "total_r": -3.08483
+    },
+    "(0.0, 0.5]": {
+      "trades": 23,
+      "equilibrium_rate_pct": 47.8261,
+      "target_rate_pct": 4.3478,
+      "total_r": 5.127409
+    },
+    "(0.5, 1.0]": {
+      "trades": 17,
+      "equilibrium_rate_pct": 52.9412,
+      "target_rate_pct": 29.4118,
+      "total_r": 4.7781
+    },
+    "(1.0, 999.0]": {
+      "trades": 28,
+      "equilibrium_rate_pct": 60.7143,
+      "target_rate_pct": 25.0,
+      "total_r": 23.264311
+    }
+  },
+  "overall_medians": {
+    "target_distance_r": 6.1014,
+    "equilibrium_distance_r": 2.903,
+    "obstacles_between_entry_target": 1.0,
+    "first_obstacle_distance_atr": 1.3923,
+    "opposing_fvg_obstacles": 0.0,
+    "displacement_3bar_risk": 0.0183,
+    "max_displacement_3bar_risk": 0.638,
+    "max_favorable_excursion_r": 0.6298,
+    "range_size_atr": 5.9406
+  },
+  "by_outcome": {
+    "EQ_THEN_BE": {
+      "trades": 36,
+      "medians": {
+        "target_distance_r": 4.1981,
+        "equilibrium_distance_r": 0.8557,
+        "obstacles_between_entry_target": 1.0,
+        "first_obstacle_distance_atr": 1.8446,
+        "opposing_fvg_obstacles": 0.5,
+        "displacement_3bar_risk": 0.3139,
+        "max_displacement_3bar_risk": 0.8679,
+        "max_favorable_excursion_r": 1.3606,
+        "range_size_atr": 5.1607
+      }
+    },
+    "EQ_THEN_TARGET": {
+      "trades": 13,
+      "medians": {
+        "target_distance_r": 4.5083,
+        "equilibrium_distance_r": 1.3283,
+        "obstacles_between_entry_target": 1.0,
+        "first_obstacle_distance_atr": 2.069,
+        "opposing_fvg_obstacles": 0.0,
+        "displacement_3bar_risk": 1.3319,
+        "max_displacement_3bar_risk": 0.8636,
+        "max_favorable_excursion_r": 3.1077,
+        "range_size_atr": 6.2759
+      }
+    },
+    "STOP_BEFORE_EQ": {
+      "trades": 83,
+      "medians": {
+        "target_distance_r": 7.1747,
+        "equilibrium_distance_r": 3.7407,
+        "obstacles_between_entry_target": 0.0,
+        "first_obstacle_distance_atr": 1.1429,
+        "opposing_fvg_obstacles": 0.0,
+        "displacement_3bar_risk": -0.3717,
+        "max_displacement_3bar_risk": 0.5369,
+        "max_favorable_excursion_r": 0.0,
+        "range_size_atr": 6.5738
+      }
+    }
+  },
+  "by_regime": {
+    "RANGE_CONTRACTION": {
+      "trades": 68,
+      "outcomes": {
+        "STOP_BEFORE_EQ": 43,
+        "EQ_THEN_BE": 18,
+        "EQ_THEN_TARGET": 7
+      },
+      "medians": {
+        "target_distance_r": 7.2473,
+        "equilibrium_distance_r": 2.9868,
+        "obstacles_between_entry_target": 1.0,
+        "first_obstacle_distance_atr": 1.3514,
+        "opposing_fvg_obstacles": 0.0,
+        "displacement_3bar_risk": 0.0183,
+        "max_displacement_3bar_risk": 0.7092,
+        "max_favorable_excursion_r": 0.7473,
+        "range_size_atr": 9.8507
+      }
+    },
+    "RANGE_EXPANSION": {
+      "trades": 54,
+      "outcomes": {
+        "STOP_BEFORE_EQ": 36,
+        "EQ_THEN_BE": 12,
+        "EQ_THEN_TARGET": 6
+      },
+      "medians": {
+        "target_distance_r": 4.5986,
+        "equilibrium_distance_r": 2.9691,
+        "obstacles_between_entry_target": 1.0,
+        "first_obstacle_distance_atr": 1.4261,
+        "opposing_fvg_obstacles": 0.0,
+        "displacement_3bar_risk": -0.0063,
+        "max_displacement_3bar_risk": 0.5311,
+        "max_favorable_excursion_r": 0.4099,
+        "range_size_atr": 3.7481
+      }
+    },
+    "TRANSITION": {
+      "trades": 10,
+      "outcomes": {
+        "EQ_THEN_BE": 6,
+        "STOP_BEFORE_EQ": 4
+      },
+      "medians": {
+        "target_distance_r": 4.3895,
+        "equilibrium_distance_r": 0.877,
+        "obstacles_between_entry_target": 1.0,
+        "first_obstacle_distance_atr": 1.8947,
+        "opposing_fvg_obstacles": 0.0,
+        "displacement_3bar_risk": 0.0617,
+        "max_displacement_3bar_risk": 0.9104,
+        "max_favorable_excursion_r": 0.5984,
+        "range_size_atr": 5.3962
+      }
+    }
+  },
+  "by_session": {
+    "london": {
+      "trades": 23,
+      "outcomes": {
+        "STOP_BEFORE_EQ": 18,
+        "EQ_THEN_BE": 5
+      }
+    },
+    "new_york": {
+      "trades": 25,
+      "outcomes": {
+        "STOP_BEFORE_EQ": 20,
+        "EQ_THEN_BE": 5
+      }
+    },
+    "other": {
+      "trades": 61,
+      "outcomes": {
+        "STOP_BEFORE_EQ": 37,
+        "EQ_THEN_BE": 15,
+        "EQ_THEN_TARGET": 9
+      }
+    },
+    "overlap": {
+      "trades": 23,
+      "outcomes": {
+        "EQ_THEN_BE": 11,
+        "STOP_BEFORE_EQ": 8,
+        "EQ_THEN_TARGET": 4
+      }
+    }
+  },
+  "by_side": {
+    "LONG": {
+      "trades": 53,
+      "outcomes": {
+        "STOP_BEFORE_EQ": 30,
+        "EQ_THEN_BE": 17,
+        "EQ_THEN_TARGET": 6
+      }
+    },
+    "SHORT": {
+      "trades": 79,
+      "outcomes": {
+        "STOP_BEFORE_EQ": 53,
+        "EQ_THEN_BE": 19,
+        "EQ_THEN_TARGET": 7
+      }
+    }
+  },
+  "definitions": {
+    "obstacles_between_entry_target": "confirmed 3-left/3-right M5 swing pivots strictly between entry and CRT target before the recorded exit",
+    "opposing_fvg_obstacles": "simple three-candle FVG zones of opposing polarity intersecting the entry-target path",
+    "displacement_3bar_risk": "sum of post-entry aligned candle bodies over first three M5 bars, divided by initial risk",
+    "structure_bos_after_reentry": "within six post-entry bars, a close breaks a pre-entry confirmed swing in target direction",
+    "htf_directional_alignment": "last 24 M5 closes before entry move in the target direction",
+    "path_features": "descriptive diagnostics; they do not alter the accepted trade set"
+  },
+  "limitations": [
+    "Obstacle and FVG counts are causal-path approximations, not a replacement for the full original engine POI objects.",
+    "Path diagnostics after entry are intentionally post-entry descriptors and must not be used as entry filters without a new walk-forward design.",
+    "OHLC cannot resolve same-bar ordering beyond the conservative exit logic already used by the CRT simulator.",
+    "No spread, slippage, bid/ask, or news data are available."
+  ]
+}
