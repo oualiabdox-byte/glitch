@@ -1,0 +1,91 @@
+{
+  "source": "/home/ubuntu/glitch/backtest/crt_trader_24d_results/feature_analysis/feature_matrix.csv",
+  "results": {
+    "crt_raw": {
+      "trades": 132,
+      "wins": 49,
+      "losses": 83,
+      "win_rate_pct": 37.1212,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622
+    },
+    "session_liquidity_overlap": {
+      "trades": 23,
+      "wins": 15,
+      "losses": 8,
+      "win_rate_pct": 65.2174,
+      "total_r": 15.045401,
+      "avg_r": 0.654148,
+      "profit_factor": 2.880675
+    },
+    "volatility_compression": {
+      "trades": 68,
+      "wins": 25,
+      "losses": 43,
+      "win_rate_pct": 36.7647,
+      "total_r": 1.019968,
+      "avg_r": 0.015,
+      "profit_factor": 1.02372
+    },
+    "sweep_risk_normalization": {
+      "trades": 85,
+      "wins": 30,
+      "losses": 55,
+      "win_rate_pct": 35.2941,
+      "total_r": -8.860997,
+      "avg_r": -0.104247,
+      "profit_factor": 0.838891
+    },
+    "reentry_momentum": {
+      "trades": 57,
+      "wins": 20,
+      "losses": 37,
+      "win_rate_pct": 35.0877,
+      "total_r": -2.959827,
+      "avg_r": -0.051927,
+      "profit_factor": 0.920005
+    },
+    "overlap_sweep_confirmation": {
+      "trades": 15,
+      "wins": 8,
+      "losses": 7,
+      "win_rate_pct": 53.3333,
+      "total_r": 7.019193,
+      "avg_r": 0.467946,
+      "profit_factor": 2.002742
+    },
+    "compression_sweep_confirmation": {
+      "trades": 58,
+      "wins": 23,
+      "losses": 35,
+      "win_rate_pct": 39.6552,
+      "total_r": 1.659886,
+      "avg_r": 0.028619,
+      "profit_factor": 1.047425
+    },
+    "overlap_reentry_momentum": {
+      "trades": 8,
+      "wins": 6,
+      "losses": 2,
+      "win_rate_pct": 75.0,
+      "total_r": 6.510389,
+      "avg_r": 0.813799,
+      "profit_factor": 4.255195
+    }
+  },
+  "engine_definitions": {
+    "session_liquidity_overlap": "session == overlap",
+    "volatility_compression": "volatility_regime == RANGE_CONTRACTION",
+    "sweep_risk_normalization": "sweep_size_atr <= 0.60 and stop_distance_atr <= 1.20",
+    "reentry_momentum": "reentry_penetration_atr <= 0.50 and entry_body_ratio >= 0.50 and entry_wick_ratio <= 0.50",
+    "overlap_sweep_confirmation": "overlap plus sweep/stop normalization",
+    "compression_sweep_confirmation": "stable non-expansion regime plus sweep/stop normalization",
+    "overlap_reentry_momentum": "overlap plus shallow re-entry and body/wick confirmation"
+  },
+  "limitations": [
+    "These engines are tested over already accepted CRT trades; rejected opportunities are not recovered.",
+    "Thresholds are research hypotheses and must be frozen before out-of-sample testing.",
+    "No engine changes the adapter, trailer, or live execution path."
+  ]
+}
