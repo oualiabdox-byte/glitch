@@ -1,0 +1,120 @@
+{
+  "trades_preserved": 132,
+  "crt_baseline_metrics": {
+    "trades": 132,
+    "win_rate_pct": 37.12,
+    "total_r": -14.722405,
+    "avg_r": -0.111533,
+    "profit_factor": 0.822622,
+    "max_drawdown_r": 26.953797
+  },
+  "soft_sizing_research_metrics": {
+    "trades": 132,
+    "win_rate_pct": 37.12,
+    "total_r": -10.25586,
+    "avg_r": -0.077696,
+    "profit_factor": 0.852434,
+    "max_drawdown_r": 22.886873
+  },
+  "by_quality_band": {
+    "BALANCED": {
+      "trades": 48,
+      "win_rate_pct": 56.25,
+      "total_r": 9.882558,
+      "avg_r": 0.205887,
+      "profit_factor": 1.470598,
+      "max_drawdown_r": 8.864293,
+      "mean_score": 45.4305
+    },
+    "WEAK": {
+      "trades": 79,
+      "win_rate_pct": 26.58,
+      "total_r": -21.23557,
+      "avg_r": -0.268805,
+      "profit_factor": 0.633869,
+      "max_drawdown_r": 28.424318,
+      "mean_score": 22.955
+    },
+    "STRONG": {
+      "trades": 5,
+      "win_rate_pct": 20.0,
+      "total_r": -3.369393,
+      "avg_r": -0.673879,
+      "profit_factor": 0.157652,
+      "max_drawdown_r": 3.0,
+      "mean_score": 76.7718
+    }
+  },
+  "by_score_bin": {
+    "[-1, 35)": {
+      "trades": 79,
+      "win_rate_pct": 26.58,
+      "total_r": -21.23557,
+      "avg_r": -0.268805,
+      "profit_factor": 0.633869,
+      "max_drawdown_r": 28.424318,
+      "mean_score": 22.955
+    },
+    "[35, 50)": {
+      "trades": 36,
+      "win_rate_pct": 58.33,
+      "total_r": 4.122475,
+      "avg_r": 0.114513,
+      "profit_factor": 1.274832,
+      "max_drawdown_r": 6.864293,
+      "mean_score": 42.0537
+    },
+    "[50, 65)": {
+      "trades": 12,
+      "win_rate_pct": 50.0,
+      "total_r": 5.760084,
+      "avg_r": 0.480007,
+      "profit_factor": 1.960014,
+      "max_drawdown_r": 2.469436,
+      "mean_score": 55.5611
+    },
+    "[65, 80)": {
+      "trades": 3,
+      "win_rate_pct": 0.0,
+      "total_r": -3.0,
+      "avg_r": -1.0,
+      "profit_factor": 0.0,
+      "max_drawdown_r": 2.0,
+      "mean_score": 71.2864
+    },
+    "[80, 101)": {
+      "trades": 2,
+      "win_rate_pct": 50.0,
+      "total_r": -0.369393,
+      "avg_r": -0.184696,
+      "profit_factor": 0.630607,
+      "max_drawdown_r": 1.0,
+      "mean_score": 85.0
+    }
+  },
+  "quality_counts": {
+    "WEAK": 79,
+    "BALANCED": 48,
+    "STRONG": 5
+  },
+  "feature_rates": {
+    "smc_htf_alignment": 28.79,
+    "smc_causal_bos_before_entry": 3.79,
+    "smc_fvg_near_entry": 50.76,
+    "smc_ob_near_entry": 99.24
+  },
+  "weights": {
+    "location_htf": 0.2,
+    "liquidity": 0.2,
+    "structure_bos": 0.2,
+    "displacement": 0.2,
+    "poi_fvg_ob": 0.2
+  },
+  "policy": "No trade rejection. Score is evidence for ranking, review, and future soft position sizing only.",
+  "limitations": [
+    "FVG/OB detectors are causal research approximations, not the incomplete production SMC engine.",
+    "The score is descriptive and has not been walk-forward validated.",
+    "Soft sizing is shown as a research scenario, not a trading recommendation.",
+    "No spread, slippage, commission, or news costs are included."
+  ]
+}
