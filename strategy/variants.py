@@ -17,7 +17,7 @@ VARIANTS = {
     },
     "gbpusd_swing2_choch_only": {
         "pair": "GBPUSD", "swing_length": 2,
-        "m5_confirmation_mode": "BOS_AFTER_CHOCH", "priority": 100,
+        "m5_confirmation_mode": "CHOCH_ONLY", "priority": 100,
     },
     "eurusd_swing2_choch_or_bos": {
         "pair": "EURUSD", "swing_length": 2,
