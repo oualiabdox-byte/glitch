@@ -21,27 +21,65 @@ class CrtTbsTrader:
     min_structure_gap: int = 2
     max_structure_gap: int = 6
 
-    def signals(self, frame: pd.DataFrame, instrument: str, symbol: str = "") -> list[dict[str, Any]]:
+    def signals(
+        self,
+        frame: pd.DataFrame,
+        instrument: str,
+        symbol: str = "",
+        diagnostics: dict[str, int] | None = None,
+    ) -> list[dict[str, Any]]:
         """Generate one causal trade record per completed CRT purge window."""
         m5, htf = complete_bars(frame)
+        if diagnostics is not None:
+            diagnostics.update({
+                "crt_ranges_completed": max(0, len(htf) - 1),
+                "htf_purges": 0,
+                "purge_windows_checked": 0,
+                "purge_windows_too_short": 0,
+                "purge_windows_without_candidates": 0,
+                "candidate_signals": 0,
+                "candidates_rejected_occupied": 0,
+                "candidates_rejected_invalid_trade": 0,
+                "trades_accepted": 0,
+                "structure_points_checked": 0,
+                "equal_level_pairs": 0,
+                "body_close_sweeps": 0,
+                "reentries": 0,
+                "reentry_outside_window": 0,
+            })
+        purges = htf_purges(m5, htf)
+        if diagnostics is not None:
+            diagnostics["htf_purges"] = len(purges)
         trades = []
-        for bucket, purge in htf_purges(m5, htf).items():
+        for bucket, purge in purges.items():
             bucket_position = htf.index.get_loc(bucket)
             if bucket_position + 1 >= len(htf):
                 continue
+            if diagnostics is not None:
+                diagnostics["purge_windows_checked"] += 1
             next_bucket = htf.index[bucket_position + 1]
             start = int(m5.index.searchsorted(bucket))
             end = int(m5.index.searchsorted(next_bucket))
             if end <= start + 8:
+                if diagnostics is not None:
+                    diagnostics["purge_windows_too_short"] += 1
                 continue
-            candidates = body_tbs_candidates(m5, start, end, purge["side"])
+            candidates = body_tbs_candidates(m5, start, end, purge["side"], diagnostics)
+            if diagnostics is not None:
+                diagnostics["candidate_signals"] += len(candidates)
             if not candidates:
+                if diagnostics is not None:
+                    diagnostics["purge_windows_without_candidates"] += 1
                 continue
             trade = simulate_trade(m5, candidates[0], purge["side"], purge, purge["purge_time"])
             if trade is None:
+                if diagnostics is not None:
+                    diagnostics["candidates_rejected_invalid_trade"] += 1
                 continue
             trade.instrument, trade.symbol = instrument, symbol
             trades.append(trade)
+            if diagnostics is not None:
+                diagnostics["trades_accepted"] += 1
         return [trade.__dict__.copy() for trade in trades]
 
     def report(self) -> dict[str, str]:

@@ -118,10 +118,18 @@ def htf_purges(m5: pd.DataFrame, htf: pd.DataFrame) -> dict[pd.Timestamp, dict]:
     return result
 
 
-def body_tbs_candidates(frame: pd.DataFrame, start: int, end: int, side: str) -> list[dict]:
+def body_tbs_candidates(
+    frame: pd.DataFrame,
+    start: int,
+    end: int,
+    side: str,
+    diagnostics: dict[str, int] | None = None,
+) -> list[dict]:
     """Find equal-level structures 2–6 candles apart and body-close TBS re-entry."""
     candidates = []
     for point in range(max(start + 6, 6), min(end, len(frame) - 1)):
+        if diagnostics is not None:
+            diagnostics["structure_points_checked"] = diagnostics.get("structure_points_checked", 0) + 1
         volatility = atr(frame, point)
         tolerance = max(volatility * 0.20, float(frame.close.iloc[point]) * 0.00003)
         for gap in range(2, 7):
@@ -131,24 +139,42 @@ def body_tbs_candidates(frame: pd.DataFrame, start: int, end: int, side: str) ->
                 level = max(float(frame.high.iloc[first]), float(frame.high.iloc[second]))
                 if abs(float(frame.high.iloc[first]) - float(frame.high.iloc[second])) > tolerance:
                     continue
+                if diagnostics is not None:
+                    diagnostics["equal_level_pairs"] = diagnostics.get("equal_level_pairs", 0) + 1
                 sweep = point + 1
                 reentry = point + 2
                 if reentry >= end:
+                    if diagnostics is not None:
+                        diagnostics["reentry_outside_window"] = diagnostics.get("reentry_outside_window", 0) + 1
                     continue
-                if float(frame.close.iloc[sweep]) > level and float(frame.close.iloc[reentry]) < level:
-                    candidates.append({"sweep": sweep, "entry": reentry, "level": level,
-                                       "gap": gap, "sweep_extreme": float(frame.high.iloc[sweep])})
+                if float(frame.close.iloc[sweep]) > level:
+                    if diagnostics is not None:
+                        diagnostics["body_close_sweeps"] = diagnostics.get("body_close_sweeps", 0) + 1
+                    if float(frame.close.iloc[reentry]) < level:
+                        if diagnostics is not None:
+                            diagnostics["reentries"] = diagnostics.get("reentries", 0) + 1
+                        candidates.append({"sweep": sweep, "entry": reentry, "level": level,
+                                           "gap": gap, "sweep_extreme": float(frame.high.iloc[sweep])})
             else:
                 level = min(float(frame.low.iloc[first]), float(frame.low.iloc[second]))
                 if abs(float(frame.low.iloc[first]) - float(frame.low.iloc[second])) > tolerance:
                     continue
+                if diagnostics is not None:
+                    diagnostics["equal_level_pairs"] = diagnostics.get("equal_level_pairs", 0) + 1
                 sweep = point + 1
                 reentry = point + 2
                 if reentry >= end:
+                    if diagnostics is not None:
+                        diagnostics["reentry_outside_window"] = diagnostics.get("reentry_outside_window", 0) + 1
                     continue
-                if float(frame.close.iloc[sweep]) < level and float(frame.close.iloc[reentry]) > level:
-                    candidates.append({"sweep": sweep, "entry": reentry, "level": level,
-                                       "gap": gap, "sweep_extreme": float(frame.low.iloc[sweep])})
+                if float(frame.close.iloc[sweep]) < level:
+                    if diagnostics is not None:
+                        diagnostics["body_close_sweeps"] = diagnostics.get("body_close_sweeps", 0) + 1
+                    if float(frame.close.iloc[reentry]) > level:
+                        if diagnostics is not None:
+                            diagnostics["reentries"] = diagnostics.get("reentries", 0) + 1
+                        candidates.append({"sweep": sweep, "entry": reentry, "level": level,
+                                           "gap": gap, "sweep_extreme": float(frame.low.iloc[sweep])})
     candidates.sort(key=lambda x: (x["entry"], x["gap"]))
     # One earliest confirmation per five-minute bar.
     seen = set()
@@ -229,31 +255,55 @@ def backtest(instrument: str, symbol: str, frame: pd.DataFrame) -> tuple[list[Tr
     purges = htf_purges(m5, htf)
     trades: list[Trade] = []
     occupied_until = -1
-    htf_times = list(htf.index)
+    diagnostics: dict[str, int] = {
+        "crt_ranges_completed": max(0, len(htf) - 1),
+        "htf_purges": len(purges),
+        "purge_windows_checked": 0,
+        "purge_windows_too_short": 0,
+        "purge_windows_without_candidates": 0,
+        "candidate_signals": 0,
+        "candidates_rejected_occupied": 0,
+        "candidates_rejected_invalid_trade": 0,
+        "trades_accepted": 0,
+        "structure_points_checked": 0,
+        "equal_level_pairs": 0,
+        "body_close_sweeps": 0,
+        "reentries": 0,
+        "reentry_outside_window": 0,
+    }
     for bucket, purge in purges.items():
         if bucket not in htf.index:
             continue
+        diagnostics["purge_windows_checked"] += 1
         start = int(m5.index.searchsorted(bucket))
         next_bucket = htf.index[htf.index.get_loc(bucket) + 1] if htf.index.get_loc(bucket) + 1 < len(htf) else m5.index[-1]
         end = int(m5.index.searchsorted(next_bucket))
         if end <= start + 8:
+            diagnostics["purge_windows_too_short"] += 1
             continue
-        candidates = body_tbs_candidates(m5, start, end, purge["side"])
+        candidates = body_tbs_candidates(m5, start, end, purge["side"], diagnostics)
+        diagnostics["candidate_signals"] += len(candidates)
+        if not candidates:
+            diagnostics["purge_windows_without_candidates"] += 1
         for candidate in candidates:
             if candidate["entry"] <= occupied_until:
+                diagnostics["candidates_rejected_occupied"] += 1
                 continue
             trade = simulate_trade(m5, candidate, purge["side"], purge, purge["purge_time"])
             if trade:
                 trade.instrument, trade.symbol = instrument, symbol
                 trades.append(trade)
+                diagnostics["trades_accepted"] += 1
                 occupied_until = max(occupied_until, int(m5.index.searchsorted(pd.Timestamp(trade.exit_time))))
                 break
+            diagnostics["candidates_rejected_invalid_trade"] += 1
     quality = {
         "instrument": instrument, "symbol": symbol, "source": "Yahoo Finance chart API",
         "m5_bars": int(len(m5)), "h2_bars": int(len(htf)), "htf_purges": int(len(purges)),
         "first_bar_utc": m5.index.min().isoformat() if len(m5) else None,
         "last_bar_utc": m5.index.max().isoformat() if len(m5) else None,
         "missing_5m_gaps": int(((m5.index.to_series().diff() > pd.Timedelta(minutes=10))).sum()),
+        "diagnostics": diagnostics,
     }
     return trades, quality
 
@@ -279,6 +329,7 @@ def summarize(trades: list[Trade], quality: list[dict], start: pd.Timestamp, end
     return {"strategy": "CRT_TBS_BODY_CLOSE_REENTRY", "period_start_utc": start.isoformat(),
             "period_end_utc": end.isoformat(), "instruments": list(DEFAULT_SYMBOLS),
             "data_quality": quality, "by_instrument": by_instrument,
+            "diagnostics": {row["instrument"]: row["diagnostics"] for row in quality},
             "total_trades": len(trades), "total_r": round(sum(t.r_multiple for t in trades), 4),
             "limitations": ["14 calendar days is a small sample", "Yahoo OHLC is indicative and not bid/ask executable",
                             "GC=F is a gold-futures proxy, not broker-specific XAUUSD", "no spread, slippage, commission, or financing modeled",
@@ -307,10 +358,16 @@ def main() -> int:
     summary = summarize(all_trades, quality, start, end)
     (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     pd.DataFrame([asdict(t) for t in all_trades]).to_csv(args.output_dir / "trades.csv", index=False)
+    diagnostic_rows = []
+    for report in quality:
+        row = {"instrument": report["instrument"], "symbol": report["symbol"]}
+        row.update(report["diagnostics"])
+        diagnostic_rows.append(row)
+    pd.DataFrame(diagnostic_rows).to_csv(args.output_dir / "diagnostics.csv", index=False)
     lines = ["# CRT/TBS 14-day research backtest", "", f"Period: `{start.isoformat()}` to `{end.isoformat()}`", "", "## Rules", "", "- 2-hour CRT candle; next completed candle must sweep one boundary and close back inside.", "- On the following 2-hour bucket, detect a lower-timeframe TBS: equal highs/lows 2–6 M5 candles apart, body close beyond the level, then close back through it.", "- Stop beyond sweep extreme; take 50% at CRT equilibrium, move remainder to breakeven, target opposite CRT boundary.", "", "## Results", "", "| Instrument | Trades | Win rate | Total R | Profit factor | Max DD (R) |", "|---|---:|---:|---:|---:|---:|"]
     for instrument, row in summary["by_instrument"].items():
         lines.append(f"| {instrument} | {row['trades']} | {row['win_rate_pct']:.2f}% | {row['total_r']:.4f} | {row['profit_factor']} | {row['max_drawdown_r']:.4f} |")
-    lines += ["", f"**Total:** {summary['total_trades']} trades, `{summary['total_r']:.4f}R`.", "", "## Caveats", "", *[f"- {x}" for x in summary["limitations"]], ""]
+    lines += ["", f"**Total:** {summary['total_trades']} trades, `{summary['total_r']:.4f}R`.", "", "## Diagnostic funnel", "", "See `diagnostics.csv` and the `diagnostics` field in `summary.json` for per-instrument stage counts.", "", "## Caveats", "", *[f"- {x}" for x in summary["limitations"]], ""]
     (args.output_dir / "report.md").write_text("\n".join(lines))
     print(json.dumps(summary, indent=2))
     return 0

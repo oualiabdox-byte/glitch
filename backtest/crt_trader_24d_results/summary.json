@@ -1,0 +1,232 @@
+{
+  "strategy": {
+    "htf_rule": "2h",
+    "entry_rule": "body_close_reentry",
+    "structure_gap": "2-6 M5 candles",
+    "execution": "research_only_no_orders"
+  },
+  "data_source": "repository cTrader M5 JSON fixtures",
+  "period": "24d",
+  "pairs_tested": [
+    "AUDUSD",
+    "EURUSD",
+    "GBPUSD",
+    "NZDUSD",
+    "USDCAD",
+    "USDCHF",
+    "USDJPY"
+  ],
+  "not_tested": {
+    "GOLD": "No local XAUUSD/GC=F cTrader dataset; not substituted"
+  },
+  "by_pair": {
+    "AUDUSD": {
+      "trades": 12,
+      "wins": 7,
+      "losses": 5,
+      "win_rate_pct": 58.33,
+      "total_r": 6.643043,
+      "avg_r": 0.553587,
+      "profit_factor": 2.328609,
+      "max_drawdown_r": 2.0,
+      "longest_losing_streak": 2
+    },
+    "EURUSD": {
+      "trades": 21,
+      "wins": 8,
+      "losses": 13,
+      "win_rate_pct": 38.1,
+      "total_r": -3.713284,
+      "avg_r": -0.176823,
+      "profit_factor": 0.714363,
+      "max_drawdown_r": 9.042282,
+      "longest_losing_streak": 7
+    },
+    "GBPUSD": {
+      "trades": 14,
+      "wins": 4,
+      "losses": 10,
+      "win_rate_pct": 28.57,
+      "total_r": -7.644165,
+      "avg_r": -0.546012,
+      "profit_factor": 0.235583,
+      "max_drawdown_r": 7.644165,
+      "longest_losing_streak": 5
+    },
+    "NZDUSD": {
+      "trades": 22,
+      "wins": 12,
+      "losses": 10,
+      "win_rate_pct": 54.55,
+      "total_r": 7.772311,
+      "avg_r": 0.353287,
+      "profit_factor": 1.777231,
+      "max_drawdown_r": 4.439029,
+      "longest_losing_streak": 3
+    },
+    "USDCAD": {
+      "trades": 23,
+      "wins": 8,
+      "losses": 15,
+      "win_rate_pct": 34.78,
+      "total_r": -2.577255,
+      "avg_r": -0.112055,
+      "profit_factor": 0.828183,
+      "max_drawdown_r": 11.819777,
+      "longest_losing_streak": 8
+    },
+    "USDCHF": {
+      "trades": 23,
+      "wins": 5,
+      "losses": 18,
+      "win_rate_pct": 21.74,
+      "total_r": -11.198686,
+      "avg_r": -0.486899,
+      "profit_factor": 0.377851,
+      "max_drawdown_r": 15.535648,
+      "longest_losing_streak": 11
+    },
+    "USDJPY": {
+      "trades": 17,
+      "wins": 5,
+      "losses": 12,
+      "win_rate_pct": 29.41,
+      "total_r": -4.004368,
+      "avg_r": -0.235551,
+      "profit_factor": 0.666303,
+      "max_drawdown_r": 5.376574,
+      "longest_losing_streak": 5
+    }
+  },
+  "diagnostics": {
+    "AUDUSD": {
+      "crt_ranges_completed": 204,
+      "htf_purges": 86,
+      "purge_windows_checked": 85,
+      "purge_windows_too_short": 0,
+      "purge_windows_without_candidates": 56,
+      "candidate_signals": 36,
+      "candidates_rejected_occupied": 0,
+      "candidates_rejected_invalid_trade": 17,
+      "trades_accepted": 12,
+      "structure_points_checked": 1553,
+      "equal_level_pairs": 1301,
+      "body_close_sweeps": 227,
+      "reentries": 57,
+      "reentry_outside_window": 141
+    },
+    "EURUSD": {
+      "crt_ranges_completed": 204,
+      "htf_purges": 86,
+      "purge_windows_checked": 85,
+      "purge_windows_too_short": 0,
+      "purge_windows_without_candidates": 50,
+      "candidate_signals": 45,
+      "candidates_rejected_occupied": 0,
+      "candidates_rejected_invalid_trade": 14,
+      "trades_accepted": 21,
+      "structure_points_checked": 1553,
+      "equal_level_pairs": 1351,
+      "body_close_sweeps": 202,
+      "reentries": 65,
+      "reentry_outside_window": 184
+    },
+    "GBPUSD": {
+      "crt_ranges_completed": 204,
+      "htf_purges": 79,
+      "purge_windows_checked": 78,
+      "purge_windows_too_short": 0,
+      "purge_windows_without_candidates": 51,
+      "candidate_signals": 34,
+      "candidates_rejected_occupied": 0,
+      "candidates_rejected_invalid_trade": 13,
+      "trades_accepted": 14,
+      "structure_points_checked": 1427,
+      "equal_level_pairs": 1255,
+      "body_close_sweeps": 199,
+      "reentries": 54,
+      "reentry_outside_window": 178
+    },
+    "NZDUSD": {
+      "crt_ranges_completed": 204,
+      "htf_purges": 95,
+      "purge_windows_checked": 94,
+      "purge_windows_too_short": 0,
+      "purge_windows_without_candidates": 56,
+      "candidate_signals": 49,
+      "candidates_rejected_occupied": 0,
+      "candidates_rejected_invalid_trade": 16,
+      "trades_accepted": 22,
+      "structure_points_checked": 1714,
+      "equal_level_pairs": 1309,
+      "body_close_sweeps": 233,
+      "reentries": 72,
+      "reentry_outside_window": 186
+    },
+    "USDCAD": {
+      "crt_ranges_completed": 204,
+      "htf_purges": 98,
+      "purge_windows_checked": 98,
+      "purge_windows_too_short": 0,
+      "purge_windows_without_candidates": 57,
+      "candidate_signals": 52,
+      "candidates_rejected_occupied": 0,
+      "candidates_rejected_invalid_trade": 18,
+      "trades_accepted": 23,
+      "structure_points_checked": 1764,
+      "equal_level_pairs": 1511,
+      "body_close_sweeps": 271,
+      "reentries": 86,
+      "reentry_outside_window": 179
+    },
+    "USDCHF": {
+      "crt_ranges_completed": 202,
+      "htf_purges": 93,
+      "purge_windows_checked": 92,
+      "purge_windows_too_short": 0,
+      "purge_windows_without_candidates": 55,
+      "candidate_signals": 47,
+      "candidates_rejected_occupied": 0,
+      "candidates_rejected_invalid_trade": 14,
+      "trades_accepted": 23,
+      "structure_points_checked": 1722,
+      "equal_level_pairs": 1239,
+      "body_close_sweeps": 256,
+      "reentries": 68,
+      "reentry_outside_window": 134
+    },
+    "USDJPY": {
+      "crt_ranges_completed": 204,
+      "htf_purges": 88,
+      "purge_windows_checked": 87,
+      "purge_windows_too_short": 0,
+      "purge_windows_without_candidates": 52,
+      "candidate_signals": 41,
+      "candidates_rejected_occupied": 0,
+      "candidates_rejected_invalid_trade": 18,
+      "trades_accepted": 17,
+      "structure_points_checked": 1588,
+      "equal_level_pairs": 1070,
+      "body_close_sweeps": 226,
+      "reentries": 65,
+      "reentry_outside_window": 131
+    }
+  },
+  "total": {
+    "trades": 132,
+    "wins": 49,
+    "losses": 83,
+    "win_rate_pct": 37.12,
+    "total_r": -14.722405,
+    "avg_r": -0.111533,
+    "profit_factor": 0.822622,
+    "max_drawdown_r": 26.953797,
+    "longest_losing_streak": 14
+  },
+  "limitations": [
+    "24d is a limited research sample",
+    "cTrader trendbar OHLC cannot reveal intrabar stop/target ordering",
+    "the fixture does not contain bid/ask spread or slippage",
+    "this runner does not submit orders or modify execution/demo code"
+  ]
+}

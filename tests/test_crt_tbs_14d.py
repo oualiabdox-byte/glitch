@@ -25,6 +25,23 @@ def test_body_close_tbs_requires_reentry_and_accepts_gap_two_to_six():
     assert 2 <= candidates[0]["gap"] <= 6
 
 
+def test_body_tbs_diagnostics_count_each_successful_stage():
+    frame = bars([
+        (100, 100.5, 99.5, 100), (100, 100.6, 99.4, 100),
+        (100, 101, 99, 100), (100, 101.1, 99.2, 100.1),
+        (100.1, 100.8, 99.3, 100), (100, 100.9, 99.4, 100.1),
+        (100.1, 101.2, 99.8, 100.8), (100.8, 102.0, 99.8, 101.5),
+        (101.5, 101.6, 99.0, 100.0), (100, 100.5, 99.5, 100),
+    ])
+    diagnostics = {}
+    candidates = body_tbs_candidates(frame, 0, len(frame), "SHORT", diagnostics)
+    assert candidates
+    assert diagnostics["structure_points_checked"] > 0
+    assert diagnostics["equal_level_pairs"] > 0
+    assert diagnostics["body_close_sweeps"] > 0
+    assert diagnostics["reentries"] > 0
+
+
 def test_htf_purge_requires_close_back_inside_previous_range():
     index = pd.date_range("2026-01-01", periods=3, freq="2h", tz="UTC")
     htf = pd.DataFrame([

@@ -1,0 +1,8 @@
+pair,crt_ranges_completed,htf_purges,purge_windows_checked,purge_windows_too_short,purge_windows_without_candidates,candidate_signals,candidates_rejected_occupied,candidates_rejected_invalid_trade,trades_accepted,structure_points_checked,equal_level_pairs,body_close_sweeps,reentries,reentry_outside_window
+AUDUSD,204,86,85,0,56,36,0,17,12,1553,1301,227,57,141
+EURUSD,204,86,85,0,50,45,0,14,21,1553,1351,202,65,184
+GBPUSD,204,79,78,0,51,34,0,13,14,1427,1255,199,54,178
+NZDUSD,204,95,94,0,56,49,0,16,22,1714,1309,233,72,186
+USDCAD,204,98,98,0,57,52,0,18,23,1764,1511,271,86,179
+USDCHF,202,93,92,0,55,47,0,14,23,1722,1239,256,68,134
+USDJPY,204,88,87,0,52,41,0,18,17,1588,1070,226,65,131
