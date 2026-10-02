@@ -1,0 +1,794 @@
+{
+  "input_metrics": {
+    "n": 79,
+    "wins": 35,
+    "losses": 44,
+    "win_rate_pct": 44.3,
+    "total_r": 12.913268,
+    "avg_r": 0.163459,
+    "pf": 1.293483,
+    "max_dd_r": 10.835265
+  },
+  "loss_metrics": {
+    "n": 44,
+    "wins": 0,
+    "losses": 44,
+    "win_rate_pct": 0.0,
+    "total_r": -44.0,
+    "avg_r": -1.0,
+    "pf": 0.0,
+    "max_dd_r": 43.0
+  },
+  "loss_by_side": {
+    "LONG": {
+      "n": 23,
+      "wins": 0,
+      "losses": 23,
+      "win_rate_pct": 0.0,
+      "total_r": -23.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 22.0
+    },
+    "SHORT": {
+      "n": 21,
+      "wins": 0,
+      "losses": 21,
+      "win_rate_pct": 0.0,
+      "total_r": -21.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 20.0
+    }
+  },
+  "winner_by_side": {
+    "LONG": {
+      "n": 11,
+      "wins": 11,
+      "losses": 0,
+      "win_rate_pct": 100.0,
+      "total_r": 13.460677,
+      "avg_r": 1.223698,
+      "pf": null,
+      "max_dd_r": 0.0
+    },
+    "SHORT": {
+      "n": 24,
+      "wins": 24,
+      "losses": 0,
+      "win_rate_pct": 100.0,
+      "total_r": 43.452591,
+      "avg_r": 1.810525,
+      "pf": null,
+      "max_dd_r": 0.0
+    }
+  },
+  "loss_by_session": {
+    "london": {
+      "n": 8,
+      "wins": 0,
+      "losses": 8,
+      "win_rate_pct": 0.0,
+      "total_r": -8.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 7.0
+    },
+    "new_york": {
+      "n": 9,
+      "wins": 0,
+      "losses": 9,
+      "win_rate_pct": 0.0,
+      "total_r": -9.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 8.0
+    },
+    "other": {
+      "n": 19,
+      "wins": 0,
+      "losses": 19,
+      "win_rate_pct": 0.0,
+      "total_r": -19.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 18.0
+    },
+    "overlap": {
+      "n": 8,
+      "wins": 0,
+      "losses": 8,
+      "win_rate_pct": 0.0,
+      "total_r": -8.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 7.0
+    }
+  },
+  "loss_by_regime": {
+    "RANGE_CONTRACTION": {
+      "n": 19,
+      "wins": 0,
+      "losses": 19,
+      "win_rate_pct": 0.0,
+      "total_r": -19.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 18.0
+    },
+    "RANGE_EXPANSION": {
+      "n": 18,
+      "wins": 0,
+      "losses": 18,
+      "win_rate_pct": 0.0,
+      "total_r": -18.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 17.0
+    },
+    "TRANSITION": {
+      "n": 6,
+      "wins": 0,
+      "losses": 6,
+      "win_rate_pct": 0.0,
+      "total_r": -6.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 5.0
+    },
+    "TREND_EXPANSION": {
+      "n": 1,
+      "wins": 0,
+      "losses": 1,
+      "win_rate_pct": 0.0,
+      "total_r": -1.0,
+      "avg_r": -1.0,
+      "pf": 0.0,
+      "max_dd_r": 0.0
+    }
+  },
+  "proxy_tests": [
+    {
+      "proxy": "weak_body_proxy",
+      "group": "ALL",
+      "condition_count": 26,
+      "condition_pct": 32.91,
+      "all_metrics": {
+        "n": 26,
+        "wins": 9,
+        "losses": 17,
+        "win_rate_pct": 34.62,
+        "total_r": 0.157132,
+        "avg_r": 0.006044,
+        "pf": 1.009243,
+        "max_dd_r": 10.032247
+      },
+      "loss_capture_pct": 38.64,
+      "winner_rate_in_condition_pct": 34.62
+    },
+    {
+      "proxy": "weak_body_proxy",
+      "group": "LONG",
+      "condition_count": 8,
+      "condition_pct": 23.53,
+      "all_metrics": {
+        "n": 8,
+        "wins": 1,
+        "losses": 7,
+        "win_rate_pct": 12.5,
+        "total_r": -6.306835,
+        "avg_r": -0.788354,
+        "pf": 0.099024,
+        "max_dd_r": 5.306835
+      },
+      "loss_capture_pct": 38.64,
+      "winner_rate_in_condition_pct": 12.5
+    },
+    {
+      "proxy": "weak_body_proxy",
+      "group": "SHORT",
+      "condition_count": 18,
+      "condition_pct": 40.0,
+      "all_metrics": {
+        "n": 18,
+        "wins": 8,
+        "losses": 10,
+        "win_rate_pct": 44.44,
+        "total_r": 6.463967,
+        "avg_r": 0.359109,
+        "pf": 1.646397,
+        "max_dd_r": 6.861398
+      },
+      "loss_capture_pct": 38.64,
+      "winner_rate_in_condition_pct": 44.44
+    },
+    {
+      "proxy": "micro_stop_proxy",
+      "group": "ALL",
+      "condition_count": 38,
+      "condition_pct": 48.1,
+      "all_metrics": {
+        "n": 38,
+        "wins": 11,
+        "losses": 27,
+        "win_rate_pct": 28.95,
+        "total_r": 1.649935,
+        "avg_r": 0.043419,
+        "pf": 1.061109,
+        "max_dd_r": 10.834292
+      },
+      "loss_capture_pct": 61.36,
+      "winner_rate_in_condition_pct": 28.95
+    },
+    {
+      "proxy": "micro_stop_proxy",
+      "group": "LONG",
+      "condition_count": 15,
+      "condition_pct": 44.12,
+      "all_metrics": {
+        "n": 15,
+        "wins": 3,
+        "losses": 12,
+        "win_rate_pct": 20.0,
+        "total_r": -9.065803,
+        "avg_r": -0.604387,
+        "pf": 0.244516,
+        "max_dd_r": 8.765066
+      },
+      "loss_capture_pct": 61.36,
+      "winner_rate_in_condition_pct": 20.0
+    },
+    {
+      "proxy": "micro_stop_proxy",
+      "group": "SHORT",
+      "condition_count": 23,
+      "condition_pct": 51.11,
+      "all_metrics": {
+        "n": 23,
+        "wins": 8,
+        "losses": 15,
+        "win_rate_pct": 34.78,
+        "total_r": 10.715738,
+        "avg_r": 0.465902,
+        "pf": 1.714383,
+        "max_dd_r": 8.069225
+      },
+      "loss_capture_pct": 61.36,
+      "winner_rate_in_condition_pct": 34.78
+    },
+    {
+      "proxy": "small_sweep_proxy",
+      "group": "ALL",
+      "condition_count": 40,
+      "condition_pct": 50.63,
+      "all_metrics": {
+        "n": 40,
+        "wins": 12,
+        "losses": 28,
+        "win_rate_pct": 30.0,
+        "total_r": -0.370661,
+        "avg_r": -0.009267,
+        "pf": 0.986762,
+        "max_dd_r": 10.527456
+      },
+      "loss_capture_pct": 63.64,
+      "winner_rate_in_condition_pct": 30.0
+    },
+    {
+      "proxy": "small_sweep_proxy",
+      "group": "LONG",
+      "condition_count": 18,
+      "condition_pct": 52.94,
+      "all_metrics": {
+        "n": 18,
+        "wins": 4,
+        "losses": 14,
+        "win_rate_pct": 22.22,
+        "total_r": -4.852589,
+        "avg_r": -0.269588,
+        "pf": 0.653386,
+        "max_dd_r": 11.458231
+      },
+      "loss_capture_pct": 63.64,
+      "winner_rate_in_condition_pct": 22.22
+    },
+    {
+      "proxy": "small_sweep_proxy",
+      "group": "SHORT",
+      "condition_count": 22,
+      "condition_pct": 48.89,
+      "all_metrics": {
+        "n": 22,
+        "wins": 8,
+        "losses": 14,
+        "win_rate_pct": 36.36,
+        "total_r": 4.481928,
+        "avg_r": 0.203724,
+        "pf": 1.320138,
+        "max_dd_r": 7.069225
+      },
+      "loss_capture_pct": 63.64,
+      "winner_rate_in_condition_pct": 36.36
+    },
+    {
+      "proxy": "shallow_reentry_proxy",
+      "group": "ALL",
+      "condition_count": 36,
+      "condition_pct": 45.57,
+      "all_metrics": {
+        "n": 36,
+        "wins": 14,
+        "losses": 22,
+        "win_rate_pct": 38.89,
+        "total_r": 4.16985,
+        "avg_r": 0.115829,
+        "pf": 1.189539,
+        "max_dd_r": 6.105829
+      },
+      "loss_capture_pct": 50.0,
+      "winner_rate_in_condition_pct": 38.89
+    },
+    {
+      "proxy": "shallow_reentry_proxy",
+      "group": "LONG",
+      "condition_count": 17,
+      "condition_pct": 50.0,
+      "all_metrics": {
+        "n": 17,
+        "wins": 6,
+        "losses": 11,
+        "win_rate_pct": 35.29,
+        "total_r": -6.884657,
+        "avg_r": -0.40498,
+        "pf": 0.374122,
+        "max_dd_r": 5.884657
+      },
+      "loss_capture_pct": 50.0,
+      "winner_rate_in_condition_pct": 35.29
+    },
+    {
+      "proxy": "shallow_reentry_proxy",
+      "group": "SHORT",
+      "condition_count": 19,
+      "condition_pct": 42.22,
+      "all_metrics": {
+        "n": 19,
+        "wins": 8,
+        "losses": 11,
+        "win_rate_pct": 42.11,
+        "total_r": 11.054508,
+        "avg_r": 0.581816,
+        "pf": 2.004955,
+        "max_dd_r": 5.0
+      },
+      "loss_capture_pct": 50.0,
+      "winner_rate_in_condition_pct": 42.11
+    },
+    {
+      "proxy": "far_equilibrium_proxy",
+      "group": "ALL",
+      "condition_count": 35,
+      "condition_pct": 44.3,
+      "all_metrics": {
+        "n": 35,
+        "wins": 11,
+        "losses": 24,
+        "win_rate_pct": 31.43,
+        "total_r": 12.893646,
+        "avg_r": 0.36839,
+        "pf": 1.537235,
+        "max_dd_r": 7.0
+      },
+      "loss_capture_pct": 54.55,
+      "winner_rate_in_condition_pct": 31.43
+    },
+    {
+      "proxy": "far_equilibrium_proxy",
+      "group": "LONG",
+      "condition_count": 15,
+      "condition_pct": 44.12,
+      "all_metrics": {
+        "n": 15,
+        "wins": 2,
+        "losses": 13,
+        "win_rate_pct": 13.33,
+        "total_r": -4.899087,
+        "avg_r": -0.326606,
+        "pf": 0.623147,
+        "max_dd_r": 9.0
+      },
+      "loss_capture_pct": 54.55,
+      "winner_rate_in_condition_pct": 13.33
+    },
+    {
+      "proxy": "far_equilibrium_proxy",
+      "group": "SHORT",
+      "condition_count": 20,
+      "condition_pct": 44.44,
+      "all_metrics": {
+        "n": 20,
+        "wins": 9,
+        "losses": 11,
+        "win_rate_pct": 45.0,
+        "total_r": 17.792733,
+        "avg_r": 0.889637,
+        "pf": 2.617521,
+        "max_dd_r": 4.0
+      },
+      "loss_capture_pct": 54.55,
+      "winner_rate_in_condition_pct": 45.0
+    },
+    {
+      "proxy": "early_failure_proxy",
+      "group": "ALL",
+      "condition_count": 22,
+      "condition_pct": 27.85,
+      "all_metrics": {
+        "n": 22,
+        "wins": 0,
+        "losses": 22,
+        "win_rate_pct": 0.0,
+        "total_r": -22.0,
+        "avg_r": -1.0,
+        "pf": 0.0,
+        "max_dd_r": 21.0
+      },
+      "loss_capture_pct": 50.0,
+      "winner_rate_in_condition_pct": 0.0
+    },
+    {
+      "proxy": "early_failure_proxy",
+      "group": "LONG",
+      "condition_count": 12,
+      "condition_pct": 35.29,
+      "all_metrics": {
+        "n": 12,
+        "wins": 0,
+        "losses": 12,
+        "win_rate_pct": 0.0,
+        "total_r": -12.0,
+        "avg_r": -1.0,
+        "pf": 0.0,
+        "max_dd_r": 11.0
+      },
+      "loss_capture_pct": 50.0,
+      "winner_rate_in_condition_pct": 0.0
+    },
+    {
+      "proxy": "early_failure_proxy",
+      "group": "SHORT",
+      "condition_count": 10,
+      "condition_pct": 22.22,
+      "all_metrics": {
+        "n": 10,
+        "wins": 0,
+        "losses": 10,
+        "win_rate_pct": 0.0,
+        "total_r": -10.0,
+        "avg_r": -1.0,
+        "pf": 0.0,
+        "max_dd_r": 9.0
+      },
+      "loss_capture_pct": 50.0,
+      "winner_rate_in_condition_pct": 0.0
+    },
+    {
+      "proxy": "weak_path_proxy",
+      "group": "ALL",
+      "condition_count": 14,
+      "condition_pct": 17.72,
+      "all_metrics": {
+        "n": 14,
+        "wins": 5,
+        "losses": 9,
+        "win_rate_pct": 35.71,
+        "total_r": 2.787032,
+        "avg_r": 0.199074,
+        "pf": 1.30967,
+        "max_dd_r": 5.306835
+      },
+      "loss_capture_pct": 20.45,
+      "winner_rate_in_condition_pct": 35.71
+    },
+    {
+      "proxy": "weak_path_proxy",
+      "group": "LONG",
+      "condition_count": 5,
+      "condition_pct": 14.71,
+      "all_metrics": {
+        "n": 5,
+        "wins": 1,
+        "losses": 4,
+        "win_rate_pct": 20.0,
+        "total_r": -3.306835,
+        "avg_r": -0.661367,
+        "pf": 0.173291,
+        "max_dd_r": 2.306835
+      },
+      "loss_capture_pct": 20.45,
+      "winner_rate_in_condition_pct": 20.0
+    },
+    {
+      "proxy": "weak_path_proxy",
+      "group": "SHORT",
+      "condition_count": 9,
+      "condition_pct": 20.0,
+      "all_metrics": {
+        "n": 9,
+        "wins": 4,
+        "losses": 5,
+        "win_rate_pct": 44.44,
+        "total_r": 6.093867,
+        "avg_r": 0.677096,
+        "pf": 2.218773,
+        "max_dd_r": 4.0
+      },
+      "loss_capture_pct": 20.45,
+      "winner_rate_in_condition_pct": 44.44
+    }
+  ],
+  "fixed_interactions": [
+    {
+      "condition": "body>=0.5 & stop>=0.75",
+      "side": "ALL",
+      "n": 35,
+      "wins": 21,
+      "losses": 14,
+      "win_rate_pct": 60.0,
+      "total_r": 9.824008,
+      "avg_r": 0.280686,
+      "pf": 1.701715,
+      "max_dd_r": 4.254601
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75",
+      "side": "LONG",
+      "n": 18,
+      "wins": 8,
+      "losses": 10,
+      "win_rate_pct": 44.44,
+      "total_r": 0.52648,
+      "avg_r": 0.029249,
+      "pf": 1.052648,
+      "max_dd_r": 4.0
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75",
+      "side": "SHORT",
+      "n": 17,
+      "wins": 13,
+      "losses": 4,
+      "win_rate_pct": 76.47,
+      "total_r": 9.297527,
+      "avg_r": 0.546913,
+      "pf": 3.324382,
+      "max_dd_r": 2.0
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & reentry>=0.2",
+      "side": "ALL",
+      "n": 26,
+      "wins": 15,
+      "losses": 11,
+      "win_rate_pct": 57.69,
+      "total_r": 7.297837,
+      "avg_r": 0.280686,
+      "pf": 1.66344,
+      "max_dd_r": 4.254601
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & reentry>=0.2",
+      "side": "LONG",
+      "n": 11,
+      "wins": 4,
+      "losses": 7,
+      "win_rate_pct": 36.36,
+      "total_r": 0.646071,
+      "avg_r": 0.058734,
+      "pf": 1.092296,
+      "max_dd_r": 3.260308
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & reentry>=0.2",
+      "side": "SHORT",
+      "n": 15,
+      "wins": 11,
+      "losses": 4,
+      "win_rate_pct": 73.33,
+      "total_r": 6.651766,
+      "avg_r": 0.443451,
+      "pf": 2.662941,
+      "max_dd_r": 2.673504
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & sweep>=0.4",
+      "side": "ALL",
+      "n": 26,
+      "wins": 16,
+      "losses": 10,
+      "win_rate_pct": 61.54,
+      "total_r": 1.621075,
+      "avg_r": 0.062349,
+      "pf": 1.162108,
+      "max_dd_r": 3.75933
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & sweep>=0.4",
+      "side": "LONG",
+      "n": 14,
+      "wins": 6,
+      "losses": 8,
+      "win_rate_pct": 42.86,
+      "total_r": -4.379899,
+      "avg_r": -0.31285,
+      "pf": 0.452513,
+      "max_dd_r": 3.606955
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & sweep>=0.4",
+      "side": "SHORT",
+      "n": 12,
+      "wins": 10,
+      "losses": 2,
+      "win_rate_pct": 83.33,
+      "total_r": 6.000974,
+      "avg_r": 0.500081,
+      "pf": 4.000487,
+      "max_dd_r": 1.0
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & eq<=2",
+      "side": "ALL",
+      "n": 22,
+      "wins": 16,
+      "losses": 6,
+      "win_rate_pct": 72.73,
+      "total_r": 3.32795,
+      "avg_r": 0.15127,
+      "pf": 1.554658,
+      "max_dd_r": 3.0
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & eq<=2",
+      "side": "LONG",
+      "n": 12,
+      "wins": 7,
+      "losses": 5,
+      "win_rate_pct": 58.33,
+      "total_r": -0.87517,
+      "avg_r": -0.072931,
+      "pf": 0.824966,
+      "max_dd_r": 3.606955
+    },
+    {
+      "condition": "body>=0.5 & stop>=0.75 & eq<=2",
+      "side": "SHORT",
+      "n": 10,
+      "wins": 9,
+      "losses": 1,
+      "win_rate_pct": 90.0,
+      "total_r": 4.20312,
+      "avg_r": 0.420312,
+      "pf": 5.20312,
+      "max_dd_r": 1.0
+    }
+  ],
+  "chronological_check": [
+    {
+      "split": "EARLY",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "baseline",
+      "n": 40,
+      "wins": 13,
+      "losses": 27,
+      "win_rate_pct": 32.5,
+      "total_r": -7.908819,
+      "avg_r": -0.19772,
+      "pf": 0.707081,
+      "max_dd_r": 13.515636
+    },
+    {
+      "split": "EARLY",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "body>=0.5",
+      "n": 30,
+      "wins": 11,
+      "losses": 19,
+      "win_rate_pct": 36.67,
+      "total_r": -1.809317,
+      "avg_r": -0.060311,
+      "pf": 0.904773,
+      "max_dd_r": 8.2088
+    },
+    {
+      "split": "EARLY",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "stop>=0.75",
+      "n": 23,
+      "wins": 11,
+      "losses": 12,
+      "win_rate_pct": 47.83,
+      "total_r": 0.17472,
+      "avg_r": 0.007597,
+      "pf": 1.01456,
+      "max_dd_r": 7.071408
+    },
+    {
+      "split": "EARLY",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "body>=0.5 & stop>=0.75",
+      "n": 20,
+      "wins": 10,
+      "losses": 10,
+      "win_rate_pct": 50.0,
+      "total_r": 0.967386,
+      "avg_r": 0.048369,
+      "pf": 1.096739,
+      "max_dd_r": 5.071408
+    },
+    {
+      "split": "LATE_OOS",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "baseline",
+      "n": 39,
+      "wins": 22,
+      "losses": 17,
+      "win_rate_pct": 56.41,
+      "total_r": 20.822087,
+      "avg_r": 0.5339,
+      "pf": 2.224829,
+      "max_dd_r": 4.703373
+    },
+    {
+      "split": "LATE_OOS",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "body>=0.5",
+      "n": 23,
+      "wins": 15,
+      "losses": 8,
+      "win_rate_pct": 65.22,
+      "total_r": 14.565454,
+      "avg_r": 0.633281,
+      "pf": 2.820682,
+      "max_dd_r": 3.0
+    },
+    {
+      "split": "LATE_OOS",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "stop>=0.75",
+      "n": 18,
+      "wins": 13,
+      "losses": 5,
+      "win_rate_pct": 72.22,
+      "total_r": 11.088613,
+      "avg_r": 0.616034,
+      "pf": 3.217723,
+      "max_dd_r": 2.673504
+    },
+    {
+      "split": "LATE_OOS",
+      "cutoff": "2026-09-15 14:00:00+00:00",
+      "condition": "body>=0.5 & stop>=0.75",
+      "n": 15,
+      "wins": 11,
+      "losses": 4,
+      "win_rate_pct": 73.33,
+      "total_r": 8.856622,
+      "avg_r": 0.590441,
+      "pf": 3.214155,
+      "max_dd_r": 2.0
+    }
+  ],
+  "not_identifiable_from_input": [
+    "true stop-order activation and order-book liquidity",
+    "order-flow imbalance and depth",
+    "true displacement/OFI",
+    "causal HTF HH/HL/LH/LL/BOS/CHOCH because no raw 2H/M15 candle history is linked per trade",
+    "actual spread, slippage, commission, news state, and intrabar High/Low ordering"
+  ],
+  "limitations": [
+    "Proxies are fixed descriptive tests, not production filters.",
+    "The late split is a chronological check, not a clean untouched OOS because the sample is only 24 days and thresholds were previously observed.",
+    "No automatic threshold or combination selection was performed."
+  ]
+}

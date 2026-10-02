@@ -1,0 +1,22 @@
+proxy,group,condition_count,condition_pct,all_metrics,loss_capture_pct,winner_rate_in_condition_pct
+weak_body_proxy,ALL,26,32.91,"{'n': 26, 'wins': 9, 'losses': 17, 'win_rate_pct': 34.62, 'total_r': 0.157132, 'avg_r': 0.006044, 'pf': 1.009243, 'max_dd_r': 10.032247}",38.64,34.62
+weak_body_proxy,LONG,8,23.53,"{'n': 8, 'wins': 1, 'losses': 7, 'win_rate_pct': 12.5, 'total_r': -6.306835, 'avg_r': -0.788354, 'pf': 0.099024, 'max_dd_r': 5.306835}",38.64,12.5
+weak_body_proxy,SHORT,18,40.0,"{'n': 18, 'wins': 8, 'losses': 10, 'win_rate_pct': 44.44, 'total_r': 6.463967, 'avg_r': 0.359109, 'pf': 1.646397, 'max_dd_r': 6.861398}",38.64,44.44
+micro_stop_proxy,ALL,38,48.1,"{'n': 38, 'wins': 11, 'losses': 27, 'win_rate_pct': 28.95, 'total_r': 1.649935, 'avg_r': 0.043419, 'pf': 1.061109, 'max_dd_r': 10.834292}",61.36,28.95
+micro_stop_proxy,LONG,15,44.12,"{'n': 15, 'wins': 3, 'losses': 12, 'win_rate_pct': 20.0, 'total_r': -9.065803, 'avg_r': -0.604387, 'pf': 0.244516, 'max_dd_r': 8.765066}",61.36,20.0
+micro_stop_proxy,SHORT,23,51.11,"{'n': 23, 'wins': 8, 'losses': 15, 'win_rate_pct': 34.78, 'total_r': 10.715738, 'avg_r': 0.465902, 'pf': 1.714383, 'max_dd_r': 8.069225}",61.36,34.78
+small_sweep_proxy,ALL,40,50.63,"{'n': 40, 'wins': 12, 'losses': 28, 'win_rate_pct': 30.0, 'total_r': -0.370661, 'avg_r': -0.009267, 'pf': 0.986762, 'max_dd_r': 10.527456}",63.64,30.0
+small_sweep_proxy,LONG,18,52.94,"{'n': 18, 'wins': 4, 'losses': 14, 'win_rate_pct': 22.22, 'total_r': -4.852589, 'avg_r': -0.269588, 'pf': 0.653386, 'max_dd_r': 11.458231}",63.64,22.22
+small_sweep_proxy,SHORT,22,48.89,"{'n': 22, 'wins': 8, 'losses': 14, 'win_rate_pct': 36.36, 'total_r': 4.481928, 'avg_r': 0.203724, 'pf': 1.320138, 'max_dd_r': 7.069225}",63.64,36.36
+shallow_reentry_proxy,ALL,36,45.57,"{'n': 36, 'wins': 14, 'losses': 22, 'win_rate_pct': 38.89, 'total_r': 4.16985, 'avg_r': 0.115829, 'pf': 1.189539, 'max_dd_r': 6.105829}",50.0,38.89
+shallow_reentry_proxy,LONG,17,50.0,"{'n': 17, 'wins': 6, 'losses': 11, 'win_rate_pct': 35.29, 'total_r': -6.884657, 'avg_r': -0.40498, 'pf': 0.374122, 'max_dd_r': 5.884657}",50.0,35.29
+shallow_reentry_proxy,SHORT,19,42.22,"{'n': 19, 'wins': 8, 'losses': 11, 'win_rate_pct': 42.11, 'total_r': 11.054508, 'avg_r': 0.581816, 'pf': 2.004955, 'max_dd_r': 5.0}",50.0,42.11
+far_equilibrium_proxy,ALL,35,44.3,"{'n': 35, 'wins': 11, 'losses': 24, 'win_rate_pct': 31.43, 'total_r': 12.893646, 'avg_r': 0.36839, 'pf': 1.537235, 'max_dd_r': 7.0}",54.55,31.43
+far_equilibrium_proxy,LONG,15,44.12,"{'n': 15, 'wins': 2, 'losses': 13, 'win_rate_pct': 13.33, 'total_r': -4.899087, 'avg_r': -0.326606, 'pf': 0.623147, 'max_dd_r': 9.0}",54.55,13.33
+far_equilibrium_proxy,SHORT,20,44.44,"{'n': 20, 'wins': 9, 'losses': 11, 'win_rate_pct': 45.0, 'total_r': 17.792733, 'avg_r': 0.889637, 'pf': 2.617521, 'max_dd_r': 4.0}",54.55,45.0
+early_failure_proxy,ALL,22,27.85,"{'n': 22, 'wins': 0, 'losses': 22, 'win_rate_pct': 0.0, 'total_r': -22.0, 'avg_r': -1.0, 'pf': 0.0, 'max_dd_r': 21.0}",50.0,0.0
+early_failure_proxy,LONG,12,35.29,"{'n': 12, 'wins': 0, 'losses': 12, 'win_rate_pct': 0.0, 'total_r': -12.0, 'avg_r': -1.0, 'pf': 0.0, 'max_dd_r': 11.0}",50.0,0.0
+early_failure_proxy,SHORT,10,22.22,"{'n': 10, 'wins': 0, 'losses': 10, 'win_rate_pct': 0.0, 'total_r': -10.0, 'avg_r': -1.0, 'pf': 0.0, 'max_dd_r': 9.0}",50.0,0.0
+weak_path_proxy,ALL,14,17.72,"{'n': 14, 'wins': 5, 'losses': 9, 'win_rate_pct': 35.71, 'total_r': 2.787032, 'avg_r': 0.199074, 'pf': 1.30967, 'max_dd_r': 5.306835}",20.45,35.71
+weak_path_proxy,LONG,5,14.71,"{'n': 5, 'wins': 1, 'losses': 4, 'win_rate_pct': 20.0, 'total_r': -3.306835, 'avg_r': -0.661367, 'pf': 0.173291, 'max_dd_r': 2.306835}",20.45,20.0
+weak_path_proxy,SHORT,9,20.0,"{'n': 9, 'wins': 4, 'losses': 5, 'win_rate_pct': 44.44, 'total_r': 6.093867, 'avg_r': 0.677096, 'pf': 2.218773, 'max_dd_r': 4.0}",20.45,44.44
