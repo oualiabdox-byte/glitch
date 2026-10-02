@@ -1,0 +1,149 @@
+{
+  "source": "/home/ubuntu/glitch/backtest/crt_trader_24d_results/feature_analysis/feature_matrix.csv",
+  "bad_pairs_removed": [
+    "GBPUSD",
+    "USDCHF"
+  ],
+  "sessions_kept": [
+    "other",
+    "overlap"
+  ],
+  "results": {
+    "raw_current_exit": {
+      "trades": 132,
+      "wins": 49,
+      "losses": 83,
+      "win_rate_pct": 37.1212,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622
+    },
+    "exclude_bad_pairs": {
+      "trades": 95,
+      "wins": 40,
+      "losses": 55,
+      "win_rate_pct": 42.1053,
+      "total_r": 4.120447,
+      "avg_r": 0.043373,
+      "profit_factor": 1.074917
+    },
+    "overlap_or_other": {
+      "trades": 84,
+      "wins": 39,
+      "losses": 45,
+      "win_rate_pct": 46.4286,
+      "total_r": 13.068599,
+      "avg_r": 0.155579,
+      "profit_factor": 1.290413
+    },
+    "recommended_filter": {
+      "trades": 59,
+      "wins": 32,
+      "losses": 27,
+      "win_rate_pct": 54.2373,
+      "total_r": 23.104153,
+      "avg_r": 0.391596,
+      "profit_factor": 1.855709
+    },
+    "recommended_stop_le_1.2atr": {
+      "trades": 41,
+      "wins": 23,
+      "losses": 18,
+      "win_rate_pct": 56.0976,
+      "total_r": 23.49179,
+      "avg_r": 0.57297,
+      "profit_factor": 2.305099
+    },
+    "recommended_sweep_le_0.8atr": {
+      "trades": 45,
+      "wins": 24,
+      "losses": 21,
+      "win_rate_pct": 53.3333,
+      "total_r": 21.140364,
+      "avg_r": 0.469786,
+      "profit_factor": 2.006684
+    },
+    "recommended_target_le_6atr": {
+      "trades": 40,
+      "wins": 27,
+      "losses": 13,
+      "win_rate_pct": 67.5,
+      "total_r": 27.129134,
+      "avg_r": 0.678228,
+      "profit_factor": 3.086856
+    },
+    "recommended_target_le_6_stop_le_1.2": {
+      "trades": 32,
+      "wins": 22,
+      "losses": 10,
+      "win_rate_pct": 68.75,
+      "total_r": 26.45309,
+      "avg_r": 0.826659,
+      "profit_factor": 3.645309
+    },
+    "recommended_reentry_ge_0.30atr": {
+      "trades": 33,
+      "wins": 18,
+      "losses": 15,
+      "win_rate_pct": 54.5455,
+      "total_r": 3.592425,
+      "avg_r": 0.108861,
+      "profit_factor": 1.239495
+    },
+    "recommended_target_2r": {
+      "trades": 59,
+      "wins": 17,
+      "losses": 42,
+      "win_rate_pct": 28.8136,
+      "total_r": -8.959194,
+      "avg_r": -0.151851,
+      "profit_factor": 0.786686
+    },
+    "recommended_target_3r": {
+      "trades": 59,
+      "wins": 13,
+      "losses": 46,
+      "win_rate_pct": 22.0339,
+      "total_r": -9.594811,
+      "avg_r": -0.162624,
+      "profit_factor": 0.791417
+    },
+    "recommended_tp1_rest_original": {
+      "trades": 59,
+      "wins": 7,
+      "losses": 34,
+      "win_rate_pct": 11.8644,
+      "total_r": -4.612676,
+      "avg_r": -0.078181,
+      "profit_factor": 0.864333
+    },
+    "recommended_multi_target": {
+      "trades": 59,
+      "wins": 13,
+      "losses": 34,
+      "win_rate_pct": 22.0339,
+      "total_r": -21.020656,
+      "avg_r": -0.356282,
+      "profit_factor": 0.381745
+    }
+  },
+  "target_diagnostics": {
+    "original_target_r_median_all": 6.101359,
+    "original_target_r_median_losses": 7.174692,
+    "original_target_r_median_wins": 4.214351,
+    "current_target_hits": 13,
+    "target_2r_hits_or_better": 33
+  },
+  "definitions": {
+    "recommended_filter": "remove USDCHF and GBPUSD; retain Overlap and Other sessions",
+    "target_2r/target_3r": "cap the original target at 2R/3R and retain the initial stop",
+    "tp1_rest_original": "50% at 1R and 50% at the original target; remaining stop moves to breakeven after 1R",
+    "multi_target": "50% at 1R, 25% at 2R, 25% at the original target; stop moves to breakeven after 1R and to +1R after 2R"
+  },
+  "limitations": [
+    "All variants are counterfactual over already accepted CRT trades.",
+    "OHLC same-bar ambiguity is handled conservatively by checking stop before target.",
+    "No spread, slippage, news, or bid/ask data are included.",
+    "The pair removal is a research choice requested by the user and must be validated on new data."
+  ]
+}
