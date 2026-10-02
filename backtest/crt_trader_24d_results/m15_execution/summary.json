@@ -1,0 +1,299 @@
+{
+  "results": {
+    "m5_current": {
+      "trades": 132,
+      "wins": 49,
+      "losses": 83,
+      "win_rate_pct": 37.12,
+      "total_r": -14.722405,
+      "avg_r": -0.111533,
+      "profit_factor": 0.822622,
+      "max_drawdown_r": 27.022831,
+      "longest_losing_streak": 11,
+      "median_duration_min": 20.0,
+      "mean_duration_min": 45.64,
+      "pct_le_15m": 49.24,
+      "pct_le_30m": 68.18,
+      "pct_gt_60m": 18.94,
+      "eq_reached_pct": 37.12
+    },
+    "m15": {
+      "trades": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate_pct": 100.0,
+      "total_r": 0.541769,
+      "avg_r": 0.541769,
+      "profit_factor": "inf",
+      "max_drawdown_r": 0.0,
+      "longest_losing_streak": 0,
+      "median_duration_min": 30.0,
+      "mean_duration_min": 30.0,
+      "pct_le_15m": 0.0,
+      "pct_le_30m": 100.0,
+      "pct_gt_60m": 0.0,
+      "eq_reached_pct": 100.0
+    },
+    "m15_gap12": {
+      "trades": 1,
+      "wins": 1,
+      "losses": 0,
+      "win_rate_pct": 100.0,
+      "total_r": 0.541769,
+      "avg_r": 0.541769,
+      "profit_factor": "inf",
+      "max_drawdown_r": 0.0,
+      "longest_losing_streak": 0,
+      "median_duration_min": 30.0,
+      "mean_duration_min": 30.0,
+      "pct_le_15m": 0.0,
+      "pct_le_30m": 100.0,
+      "pct_gt_60m": 0.0,
+      "eq_reached_pct": 100.0
+    },
+    "m15_4h": {
+      "trades": 79,
+      "wins": 35,
+      "losses": 44,
+      "win_rate_pct": 44.3,
+      "total_r": 12.913268,
+      "avg_r": 0.163459,
+      "profit_factor": 1.293483,
+      "max_drawdown_r": 10.835265,
+      "longest_losing_streak": 6,
+      "median_duration_min": 60.0,
+      "mean_duration_min": 258.99,
+      "pct_le_15m": 21.52,
+      "pct_le_30m": 39.24,
+      "pct_gt_60m": 39.24,
+      "eq_reached_pct": 44.3
+    },
+    "m15_4h_gap12": {
+      "trades": 106,
+      "wins": 44,
+      "losses": 62,
+      "win_rate_pct": 41.51,
+      "total_r": 0.776255,
+      "avg_r": 0.007323,
+      "profit_factor": 1.01252,
+      "max_drawdown_r": 16.248407,
+      "longest_losing_streak": 8,
+      "median_duration_min": 60.0,
+      "mean_duration_min": 211.13,
+      "pct_le_15m": 19.81,
+      "pct_le_30m": 39.62,
+      "pct_gt_60m": 38.68,
+      "eq_reached_pct": 41.51
+    },
+    "m15_4h_m5_confirm": {
+      "trades": 79,
+      "wins": 35,
+      "losses": 44,
+      "win_rate_pct": 44.3,
+      "total_r": 12.913268,
+      "avg_r": 0.163459,
+      "profit_factor": 1.293483,
+      "max_drawdown_r": 10.835265,
+      "longest_losing_streak": 6,
+      "median_duration_min": 60.0,
+      "mean_duration_min": 258.99,
+      "pct_le_15m": 21.52,
+      "pct_le_30m": 39.24,
+      "pct_gt_60m": 39.24,
+      "eq_reached_pct": 44.3
+    },
+    "m15_4h_gap12_m5_confirm": {
+      "trades": 106,
+      "wins": 44,
+      "losses": 62,
+      "win_rate_pct": 41.51,
+      "total_r": 0.776255,
+      "avg_r": 0.007323,
+      "profit_factor": 1.01252,
+      "max_drawdown_r": 16.248407,
+      "longest_losing_streak": 8,
+      "median_duration_min": 60.0,
+      "mean_duration_min": 211.13,
+      "pct_le_15m": 19.81,
+      "pct_le_30m": 39.62,
+      "pct_gt_60m": 38.68,
+      "eq_reached_pct": 41.51
+    }
+  },
+  "cost_sensitivity": {
+    "m5_current": {
+      "cost_0.05R": {
+        "trades": 132,
+        "wins": 46,
+        "losses": 86,
+        "win_rate_pct": 34.85,
+        "total_r": -21.322405,
+        "avg_r": -0.161533,
+        "profit_factor": 0.755596,
+        "max_drawdown_r": 30.022831,
+        "longest_losing_streak": 11
+      },
+      "cost_0.10R": {
+        "trades": 132,
+        "wins": 45,
+        "losses": 87,
+        "win_rate_pct": 34.09,
+        "total_r": -27.922405,
+        "avg_r": -0.211533,
+        "profit_factor": 0.695129,
+        "max_drawdown_r": 35.223213,
+        "longest_losing_streak": 11
+      }
+    },
+    "m15": {
+      "cost_0.05R": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate_pct": 100.0,
+        "total_r": 0.491769,
+        "avg_r": 0.491769,
+        "profit_factor": "inf",
+        "max_drawdown_r": 0.0,
+        "longest_losing_streak": 0
+      },
+      "cost_0.10R": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate_pct": 100.0,
+        "total_r": 0.441769,
+        "avg_r": 0.441769,
+        "profit_factor": "inf",
+        "max_drawdown_r": 0.0,
+        "longest_losing_streak": 0
+      }
+    },
+    "m15_gap12": {
+      "cost_0.05R": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate_pct": 100.0,
+        "total_r": 0.491769,
+        "avg_r": 0.491769,
+        "profit_factor": "inf",
+        "max_drawdown_r": 0.0,
+        "longest_losing_streak": 0
+      },
+      "cost_0.10R": {
+        "trades": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate_pct": 100.0,
+        "total_r": 0.441769,
+        "avg_r": 0.441769,
+        "profit_factor": "inf",
+        "max_drawdown_r": 0.0,
+        "longest_losing_streak": 0
+      }
+    },
+    "m15_4h": {
+      "cost_0.05R": {
+        "trades": 79,
+        "wins": 34,
+        "losses": 45,
+        "win_rate_pct": 43.04,
+        "total_r": 8.963268,
+        "avg_r": 0.113459,
+        "profit_factor": 1.193951,
+        "max_drawdown_r": 12.090862,
+        "longest_losing_streak": 6
+      },
+      "cost_0.10R": {
+        "trades": 79,
+        "wins": 34,
+        "losses": 45,
+        "win_rate_pct": 43.04,
+        "total_r": 5.013268,
+        "avg_r": 0.063459,
+        "profit_factor": 1.103443,
+        "max_drawdown_r": 13.490862,
+        "longest_losing_streak": 6
+      }
+    },
+    "m15_4h_gap12": {
+      "cost_0.05R": {
+        "trades": 106,
+        "wins": 41,
+        "losses": 65,
+        "win_rate_pct": 38.68,
+        "total_r": -4.523745,
+        "avg_r": -0.042677,
+        "profit_factor": 0.930568,
+        "max_drawdown_r": 18.082104,
+        "longest_losing_streak": 11
+      },
+      "cost_0.10R": {
+        "trades": 106,
+        "wins": 40,
+        "losses": 66,
+        "win_rate_pct": 37.74,
+        "total_r": -9.823745,
+        "avg_r": -0.092677,
+        "profit_factor": 0.856421,
+        "max_drawdown_r": 20.832104,
+        "longest_losing_streak": 11
+      }
+    },
+    "m15_4h_m5_confirm": {
+      "cost_0.05R": {
+        "trades": 79,
+        "wins": 34,
+        "losses": 45,
+        "win_rate_pct": 43.04,
+        "total_r": 8.963268,
+        "avg_r": 0.113459,
+        "profit_factor": 1.193951,
+        "max_drawdown_r": 12.090862,
+        "longest_losing_streak": 6
+      },
+      "cost_0.10R": {
+        "trades": 79,
+        "wins": 34,
+        "losses": 45,
+        "win_rate_pct": 43.04,
+        "total_r": 5.013268,
+        "avg_r": 0.063459,
+        "profit_factor": 1.103443,
+        "max_drawdown_r": 13.490862,
+        "longest_losing_streak": 6
+      }
+    },
+    "m15_4h_gap12_m5_confirm": {
+      "cost_0.05R": {
+        "trades": 106,
+        "wins": 41,
+        "losses": 65,
+        "win_rate_pct": 38.68,
+        "total_r": -4.523745,
+        "avg_r": -0.042677,
+        "profit_factor": 0.930568,
+        "max_drawdown_r": 18.082104,
+        "longest_losing_streak": 11
+      },
+      "cost_0.10R": {
+        "trades": 106,
+        "wins": 40,
+        "losses": 66,
+        "win_rate_pct": 37.74,
+        "total_r": -9.823745,
+        "avg_r": -0.092677,
+        "profit_factor": 0.856421,
+        "max_drawdown_r": 20.832104,
+        "longest_losing_streak": 11
+      }
+    }
+  },
+  "rows_preserved_m5": 132,
+  "limitations": [
+    "M15 aggregates the repository M5 OHLC into 15-minute bars; intrabar ordering remains unknown.",
+    "The Hybrid requires an M5 close inside the M15 re-entry bar; it is not a full delayed M5-to-M15 retest model.",
+    "No spread, slippage, commission, or news costs are in the fixtures."
+  ]
+}

@@ -136,15 +136,17 @@ def body_tbs_candidates(
     end: int,
     side: str,
     diagnostics: dict[str, int] | None = None,
+    min_gap: int = 2,
+    max_gap: int = 6,
 ) -> list[dict]:
-    """Find equal-level structures 2–6 candles apart and body-close TBS re-entry."""
+    """Find equal-level structures in a configurable gap window and body-close re-entry."""
     candidates = []
     for point in range(max(start + 6, 6), min(end, len(frame) - 1)):
         if diagnostics is not None:
             diagnostics["structure_points_checked"] = diagnostics.get("structure_points_checked", 0) + 1
         volatility = atr(frame, point)
         tolerance = max(volatility * 0.20, float(frame.close.iloc[point]) * 0.00003)
-        for gap in range(2, 7):
+        for gap in range(min_gap, max_gap + 1):
             first = point - gap
             second = point
             if side == "SHORT":
