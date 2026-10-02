@@ -171,3 +171,21 @@ python3 backtest/original_variants_7d.py --days 7 --refresh
 ```
 
 It writes `backtest/original_forex_variants_7d_results.csv`. Yahoo intraday candles are indicative research data, not executable bid/ask history, and the small seven-day sample is not a profitability guarantee.
+
+## CRT/TBS research strategy
+
+`backtest/crt_tbs_14d.py` is a separate, signal-only research implementation of the CRT + Turtle Body Soup rules from the supplied reference videos. It is intentionally not wired into demo execution. The rules are:
+
+- completed 2-hour CRT range;
+- next 2-hour candle sweeps one CRT boundary and closes back inside;
+- on the following 2-hour bucket, find a lower-timeframe body-close TBS and close-back-through confirmation;
+- require the two liquidity reference points to be 2–6 M5 candles apart;
+- stop beyond the sweep, take 50% at CRT equilibrium, move the remainder to breakeven, and target the opposite CRT boundary.
+
+The default universe is exactly three forex pairs—`EURUSD`, `GBPUSD`, and `USDJPY`—plus `GOLD` using Yahoo `GC=F` as a public gold-futures proxy. Run the 14-day research test with:
+
+```bash
+python3 backtest/crt_tbs_14d.py --days 14
+```
+
+Outputs are written to `backtest/crt_tbs_14d_results/` (`report.md`, `summary.json`, and `trades.csv`). This is a small-sample research result: Yahoo OHLC is indicative, not broker-executable, and the backtest excludes spread, slippage, commission, financing, and contract-specific sizing. Do not use the result as a profitability guarantee or connect this strategy to live execution without further validation.

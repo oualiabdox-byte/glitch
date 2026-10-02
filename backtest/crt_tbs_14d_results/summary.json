@@ -1,0 +1,104 @@
+{
+  "strategy": "CRT_TBS_BODY_CLOSE_REENTRY",
+  "period_start_utc": "2026-09-18T14:40:00+00:00",
+  "period_end_utc": "2026-10-02T14:40:00+00:00",
+  "instruments": [
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+    "GOLD"
+  ],
+  "data_quality": [
+    {
+      "instrument": "EURUSD",
+      "symbol": "EURUSD=X",
+      "source": "Yahoo Finance chart API",
+      "m5_bars": 2845,
+      "h2_bars": 115,
+      "htf_purges": 44,
+      "first_bar_utc": "2026-09-18T14:40:00+00:00",
+      "last_bar_utc": "2026-10-02T14:40:06+00:00",
+      "missing_5m_gaps": 2
+    },
+    {
+      "instrument": "GBPUSD",
+      "symbol": "GBPUSD=X",
+      "source": "Yahoo Finance chart API",
+      "m5_bars": 2845,
+      "h2_bars": 115,
+      "htf_purges": 57,
+      "first_bar_utc": "2026-09-18T14:40:00+00:00",
+      "last_bar_utc": "2026-10-02T14:40:06+00:00",
+      "missing_5m_gaps": 2
+    },
+    {
+      "instrument": "USDJPY",
+      "symbol": "USDJPY=X",
+      "source": "Yahoo Finance chart API",
+      "m5_bars": 2835,
+      "h2_bars": 115,
+      "htf_purges": 55,
+      "first_bar_utc": "2026-09-18T14:40:00+00:00",
+      "last_bar_utc": "2026-10-02T14:40:21+00:00",
+      "missing_5m_gaps": 2
+    },
+    {
+      "instrument": "GOLD",
+      "symbol": "GC=F",
+      "source": "Yahoo Finance chart API",
+      "m5_bars": 2757,
+      "h2_bars": 109,
+      "htf_purges": 47,
+      "first_bar_utc": "2026-09-18T14:40:00+00:00",
+      "last_bar_utc": "2026-10-02T14:30:25+00:00",
+      "missing_5m_gaps": 10
+    }
+  ],
+  "by_instrument": {
+    "EURUSD": {
+      "trades": 2,
+      "wins": 1,
+      "losses": 1,
+      "win_rate_pct": 50.0,
+      "total_r": 0.0328,
+      "profit_factor": 1.0328,
+      "max_drawdown_r": 1.0
+    },
+    "GBPUSD": {
+      "trades": 16,
+      "wins": 3,
+      "losses": 13,
+      "win_rate_pct": 18.75,
+      "total_r": -7.8185,
+      "profit_factor": 0.3986,
+      "max_drawdown_r": 8.2179
+    },
+    "USDJPY": {
+      "trades": 12,
+      "wins": 3,
+      "losses": 9,
+      "win_rate_pct": 25.0,
+      "total_r": -5.1351,
+      "profit_factor": 0.4294,
+      "max_drawdown_r": 6.0
+    },
+    "GOLD": {
+      "trades": 12,
+      "wins": 4,
+      "losses": 8,
+      "win_rate_pct": 33.33,
+      "total_r": 4.7909,
+      "profit_factor": 1.5989,
+      "max_drawdown_r": 3.0
+    }
+  },
+  "total_trades": 42,
+  "total_r": -8.1299,
+  "limitations": [
+    "14 calendar days is a small sample",
+    "Yahoo OHLC is indicative and not bid/ask executable",
+    "GC=F is a gold-futures proxy, not broker-specific XAUUSD",
+    "no spread, slippage, commission, or financing modeled",
+    "intrabar stop/target ordering is conservative but still unknowable from OHLC"
+  ]
+}
