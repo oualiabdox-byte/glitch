@@ -1,9 +1,9 @@
-"""Named, reproducible configurations of the canonical forex_bot Strategy."""
+"""Named pair-routing presets for the installed CRT M15/4H engine."""
 from __future__ import annotations
 
 from collections.abc import Mapping
 
-from .engine import Strategy
+from .crt_trader import CrtM15Strategy
 
 CONFIG_DEFAULT = "config_default"
 
@@ -36,30 +36,12 @@ def variants_for_pair(pair: str) -> tuple[str, ...]:
     return tuple(name for name, spec in VARIANTS.items() if spec["pair"] == normalized)
 
 
-def build_variant(name: str, base_options: Mapping[str, object] | None = None) -> Strategy:
-    """Build the canonical Strategy with a named preset or configured default.
+def build_variant(name: str, base_options: Mapping[str, object] | None = None) -> CrtM15Strategy:
+    """Build the selected CRT M15/4H production engine.
 
-    Named variants override only their swing length and use the strict SMC
-    confirmation mode; all risk and confluence gates flow from runtime config.
+    The historical SMC variant registry is retained for pair routing and
+    compatibility, but all variants now share the one tested CRT engine.
     """
-    if base_options is None:
-        # Keep every caller on the same strict SMC contract as live scanning.
-        from config.settings import load_config, strategy_config
-        options = strategy_config(load_config())
-    else:
-        options = dict(base_options)
-    if name == CONFIG_DEFAULT:
-        swing = int(options.pop("swing_length", 3))
-        mode = str(options.pop("m5_confirmation_mode", "CHOCH_OR_BOS"))
-    else:
-        try:
-            spec = VARIANTS[name]
-        except KeyError as exc:
-            raise ValueError(
-                f"unknown strategy variant: {name!r}; choose from {available_variants()}"
-            ) from exc
-        swing = int(spec["swing_length"])
-        mode = str(spec["m5_confirmation_mode"])
-        options.pop("swing_length", None)
-    options["m5_confirmation_mode"] = mode
-    return Strategy(swing_left=swing, swing_right=swing, **options)
+    if name != CONFIG_DEFAULT and name not in VARIANTS:
+        raise ValueError(f"unknown strategy variant: {name!r}; choose from {available_variants()}")
+    return CrtM15Strategy()

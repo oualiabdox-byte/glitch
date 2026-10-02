@@ -1,21 +1,20 @@
 # forex_bot
 
-A cTrader Open API forex research and demo-execution project using a deterministic **H1 location / M5 execution** strategy. The tested `bleach` strategy has replaced the old ICT/H4 strategy stack.
+A cTrader Open API forex research and demo-execution project. The installed production-facing engine is the tested **CRT M15/4H filtered strategy**; the previous SMC engine is preserved in the private backup repository `oualiabdox-byte/glitch-original`.
 
-## Strategy model
+## Installed strategy model
 
 ```text
-H1 confirmed structure
-→ H1 dealing range and equilibrium
-→ H1 discount/premium location
-→ H1 FVG/POI
-→ price returns to POI
-→ M5 body-close BOS or CHOCH
-→ protected-liquidity stop
-→ untouched H1 swing target
+completed 2H CRT range
+→ 2H purge/sweep and close back inside
+→ M15 equal-level sweep + body-close re-entry
+→ search the next 4H window
+→ entry body ratio >= 0.50
+→ stop distance >= 0.75 M15 ATR
+→ 50% at CRT equilibrium, remainder at CRT boundary
 ```
 
-The canonical confirmed-swing engine emits body-close `BOS`/`CHOCH` events, and the latest unambiguous event stream alone determines direction, protected swing, dealing range, and external liquidity. The sequence is H1 structure → H1 FVG location → temporally later POI touch → relevant M5 liquidity sweep → newest M5 same-direction BOS/CHOCH. Displacement is ATR-normalized evidence, not a mandatory gate; stale M5 breaks are never reused. The scanner records per-pair-and-variant setup lifecycle state and expires setups after the configured maximum age or when their premise changes. `strategy/engine.py` is the sole canonical strategy implementation; named variants are configurations of that engine.
+The bot receives M5 cTrader bars, aggregates them to closed M15 candles, and evaluates the CRT engine through the normal `build_variant(...).evaluate(...)` interface. All configured variants route to this one tested engine. The engine emits a signal only; the cTrader order boundary remains separate and guarded.
 
 ## SVL alignment engine
 
@@ -52,7 +51,7 @@ PYTHONPATH=. python -m execution.ctrader_probe
 
 ## cTrader scanning
 
-The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then rejects either timeframe if its latest completed bar remains behind the expected latest close beyond `risk.max_quote_age_seconds` (default `60`, overridable with `CTRADER_MAX_QUOTE_AGE_SECONDS`). The setting is a grace period after the expected bar close, not the raw age of an hourly candle. Freshness decisions are included in scan output. For matching pairs it evaluates every registered preset and prints one result per preset, labeled by its `variant`; other configured pairs use the existing YAML strategy through the same factory. EURUSD therefore emits two preset results and GBPUSD emits one. Only after every expected result has completed does the scanner emit a pair-level `signal_selection` record:
+The scanner requests H1 and M5 trendbars, filters to candles whose scheduled close has passed, then the installed CRT engine aggregates M5 into closed M15 candles and applies the 2H/4H CRT rules. Freshness decisions are included in scan output. Every registered preset uses the same CRT engine; the historical preset names remain only for pair routing and compatibility. Only after every expected result has completed does the scanner emit a pair-level `signal_selection` record:
 
 - A missing or failed variant makes selection `INCOMPLETE` and fails closed.
 - Same-direction signals are ranked by explicit priority, an existing numeric signal quality score (if supplied), RR descending, existing H1 structure strength, then stable variant name and signal identity. Current priorities are tied. No short-window backtest is treated as historical validation confidence.
@@ -122,7 +121,7 @@ Risk sizing is opt-in and requires an explicit account-equity snapshot plus a ca
 
 The cash conversion must be calculated for the account currency and symbol; the bot does not silently assume every pair is USD-quoted. If those values are missing, execution stops. Live order submission is disabled in the adapter; use demo only until a separately reviewed live execution boundary exists.
 
-No additional strategy filters are enabled by default. This keeps the signal sample stable and puts overfitting control in the validation process rather than in an expanding list of gates.
+The installed CRT engine deliberately enables only the selected fixed gates: M15 entry body ratio `>= 0.50` and stop distance `>= 0.75 ATR`. Do not add further gates without a new chronological validation run.
 
 ## Overfitting control
 
@@ -138,8 +137,9 @@ The tests cover closed-bar causal structure, BOS/CHOCH behavior, H1 POI filterin
 
 ## Repository layout
 
-- `strategy/engine.py` — sole canonical H1 location/M5 execution strategy.
-- `strategy/variants.py` — named parameter presets and shared strategy factory.
+- `strategy/crt_trader.py` — installed CRT M15/4H filtered strategy engine.
+- `strategy/engine.py` — archived SMC compatibility module; not selected by the production factory.
+- `strategy/variants.py` — pair routing and shared CRT strategy factory.
 - `strategy/selection.py` — deterministic pair-level signal selection and conflict handling.
 - `strategy/structure.py` — confirmed swing labels and consumed BOS/CHOCH levels.
 - `strategy/models.py` — candles and auditable decisions.
@@ -164,7 +164,7 @@ The existing `strategy.engine.Strategy` logic is exposed through reproducible pr
 - `gbpusd_swing2_choch_only` — swing length 2, `CHOCH_ONLY`
 - `eurusd_swing2_choch_or_bos` — swing length 2, `CHOCH_OR_BOS`
 
-These presets do not replace the canonical strategy logic; live scans and historical backtests build the same engine using the causal swing and M5 confirmation settings shown above. The backtest reports independent per-variant results plus a separate pair-level run using the live selector. The demo-only runner consumes the selected output without strategy re-analysis and remains fail-closed. The open-data research runner is:
+These historical preset names now route to the installed CRT engine; they no longer select separate SMC parameter sets. The backtest reports independent research results plus a separate pair-level run using the live selector. The demo-only runner consumes the selected output without strategy re-analysis and remains fail-closed. The open-data research runner is:
 
 ```bash
 python3 backtest/original_variants_7d.py --days 7 --refresh
@@ -172,9 +172,9 @@ python3 backtest/original_variants_7d.py --days 7 --refresh
 
 It writes `backtest/original_forex_variants_7d_results.csv`. Yahoo intraday candles are indicative research data, not executable bid/ask history, and the small seven-day sample is not a profitability guarantee.
 
-## CRT/TBS research strategy
+## CRT/TBS engine and research validation
 
-`backtest/crt_tbs_14d.py` is a separate, signal-only research implementation of the CRT + Turtle Body Soup rules from the supplied reference videos. It is intentionally not wired into demo execution. The rules are:
+`strategy/crt_trader.py` is the installed signal engine. `backtest/crt_tbs_14d.py` remains the reproducible research implementation used to validate the selected configuration. The selected rules are:
 
 - completed 2-hour CRT range;
 - next 2-hour candle sweeps one CRT boundary and closes back inside;
@@ -217,13 +217,13 @@ python3 -m pytest -q tests/test_adaptive_portfolio.py tests/test_volume_cycle_al
 
 ## CRT trader adapter on cTrader fixtures
 
-The repository does not contain a standalone file named `trader`; its active cTrader path is `execution/bot_main.py` plus the strategy engine. To avoid changing order routing before validation, `strategy/crt_trader.py` is a separate CRT/TBS adapter for research. `backtest/crt_trader_14d.py` runs it on the existing local cTrader M5 fixtures:
+The repository does not contain a standalone file named `trader`; its active cTrader path is `execution/bot_main.py` plus `strategy/crt_trader.py`. `backtest/crt_trader_14d.py` and `backtest/run_crt_m15_execution_24d.py` run the same CRT family on the existing local cTrader fixtures:
 
 ```bash
 python3 backtest/crt_trader_14d.py --days 14
 ```
 
-The adapter uses completed 2-hour CRT ranges, a higher-timeframe purge, an M5 body-close/re-entry TBS, and the 2–6-candle structure filter. It is explicitly research-only and submits no orders. The checked-in fixtures cover seven FX pairs; no local XAUUSD/GC=F cTrader file exists, so Gold is reported as not tested rather than substituted.
+The installed engine uses completed 2-hour CRT ranges, a higher-timeframe purge, M15 body-close/re-entry TBS, a 4-hour post-purge window, `body_ratio >= 0.50`, and `stop_distance >= 0.75 ATR`. It emits signals only; order submission remains in the guarded execution boundary. The checked-in fixtures cover seven FX pairs; no local XAUUSD/GC=F cTrader file exists, so Gold is reported as not tested rather than substituted.
 
 The CRT-specific tests are:
 

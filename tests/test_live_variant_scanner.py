@@ -17,25 +17,26 @@ def test_pair_lookup_selects_every_matching_preset():
     assert variants_for_pair("USDJPY") == ()
 
 
-def test_named_presets_override_strategy_sensitivity_and_confirmation():
-    for name, spec in VARIANTS.items():
+def test_named_presets_use_the_installed_crt_engine():
+    for name in VARIANTS:
         strategy = build_variant(name)
-        assert strategy.swing_left == spec["swing_length"]
-        assert strategy.swing_right == spec["swing_length"]
-        assert strategy.m5_confirmation_mode == spec["m5_confirmation_mode"]
+        assert strategy.execution_timeframe == "15m"
+        assert strategy.post_purge_window_hours == 4
+        assert strategy.min_entry_body_ratio == 0.5
+        assert strategy.min_stop_distance_atr == 0.75
 
 
-def test_presets_keep_other_runtime_strategy_options():
+def test_presets_ignore_old_smc_runtime_options():
     strategy = build_variant("gbpusd_swing2_choch_only", {
         "swing_length": 3,
         "setup_max_age_hours": 24,
         "allow_weak_structure": False,
         "m5_confirmation_mode": "CHOCH_OR_BOS",
     })
-    assert strategy.swing_left == strategy.swing_right == 2
-    assert strategy.setup_max_age_hours == 24
-    assert strategy.allow_weak_structure is False
-    assert strategy.m5_confirmation_mode == "CHOCH_ONLY"
+    assert strategy.execution_timeframe == "15m"
+    assert strategy.post_purge_window_hours == 4
+    assert strategy.min_entry_body_ratio == 0.5
+    assert strategy.min_stop_distance_atr == 0.75
 
 
 def test_cli_scans_all_three_presets_and_uses_config_default_for_other_pairs(monkeypatch, capsys):

@@ -1,25 +1,119 @@
-"""CRT/TBS trader adapter for research backtests.
+"""Production-facing CRT M15/4H execution strategy.
 
-This adapter turns the repository's existing M5 cTrader data into a CRT/TBS
-signal stream. It is deliberately separate from the live canonical SMC engine
-until walk-forward validation and the broken engine loader are repaired.
+The selected research configuration is intentionally narrow:
+- 2H CRT range and purge
+- M15 execution candles
+- 4H post-purge search window
+- equal-level gap 2–6 M15 candles
+- entry body ratio >= 0.50
+- stop distance >= 0.75 M15 ATR
+
+The strategy emits a closed-bar Decision only. It never submits orders.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
 import pandas as pd
 
-from backtest.crt_tbs_14d import body_tbs_candidates, complete_bars, htf_purges, simulate_trade
+from backtest.crt_tbs_14d import body_tbs_candidates, htf_purges, simulate_trade
+from strategy.models import Decision
 
 
 @dataclass(frozen=True)
-class CrtTbsTrader:
+class CrtM15Strategy:
     htf_rule: str = "2h"
-    entry_rule: str = "body_close_reentry"
+    execution_timeframe: str = "15m"
+    post_purge_window_hours: int = 4
     min_structure_gap: int = 2
     max_structure_gap: int = 6
+    min_entry_body_ratio: float = 0.50
+    min_stop_distance_atr: float = 0.75
+
+    @staticmethod
+    def _frame(rows: Any) -> pd.DataFrame:
+        if isinstance(rows, pd.DataFrame):
+            frame = rows.copy()
+        else:
+            frame = pd.DataFrame(list(rows or []))
+        if frame.empty:
+            return pd.DataFrame(columns=["open", "high", "low", "close", "volume"],
+                                index=pd.DatetimeIndex([], tz="UTC"))
+        if "time" in frame.columns:
+            frame["time"] = pd.to_datetime(frame["time"], utc=True)
+            frame = frame.set_index("time")
+        elif not isinstance(frame.index, pd.DatetimeIndex):
+            frame.index = pd.to_datetime(frame.index, utc=True)
+        frame = frame.sort_index().loc[~frame.index.duplicated(keep="last")]
+        required = ["open", "high", "low", "close"]
+        if not all(column in frame.columns for column in required):
+            return pd.DataFrame(columns=required + ["volume"], index=pd.DatetimeIndex([], tz="UTC"))
+        if "volume" not in frame.columns:
+            frame["volume"] = 0.0
+        return frame[required + ["volume"]].astype(float)
+
+    @staticmethod
+    def _aggregate_m15(m5: pd.DataFrame) -> pd.DataFrame:
+        if m5.empty:
+            return m5
+        return m5.resample("15min", label="left", closed="left").agg({
+            "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"
+        }).dropna()
+
+    @staticmethod
+    def _complete_2h(m15: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+        if m15.empty:
+            return m15, m15.copy()
+        counts = m15["close"].resample("2h", label="left", closed="left").count()
+        htf = m15.resample("2h", label="left", closed="left").agg({
+            "open": "first", "high": "max", "low": "min", "close": "last"
+        }).dropna()
+        valid = counts[counts >= 8].index
+        return m15, htf.loc[htf.index.intersection(valid)]
+
+    def _trades(self, m5_rows: Any, *, active_only: bool = False) -> list[dict[str, Any]]:
+        m5 = self._frame(m5_rows)
+        m15 = self._aggregate_m15(m5)
+        if len(m15) < 12:
+            return []
+        m15, htf = self._complete_2h(m15)
+        purges = htf_purges(m15, htf)
+        result: list[dict[str, Any]] = []
+        latest_time = m15.index[-1]
+        latest_index = len(m15) - 1
+        for bucket, purge in purges.items():
+            position = htf.index.get_loc(bucket)
+            if position + 2 >= len(htf):
+                continue
+            start = int(m15.index.searchsorted(bucket))
+            window_end = htf.index[position + 2]
+            if active_only:
+                if latest_time < bucket or latest_time >= window_end:
+                    continue
+                end = min(latest_index + 1, int(m15.index.searchsorted(window_end)))
+            else:
+                end = int(m15.index.searchsorted(window_end))
+            if end <= start + 8:
+                continue
+            candidates = body_tbs_candidates(
+                m15, start, end, purge["side"],
+                min_gap=self.min_structure_gap,
+                max_gap=self.max_structure_gap,
+            )
+            for candidate in (candidates[-1:] if active_only else candidates[:1]):
+                trade = simulate_trade(m15, candidate, purge["side"], purge, purge["purge_time"])
+                if trade is None:
+                    continue
+                if trade.entry_body_ratio < self.min_entry_body_ratio:
+                    continue
+                if trade.stop_distance_atr < self.min_stop_distance_atr:
+                    continue
+                trade.instrument = ""
+                trade.symbol = ""
+                result.append(trade.__dict__.copy())
+        return result
 
     def signals(
         self,
@@ -28,64 +122,47 @@ class CrtTbsTrader:
         symbol: str = "",
         diagnostics: dict[str, int] | None = None,
     ) -> list[dict[str, Any]]:
-        """Generate one causal trade record per completed CRT purge window."""
-        m5, htf = complete_bars(frame)
+        trades = self._trades(frame, active_only=False)
+        for trade in trades:
+            trade["instrument"] = instrument
+            trade["symbol"] = symbol or instrument
         if diagnostics is not None:
-            diagnostics.update({
-                "crt_ranges_completed": max(0, len(htf) - 1),
-                "htf_purges": 0,
-                "purge_windows_checked": 0,
-                "purge_windows_too_short": 0,
-                "purge_windows_without_candidates": 0,
-                "candidate_signals": 0,
-                "candidates_rejected_occupied": 0,
-                "candidates_rejected_invalid_trade": 0,
-                "trades_accepted": 0,
-                "structure_points_checked": 0,
-                "equal_level_pairs": 0,
-                "body_close_sweeps": 0,
-                "reentries": 0,
-                "reentry_outside_window": 0,
-            })
-        purges = htf_purges(m5, htf)
-        if diagnostics is not None:
-            diagnostics["htf_purges"] = len(purges)
-        trades = []
-        for bucket, purge in purges.items():
-            bucket_position = htf.index.get_loc(bucket)
-            if bucket_position + 1 >= len(htf):
-                continue
-            if diagnostics is not None:
-                diagnostics["purge_windows_checked"] += 1
-            next_bucket = htf.index[bucket_position + 1]
-            start = int(m5.index.searchsorted(bucket))
-            end = int(m5.index.searchsorted(next_bucket))
-            if end <= start + 8:
-                if diagnostics is not None:
-                    diagnostics["purge_windows_too_short"] += 1
-                continue
-            candidates = body_tbs_candidates(m5, start, end, purge["side"], diagnostics)
-            if diagnostics is not None:
-                diagnostics["candidate_signals"] += len(candidates)
-            if not candidates:
-                if diagnostics is not None:
-                    diagnostics["purge_windows_without_candidates"] += 1
-                continue
-            trade = simulate_trade(m5, candidates[0], purge["side"], purge, purge["purge_time"])
-            if trade is None:
-                if diagnostics is not None:
-                    diagnostics["candidates_rejected_invalid_trade"] += 1
-                continue
-            trade.instrument, trade.symbol = instrument, symbol
-            trades.append(trade)
-            if diagnostics is not None:
-                diagnostics["trades_accepted"] += 1
-        return [trade.__dict__.copy() for trade in trades]
+            diagnostics.update({"execution_timeframe": "15m", "post_purge_window_hours": 4,
+                                "min_entry_body_ratio": self.min_entry_body_ratio,
+                                "min_stop_distance_atr": self.min_stop_distance_atr,
+                                "trades_accepted": len(trades)})
+        return trades
 
-    def report(self) -> dict[str, str]:
-        return {
-            "htf_rule": self.htf_rule,
-            "entry_rule": self.entry_rule,
-            "structure_gap": f"{self.min_structure_gap}-{self.max_structure_gap} M5 candles",
-            "execution": "research_only_no_orders",
-        }
+    def evaluate(self, h1_rows, m5_rows, setup_state=None, h4_rows=None, d1_rows=None) -> Decision:
+        trades = self._trades(m5_rows, active_only=True)
+        if not trades:
+            return Decision(status="NO_TRADE", reason_codes=["NO_ACTIVE_CRT_M15_SETUP"], evidence=self.report())
+        trade = trades[-1]
+        entry_time = str(trade["entry_time"])
+        previous = (setup_state or {}).get("last_entry_time") if isinstance(setup_state, dict) else None
+        if previous and str(previous) == entry_time:
+            return Decision(status="NO_TRADE", reason_codes=["DUPLICATE_CRT_SETUP"], evidence={"entry_time": entry_time, **self.report()})
+        entry = float(trade["entry"]); stop = float(trade["stop"]); target = float(trade["target"])
+        risk = abs(entry - stop)
+        rr = abs(target - entry) / risk if risk > 0 else 0.0
+        side = "LONG" if trade["side"] == "LONG" else "SHORT"
+        evidence = {**self.report(), "entry_time": entry_time, "htf_purge_time": trade["htf_purge_time"],
+                    "liquidity_level": trade["liquidity_level"], "entry_body_ratio": trade["entry_body_ratio"],
+                    "stop_distance_atr": trade["stop_distance_atr"], "target_distance_atr": trade["target_distance_atr"],
+                    "session": trade["session"], "volatility_regime": trade["volatility_regime"]}
+        return Decision(status="SIGNAL", reason_codes=["CRT_M15_4H", "BODY_RATIO_0_50", "STOP_DISTANCE_GE_0_75_ATR"],
+                        side=side, entry_price=entry, stop_price=stop, target_price=target,
+                        risk_reward=rr, evidence=evidence)
+
+    def report(self) -> dict[str, Any]:
+        return {"engine": "CRT_M15_4H_FILTERED", "htf_rule": self.htf_rule,
+                "execution_timeframe": self.execution_timeframe,
+                "post_purge_window_hours": self.post_purge_window_hours,
+                "structure_gap": f"{self.min_structure_gap}-{self.max_structure_gap} M15 candles",
+                "min_entry_body_ratio": self.min_entry_body_ratio,
+                "min_stop_distance_atr": self.min_stop_distance_atr,
+                "execution": "production_signal_interface_no_order_submission"}
+
+
+# Backward-compatible name for research callers.
+CrtTbsTrader = CrtM15Strategy
